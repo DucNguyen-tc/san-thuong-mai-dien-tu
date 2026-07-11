@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Link, useNavigate } from 'react-router-dom';
+
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Email không đúng định dạng' }),
