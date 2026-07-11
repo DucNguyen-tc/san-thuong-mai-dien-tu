@@ -1,0 +1,41 @@
+# Thư mục chứa thư viện dependencies (Node.js)
+node_modules/
+**/node_modules/
+
+# Các file cấu hình biến môi trường chứa thông tin nhạy cảm
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+**/.env
+**/.env.local
+
+# Các thư mục chứa bản build đóng gói
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
+**/out/
+
+# Các file log của hệ thống và package managers
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# File cấu hình của các IDE/Editor và OS
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
