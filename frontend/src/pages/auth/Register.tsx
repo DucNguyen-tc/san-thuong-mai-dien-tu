@@ -2,45 +2,36 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuthStore } from '@/store/useAuthStore';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '@/lib/axios';
 
-
-const loginSchema = z.object({
+const registerSchema = z.object({
+  fullName: z.string().min(2, { message: 'Tên phải chứa ít nhất 2 ký tự' }),
   email: z.string().email({ message: 'Email không đúng định dạng' }),
   password: z.string().min(6, { message: 'Mật khẩu phải chứa ít nhất 6 ký tự' }),
 });
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
-const Login: React.FC = () => {
+const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
   });
 
-  const onSubmit = async (data: LoginFormValues) => {
+  const onSubmit = async (data: RegisterFormValues) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post('/auth/login', data);
-      const { user, accessToken, refreshToken } = response.data.data;
-      
-      login(user, accessToken, refreshToken);
-      if (user.role === 'ADMIN') {
-        navigate('/admin');
-      } else {
-        navigate('/');
-      }
+      await api.post('/auth/register', data);
+      navigate('/login?registered=true');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
@@ -56,12 +47,12 @@ const Login: React.FC = () => {
     <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          Đăng nhập tài khoản
+          Tạo tài khoản mới
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Hoặc{' '}
-          <Link to="/register" className="font-medium text-primary hover:text-primary-container">
-            đăng ký tài khoản mới
+          Đã có tài khoản?{' '}
+          <Link to="/login" className="font-medium text-primary hover:text-primary-container">
+            Đăng nhập tại đây
           </Link>
         </p>
       </div>
@@ -75,6 +66,25 @@ const Login: React.FC = () => {
           )}
 
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                Họ và tên
+              </label>
+              <div className="mt-1">
+                <input
+                  id="fullName"
+                  type="text"
+                  className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border ${
+                    errors.fullName ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  {...register('fullName')}
+                />
+                {errors.fullName && (
+                  <p className="mt-1 text-xs text-red-600">{errors.fullName.message}</p>
+                )}
+              </div>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Địa chỉ Email
@@ -103,7 +113,6 @@ const Login: React.FC = () => {
                 <input
                   id="password"
                   type="password"
-                  autoComplete="current-password"
                   className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border ${
                     errors.password ? 'border-red-300' : 'border-gray-300'
                   }`}
@@ -115,33 +124,13 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Ghi nhớ tôi
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <a href="#" className="font-medium text-primary-600 hover:text-primary-500">
-                  Quên mật khẩu?
-                </a>
-              </div>
-            </div>
-
             <div>
               <button
                 type="submit"
                 disabled={loading}
                 className="flex w-full justify-center rounded-md border border-transparent bg-primary py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-primary-container focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 transition"
               >
-                {loading ? 'Đang xử lý...' : 'Đăng nhập'}
+                {loading ? 'Đang xử lý...' : 'Đăng ký'}
               </button>
             </div>
           </form>
@@ -159,7 +148,6 @@ const Login: React.FC = () => {
             <div className="mt-6 grid grid-cols-1 gap-3">
               <div>
                 <button
-                  type="button"
                   onClick={handleGoogleLogin}
                   className="inline-flex w-full justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-500 shadow-sm hover:bg-gray-50"
                 >
@@ -192,4 +180,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Register;

@@ -39,3 +39,7 @@ lerna-debug.log*
 *.sw?
 .DS_Store
 Thumbs.db
+
+# Tài liệu tham khảo không đẩy lên Git
+doc_reader/
+giao diện mẫu/
