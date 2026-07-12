@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
+import AuthCallback from '@/pages/auth/AuthCallback';
 import PageNotFound from '@/pages/PageNotFound';
 import { UserRoutes } from '@/routes/UserRoutes';
 import { AdminRoutes } from '@/routes/AdminRoutes';
@@ -27,6 +29,8 @@ const AppRoutes: React.FC = () => {
       <Routes>
         {/* Auth routes — không có Layout */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* User routes — bọc bởi UserLayout */}
         {UserRoutes}
