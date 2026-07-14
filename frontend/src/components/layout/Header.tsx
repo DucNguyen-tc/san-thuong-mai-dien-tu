@@ -32,7 +32,7 @@ export default function Header() {
         </Link>
 
         {/* Search Bar */}
-        <div className="flex-grow max-w-2xl relative">
+        <div className="flex-grow max-w-[42rem] relative">
           <div className="relative flex items-center bg-surface-container rounded-full border border-transparent focus-within:border-primary focus-within:bg-white transition-all duration-300">
             <Search size={18} className="ml-4 text-on-surface-variant shrink-0" />
             <input

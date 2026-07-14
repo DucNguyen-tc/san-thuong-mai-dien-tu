@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
-import api from '@/lib/axios';
 
 const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();

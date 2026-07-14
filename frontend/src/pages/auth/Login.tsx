@@ -54,7 +54,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="sm:mx-auto sm:w-full sm:max-w-[28rem]">
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
           Đăng nhập tài khoản
         </h2>
@@ -66,7 +66,7 @@ const Login: React.FC = () => {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-[28rem]">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {error && (
             <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700">

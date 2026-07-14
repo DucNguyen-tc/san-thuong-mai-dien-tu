@@ -33,11 +33,11 @@ const Home: React.FC = () => {
       {/* Hero Section */}
       <section className="relative bg-gray-900 text-white overflow-hidden py-24 px-6 sm:px-12 lg:px-24">
         <div className="absolute inset-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
-        <div className="relative max-w-4xl mx-auto text-center">
+        <div className="relative max-w-[56rem] mx-auto text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
             Mua sắm thông minh cùng <span className="text-primary-400">SanThuongMai</span>
           </h1>
-          <p className="text-lg sm:text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-gray-300 mb-8 max-w-[42rem] mx-auto">
             Khám phá hàng ngàn sản phẩm chất lượng vượt trội từ thời trang, điện tử đến đồ gia dụng với giá cả tốt nhất thị trường.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -60,7 +60,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* Featured Products */}
-      <section id="featured" className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+      <section id="featured" className="max-w-[80rem] mx-auto py-16 px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-end mb-8">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-900">Sản phẩm nổi bật</h2>

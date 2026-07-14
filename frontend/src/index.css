@@ -70,8 +70,32 @@
   /* --- Font Family --- */
   --font-sans: "Inter", system-ui, Avenir, Helvetica, Arial, sans-serif;
 
-  /* --- Spacing extras --- */
+  /* --- Spacing --- */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 40px;
+  --spacing-base: 4px;
+  --spacing-gutter: 20px;
   --spacing-container-max: 1280px;
+
+  /* --- Typography --- */
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--font-weight: 700;
+
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 600;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-md--font-weight: 400;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-label-md--font-weight: 600;
 }
 
 /* ============================================================
@@ -114,6 +138,12 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Các class font cũ do HTML xuất ra có thể map cứng */
+.font-headline-lg { font-family: var(--font-sans); }
+.font-headline-md { font-family: var(--font-sans); }
+.font-body-md { font-family: var(--font-sans); }
+.font-label-md { font-family: var(--font-sans); }
 
 /* Product card hover lift effect */
 .product-card {

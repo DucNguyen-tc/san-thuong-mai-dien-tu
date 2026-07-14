@@ -1,7 +1,8 @@
 import { Route } from 'react-router-dom';
 import UserLayout from '@/components/layout/UserLayout';
 import Home from '@/pages/user/Home';
-
+import Cart from '@/pages/user/Cart';
+import Checkout from '@/pages/user/Checkout';
 /**
  * UserRoutes — Tập hợp tất cả routes dành cho khu vực người dùng
  * Được bọc bởi UserLayout (Header + Footer)
@@ -12,11 +13,11 @@ import Home from '@/pages/user/Home';
 export const UserRoutes = (
   <Route element={<UserLayout />}>
     <Route path="/" element={<Home />} />
+    <Route path="/cart" element={<Cart />} />
+    <Route path="/checkout" element={<Checkout />} />
     {/* Thêm routes user tại đây khi phát triển thêm:
     <Route path="/products" element={<ProductList />} />
     <Route path="/products/:id" element={<ProductDetail />} />
-    <Route path="/cart" element={<Cart />} />
-    <Route path="/checkout" element={<Checkout />} />
     <Route path="/dashboard" element={<UserDashboard />} />
     */}
   </Route>

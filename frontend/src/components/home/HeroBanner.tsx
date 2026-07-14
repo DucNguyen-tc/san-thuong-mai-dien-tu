@@ -21,10 +21,10 @@ export default function HeroBanner() {
         <span className="text-[#fe9800] font-bold tracking-widest uppercase text-sm mb-4">
           {slide.tag}
         </span>
-        <h1 className="text-4xl lg:text-5xl font-bold max-w-xl leading-tight hero-text-shadow">
+        <h1 className="text-4xl lg:text-5xl font-bold max-w-[36rem] leading-tight hero-text-shadow">
           {slide.title}
         </h1>
-        <p className="mt-4 text-base lg:text-lg max-w-lg opacity-90 leading-relaxed">
+        <p className="mt-4 text-base lg:text-lg max-w-[32rem] opacity-90 leading-relaxed">
           {slide.subtitle}
         </p>
         <div className="mt-8">
