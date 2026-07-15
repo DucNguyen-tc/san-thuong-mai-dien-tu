@@ -13,7 +13,7 @@ import ProductManagement from '@/pages/admin/ProductManagement';
  * Thêm route admin mới: đặt thêm <Route> bên trong AdminLayout wrapper này
  */
 export const AdminRoutes = (
-// <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
+  <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
     <Route element={<AdminLayout />}>
       <Route path="/admin" element={<Dashboard />} />
       <Route path="/admin/products" element={<ProductManagement />} />
@@ -25,7 +25,7 @@ export const AdminRoutes = (
       <Route path="/admin/settings" element={<Settings />} />
       */}
     </Route>
-  // </Route>
+  </Route>
 );
 export default AdminRoutes;
 
