@@ -1,0 +1,202 @@
+import { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Heart, Search, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
+import { getProductById } from '@/services/productService';
+import type { CatalogProduct } from '@/types/catalog';
+import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
+import { formatPrice } from '@/utils/formatters';
+
+export default function ProductDetail() {
+  const { id } = useParams();
+  const [product, setProduct] = useState<CatalogProduct | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('desc');
+
+  useEffect(() => {
+    if (!id) return;
+    let isCancelled = false;
+    setIsLoading(true);
+
+    getProductById(id)
+      .then((data) => {
+        if (!isCancelled) setProduct(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false);
+      });
+
+    return () => { isCancelled = true; };
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center text-gray-500">
+        Không tìm thấy sản phẩm
+      </div>
+    );
+  }
+
+  const primaryImage = getPrimaryImageUrl(product) || 'https://via.placeholder.com/600';
+  const price = getDisplayPrice(product);
+
+  return (
+    <div className="bg-[#f8f9fa] min-h-screen pb-16">
+
+
+      <div className="max-w-7xl mx-auto px-4 mt-6">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+          <Link to="/" className="hover:text-gray-900">Trang chủ</Link>
+          <ChevronRight size={14} />
+          <Link to="/products" className="hover:text-gray-900">{product.category?.name || 'Danh mục'}</Link>
+          <ChevronRight size={14} />
+          <span className="text-gray-900 font-medium">{product.name}</span>
+        </div>
+
+        {/* Product Top */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col md:flex-row gap-10">
+          
+          {/* Left: Images */}
+          <div className="w-full md:w-[45%] flex-shrink-0">
+            <div className="relative aspect-square bg-gray-50 rounded-xl overflow-hidden mb-4 border border-gray-100">
+              <img src={primaryImage} alt={product.name} className="w-full h-full object-contain p-4" />
+              <div className="absolute top-4 left-4 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full">-20%</div>
+              <button className="absolute top-4 right-4 w-10 h-10 bg-white shadow rounded-full flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+                <Heart size={20} />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-5 gap-3">
+              {[primaryImage, 'https://via.placeholder.com/150/e0e0e0', 'https://via.placeholder.com/150/d0d0d0', 'https://via.placeholder.com/150/c0c0c0'].map((img, idx) => (
+                <div key={idx} className={`aspect-square rounded-lg border-2 overflow-hidden cursor-pointer ${idx === 0 ? 'border-blue-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                   <img src={img} className="w-full h-full object-cover" />
+                </div>
+              ))}
+              <div className="aspect-square rounded-lg border-2 border-gray-200 relative overflow-hidden cursor-pointer group">
+                 <img src={primaryImage} className="w-full h-full object-cover blur-[2px]" />
+                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-white font-medium group-hover:bg-black/30">+3</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Info */}
+          <div className="flex-1 flex flex-col">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2 uppercase text-blue-600 tracking-wide text-xs">V-SHOP EXCLUSIVE</h1>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">{product.name}</h2>
+            
+            <div className="flex items-center gap-4 mb-4">
+               <div className="flex items-center gap-1">
+                 {[1,2,3,4,5].map(s => <Star key={s} size={16} className={s <= 4 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"} />)}
+                 <span className="text-sm text-gray-600 ml-1">4.8 (124 đánh giá)</span>
+               </div>
+               <div className="w-px h-4 bg-gray-300"></div>
+               <span className="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-sm uppercase tracking-wide">Còn hàng</span>
+            </div>
+
+            <div className="flex items-end gap-3 mb-6">
+              <span className="text-3xl font-bold text-blue-600">{formatPrice(price)}</span>
+              <span className="text-lg text-gray-400 line-through mb-1">{formatPrice(price * 1.25)}</span>
+            </div>
+
+            {/* Colors */}
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Màu sắc: <span className="font-normal text-gray-600">Midnight Blue</span></h3>
+              <div className="flex items-center gap-3">
+                <button className="w-8 h-8 rounded-full bg-[#1b365d] ring-2 ring-offset-2 ring-blue-600"></button>
+                <button className="w-8 h-8 rounded-full bg-[#2c3e50] ring-1 ring-gray-300 hover:ring-gray-400"></button>
+                <button className="w-8 h-8 rounded-full bg-[#e8e8e8] ring-1 ring-gray-300 hover:ring-gray-400"></button>
+              </div>
+            </div>
+
+            {/* Storage */}
+            <div className="mb-8">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Dung lượng: <span className="font-normal text-gray-600">256GB</span></h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <button className="px-6 py-2 rounded border-2 border-blue-600 bg-blue-50 text-blue-700 font-medium text-sm">256GB</button>
+                <button className="px-6 py-2 rounded border border-gray-300 hover:border-gray-400 text-gray-700 text-sm">512GB</button>
+                <button className="px-6 py-2 rounded border border-gray-300 hover:border-gray-400 text-gray-700 text-sm">1TB</button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <button className="py-3 bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold rounded-lg transition-colors shadow-sm">Mua Ngay</button>
+              <button className="py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                <ShoppingCart size={18} /> Thêm vào giỏ
+              </button>
+            </div>
+
+            {/* Benefits */}
+            <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm text-gray-600 bg-gray-50 p-4 rounded-xl">
+               <div className="flex items-center gap-2"><Truck size={18} className="text-blue-600" /> Miễn phí giao hàng</div>
+               <div className="flex items-center gap-2"><ShieldCheck size={18} className="text-blue-600" /> Bảo hành 24 tháng</div>
+               <div className="flex items-center gap-2"><RefreshCcw size={18} className="text-blue-600" /> 7 ngày đổi trả</div>
+               <div className="flex items-center gap-2"><CreditCard size={18} className="text-blue-600" /> Trả góp 0%</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-8 bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="flex border-b border-gray-200">
+            <button onClick={() => setActiveTab('desc')} className={`px-8 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'desc' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Mô tả sản phẩm</button>
+            <button onClick={() => setActiveTab('spec')} className={`px-8 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'spec' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Thông số kỹ thuật</button>
+            <button onClick={() => setActiveTab('review')} className={`px-8 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'review' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Đánh giá khách hàng (124)</button>
+          </div>
+          
+          <div className="p-8">
+            {activeTab === 'desc' && (
+              <div className="prose max-w-none text-gray-600 text-sm leading-relaxed">
+                <p className="mb-6">{product.description}</p>
+                <p className="mb-6">Sản phẩm định nghĩa lại khái niệm về thiết bị di động cao cấp. Với hệ thống camera tân tiến nhất, màn hình mượt mà và hiệu năng đỉnh cao từ chip, đây là người bạn đồng hành hoàn hảo cho công việc và giải trí.</p>
+                <div className="bg-gray-50 rounded-xl overflow-hidden flex items-center">
+                  <img src="https://via.placeholder.com/600x300?text=Feature+Image" className="w-1/2 object-cover" />
+                  <div className="p-8 w-1/2">
+                    <h4 className="text-lg font-bold text-gray-900 mb-2">Màn hình Đỉnh cao</h4>
+                    <p>Trải nghiệm thị giác không giới hạn với độ sáng lên tới 2000 nits, giúp bạn dễ dàng sử dụng ngay cả dưới ánh nắng gắt. Công nghệ Pro-Refresh tự động điều chỉnh tần số quét.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activeTab === 'spec' && <div className="text-sm text-gray-600">Nội dung thông số...</div>}
+            {activeTab === 'review' && <div className="text-sm text-gray-600">Nội dung đánh giá...</div>}
+          </div>
+        </div>
+
+        {/* Similar Products */}
+        <div className="mt-12 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">Sản phẩm tương tự <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-2 relative -top-1">GỢI Ý</span></h2>
+            <div className="flex gap-2">
+               <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50"><ChevronLeft size={20} /></button>
+               <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50"><ChevronRight size={20} /></button>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-5">
+             {[1,2,3,4].map(i => (
+               <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 relative group hover:shadow-lg transition-shadow">
+                 <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 z-10"><Heart size={18} /></button>
+                 <div className="aspect-square bg-gray-50 rounded-lg mb-4 overflow-hidden">
+                    <img src={`https://via.placeholder.com/200?text=Tuong+tu+${i}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                 </div>
+                 <h4 className="text-sm font-medium text-gray-900 mb-1">Tai nghe V-Audio Pro X</h4>
+                 <div className="text-blue-600 font-bold mb-3">4.250.000đ</div>
+                 <button className="w-full py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded text-sm font-medium flex justify-center items-center gap-2"><ShoppingCart size={16} /></button>
+               </div>
+             ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

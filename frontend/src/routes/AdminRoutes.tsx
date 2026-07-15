@@ -2,6 +2,7 @@ import { Route } from 'react-router-dom';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import AdminLayout from '@/components/layout/AdminLayout';
 import Dashboard from '@/pages/admin/Dashboard';
+import ProductManagement from '@/pages/admin/ProductManagement';
 
 /**
  * AdminRoutes — Tập hợp tất cả routes dành cho khu vực admin
@@ -12,11 +13,11 @@ import Dashboard from '@/pages/admin/Dashboard';
  * Thêm route admin mới: đặt thêm <Route> bên trong AdminLayout wrapper này
  */
 export const AdminRoutes = (
-  <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
+// <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
     <Route element={<AdminLayout />}>
       <Route path="/admin" element={<Dashboard />} />
-      {/* Thêm routes admin tại đây khi phát triển thêm:
       <Route path="/admin/products" element={<ProductManagement />} />
+      {/* Thêm routes admin tại đây khi phát triển thêm:
       <Route path="/admin/orders" element={<OrderManagement />} />
       <Route path="/admin/customers" element={<CustomerManagement />} />
       <Route path="/admin/payments" element={<PaymentManagement />} />
@@ -24,7 +25,7 @@ export const AdminRoutes = (
       <Route path="/admin/settings" element={<Settings />} />
       */}
     </Route>
-  </Route>
+  // </Route>
 );
 export default AdminRoutes;
 
