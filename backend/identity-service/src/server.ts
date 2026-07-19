@@ -1,6 +1,11 @@
 import app from './app';
 import { prisma } from './config/prisma';
 
+// Patch BigInt serialization globally
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {

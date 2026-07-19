@@ -19,7 +19,7 @@ export default function ProtectedRoute({ requiredRole }: ProtectedRouteProps) {
 
   // 1. Chưa đăng nhập
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // 2. Không đủ quyền

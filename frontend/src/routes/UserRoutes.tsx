@@ -1,6 +1,8 @@
 import { Route } from 'react-router-dom';
 import UserLayout from '@/components/layout/UserLayout';
+import ProtectedRoute from '@/routes/ProtectedRoute';
 import Home from '@/pages/user/Home';
+import ProfileLayout from '@/pages/user/profile/ProfileLayout';
 
 /**
  * UserRoutes — Tập hợp tất cả routes dành cho khu vực người dùng
@@ -12,6 +14,9 @@ import Home from '@/pages/user/Home';
 export const UserRoutes = (
   <Route element={<UserLayout />}>
     <Route path="/" element={<Home />} />
+    <Route element={<ProtectedRoute />}>
+      <Route path="/profile" element={<ProfileLayout />} />
+    </Route>
     {/* Thêm routes user tại đây khi phát triển thêm:
     <Route path="/products" element={<ProductList />} />
     <Route path="/products/:id" element={<ProductDetail />} />
