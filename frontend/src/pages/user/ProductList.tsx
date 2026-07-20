@@ -1,20 +1,38 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronRight, ChevronDown, Heart, Search, ShoppingCart, Star, Filter, ArrowRight } from 'lucide-react';
 import { getProducts } from '@/services/productService';
-import type { CatalogProduct } from '@/types/catalog';
+import { getCategoryTree } from '@/services/categoryService';
+import type { CatalogProduct, Category } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
 
 export default function ProductList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get('search') || '';
+  const categoryId = searchParams.get('category_id') || '';
+
   const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Lấy danh mục
+    getCategoryTree()
+      .then(res => setCategories(res))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
     setIsLoading(true);
 
-    getProducts({ page: 1, limit: 12 })
+    getProducts({ 
+      page: 1, 
+      limit: 12, 
+      search: search || undefined, 
+      category_id: categoryId || undefined 
+    })
       .then((result) => {
         if (!isCancelled) setProducts(result.items);
       })
@@ -28,11 +46,10 @@ export default function ProductList() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [search, categoryId]);
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen pb-16">
-
 
       <div className="max-w-7xl mx-auto px-4 mt-6 flex gap-6">
         {/* Sidebar Bộ lọc */}
@@ -46,15 +63,54 @@ export default function ProductList() {
             <div className="mb-6">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Danh mục</h3>
               <div className="space-y-2.5">
-                {['Điện thoại & Tablet', 'Laptop & Gaming', 'Phụ kiện công nghệ', 'Âm thanh'].map((cat, idx) => (
-                  <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      defaultChecked={idx === 1}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <span className={`text-sm ${idx === 1 ? 'text-blue-600 font-medium' : 'text-gray-600 group-hover:text-gray-900'}`}>{cat}</span>
-                  </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="radio" 
+                    name="category"
+                    checked={!categoryId}
+                    onChange={() => {
+                      searchParams.delete('category_id');
+                      setSearchParams(searchParams);
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className={`text-sm ${!categoryId ? 'text-blue-600 font-medium' : 'text-gray-600 group-hover:text-gray-900'}`}>Tất cả</span>
+                </label>
+                {categories.map((cat) => (
+                  <div key={cat.id} className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input 
+                        type="radio" 
+                        name="category"
+                        checked={categoryId === cat.id}
+                        onChange={() => {
+                          searchParams.set('category_id', cat.id);
+                          setSearchParams(searchParams);
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className={`text-sm ${categoryId === cat.id ? 'text-blue-600 font-medium' : 'text-gray-600 group-hover:text-gray-900'}`}>{cat.name}</span>
+                    </label>
+                    {cat.children && cat.children.length > 0 && (
+                      <div className="pl-6 space-y-2">
+                        {cat.children.map(child => (
+                          <label key={child.id} className="flex items-center gap-3 cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name="category"
+                              checked={categoryId === child.id}
+                              onChange={() => {
+                                searchParams.set('category_id', child.id);
+                                setSearchParams(searchParams);
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <span className={`text-sm ${categoryId === child.id ? 'text-blue-600 font-medium' : 'text-gray-600 group-hover:text-gray-900'}`}>{child.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

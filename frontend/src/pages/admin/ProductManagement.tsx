@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Plus, Trash2, Search, Filter, TrendingUp } from 'lucide-react';
-import { getProducts } from '@/services/productService';
+import { Loader2, Pencil, Plus, Trash2, Search, Filter, TrendingUp, Eye } from 'lucide-react';
+import { getProducts, deleteProduct } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl, getTotalAvailableStock } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
+import ProductModal from '@/components/admin/ProductModal';
 
 export default function ProductManagement() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<CatalogProduct | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<CatalogProduct | null>(null);
 
-  useEffect(() => {
+  const fetchProducts = () => {
     let isCancelled = false;
     setIsLoading(true);
 
@@ -25,11 +29,39 @@ export default function ProductManagement() {
     return () => {
       isCancelled = true;
     };
+  };
+
+  useEffect(() => {
+    return fetchProducts();
   }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bạn có chắc muốn xóa sản phẩm này?')) return;
+    try {
+      await deleteProduct(id);
+      fetchProducts();
+    } catch (error) {
+      alert('Lỗi khi xóa sản phẩm');
+    }
+  };
+
+  const handleEdit = (product: CatalogProduct) => {
+    setEditingProduct(product);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen p-8">
-      
+      <ProductModal 
+        isOpen={isModalOpen} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingProduct(null);
+        }} 
+        onSuccess={() => fetchProducts()} 
+        editingProduct={editingProduct}
+      />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
@@ -39,7 +71,10 @@ export default function ProductManagement() {
           </p>
         </div>
         <button
-          disabled
+          onClick={() => {
+            setEditingProduct(null);
+            setIsModalOpen(true);
+          }}
           className="flex items-center gap-2 px-5 py-2.5 bg-[#0052cc] hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
         >
           <Plus size={18} />
@@ -122,8 +157,9 @@ export default function ProductManagement() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-end gap-3">
-                          <button className="text-gray-400 hover:text-gray-700 transition-colors"><Pencil size={18} /></button>
-                          <button className="text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                          <button className="text-gray-400 hover:text-blue-600 transition-colors" onClick={() => setViewingProduct(product)} title="Xem chi tiết"><Eye size={18} /></button>
+                          <button className="text-gray-400 hover:text-gray-900 transition-colors" onClick={() => handleEdit(product)} title="Sửa"><Pencil size={18} /></button>
+                          <button className="text-gray-400 hover:text-red-600 transition-colors" onClick={() => handleDelete(product.id)} title="Xóa"><Trash2 size={18} /></button>
                         </div>
                       </td>
                     </tr>
@@ -173,6 +209,52 @@ export default function ProductManagement() {
           </div>
         </div>
       </div>
+
+      {/* View Modal */}
+      {viewingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Chi tiết sản phẩm</h2>
+              <button onClick={() => setViewingProduct(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-6 space-y-4 text-sm text-gray-700">
+              <div className="flex justify-center mb-4">
+                <div className="w-32 h-32 bg-gray-50 rounded-xl border border-gray-200 p-2">
+                  <img src={getPrimaryImageUrl(viewingProduct) || 'https://via.placeholder.com/150'} alt="" className="w-full h-full object-contain" />
+                </div>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Tên sản phẩm:</span>
+                <span className="font-bold text-gray-900">{viewingProduct.name}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Mã SKU:</span>
+                <span>APP-{viewingProduct.id.split('-')[0].toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Danh mục:</span>
+                <span>{viewingProduct.category?.name || 'Không có'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Giá cơ bản:</span>
+                <span className="font-bold text-blue-600">{formatPrice(getDisplayPrice(viewingProduct))}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Tồn kho:</span>
+                <span>{getTotalAvailableStock(viewingProduct)} sản phẩm</span>
+              </div>
+              <div className="border-b pb-2">
+                <span className="font-semibold text-gray-500 block mb-1">Mô tả:</span>
+                <p className="text-gray-600 whitespace-pre-wrap">{viewingProduct.description || 'Không có mô tả'}</p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button onClick={() => setViewingProduct(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-sm font-medium">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
