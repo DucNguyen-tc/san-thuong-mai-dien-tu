@@ -1,104 +1,84 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { CartService } from '../services/cart.service';
+import { sendResponse } from '../utils/response';
+import { serializeBigInt } from '../utils/serializeBigInt';
+import { AddItemInput, UpdateItemInput } from '../schemas/cart.schema';
+
+const cartService = new CartService();
 
 /**
- * CartController — Xử lý các HTTP Request rỗng cho Giỏ hàng
+ * Lấy customerId từ Header được Gateway truyền sang.
+ * (Gateway đã verify token và gán ID vào x-user-id).
  */
+const getCustomerId = (req: Request) => {
+  const customerId = req.headers['x-user-id'];
+  if (!customerId || typeof customerId !== 'string') {
+    throw new Error('Unauthorized'); // Nên throw error auth nhưng gateway lo việc này rồi
+  }
+  return customerId;
+};
+
 export class CartController {
   
-  // GET /api/cart
-  public async getCart(req: Request, res: Response): Promise<void> {
+  public async getCart(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customerId = req.headers['x-customer-id'] || 'mock-customer-id';
-      res.status(200).json({
-        success: true,
-        message: 'Lấy thông tin giỏ hàng thành công (Mock)',
-        data: {
-          id: 'mock-cart-uuid',
-          customer_id: customerId,
-          status: 'ACTIVE',
-          items: [
-            {
-              id: 1,
-              product_id: 'mock-product-uuid-1',
-              variant_id: 'mock-variant-uuid-1',
-              product_name_snapshot: 'Sản phẩm mẫu 1',
-              variant_attributes_snapshot: { color: 'Black', size: 'L' },
-              unit_price_snapshot: 150000,
-              quantity: 2,
-              added_at: new Date().toISOString()
-            }
-          ]
-        }
-      });
+      const customerId = getCustomerId(req);
+      const cart = await cartService.getCart(customerId);
+      
+      const message = cart.isPriceUpdated 
+        ? 'Giỏ hàng có sự cập nhật giá từ cửa hàng'
+        : 'Lấy thông tin giỏ hàng thành công';
+        
+      sendResponse(res, 200, true, message, serializeBigInt(cart));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // POST /api/cart/items
-  public async addItem(req: Request, res: Response): Promise<void> {
+  public async addItem(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { product_id, variant_id, quantity, product_name_snapshot, variant_attributes_snapshot, unit_price_snapshot } = req.body;
-      res.status(201).json({
-        success: true,
-        message: 'Thêm sản phẩm vào giỏ hàng thành công (Mock)',
-        data: {
-          id: 2,
-          cart_id: 'mock-cart-uuid',
-          product_id,
-          variant_id,
-          product_name_snapshot,
-          variant_attributes_snapshot,
-          unit_price_snapshot,
-          quantity: quantity || 1,
-          added_at: new Date().toISOString()
-        }
-      });
+      const customerId = getCustomerId(req);
+      const input = req.body as AddItemInput;
+      const item = await cartService.addItem(customerId, input);
+      
+      sendResponse(res, 201, true, 'Thêm sản phẩm vào giỏ hàng thành công', serializeBigInt(item));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // PUT /api/cart/items/:id
-  public async updateItem(req: Request, res: Response): Promise<void> {
+  public async updateItem(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
-      const { quantity } = req.body;
-      res.status(200).json({
-        success: true,
-        message: `Cập nhật số lượng item ${id} thành công (Mock)`,
-        data: {
-          id: parseInt(id, 10) || 1,
-          quantity
-        }
-      });
+      const customerId = getCustomerId(req);
+      const itemId = BigInt(req.params.id);
+      const input = req.body as UpdateItemInput;
+      
+      const updatedItem = await cartService.updateItemQuantity(customerId, itemId, input.quantity);
+      sendResponse(res, 200, true, 'Cập nhật số lượng thành công', serializeBigInt(updatedItem));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // DELETE /api/cart/items/:id
-  public async removeItem(req: Request, res: Response): Promise<void> {
+  public async removeItem(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = req.params;
-      res.status(200).json({
-        success: true,
-        message: `Xóa item ${id} khỏi giỏ hàng thành công (Mock)`
-      });
+      const customerId = getCustomerId(req);
+      const itemId = BigInt(req.params.id);
+      
+      await cartService.removeItem(customerId, itemId);
+      sendResponse(res, 200, true, 'Xóa sản phẩm khỏi giỏ thành công');
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // DELETE /api/cart
-  public async clearCart(req: Request, res: Response): Promise<void> {
+  public async clearCart(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      res.status(200).json({
-        success: true,
-        message: 'Làm trống giỏ hàng thành công (Mock)'
-      });
+      const customerId = getCustomerId(req);
+      await cartService.clearCart(customerId);
+      sendResponse(res, 200, true, 'Làm trống giỏ hàng thành công');
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 }

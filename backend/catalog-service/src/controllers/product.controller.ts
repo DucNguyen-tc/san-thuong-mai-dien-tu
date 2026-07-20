@@ -5,8 +5,6 @@ import { serializeBigInt } from '../utils/serializeBigInt';
 import {
   CreateProductInput,
   UpdateProductInput,
-  CreateVariantInput,
-  UpdateVariantInput,
 } from '../schemas/product.schema';
 
 const productService = new ProductService();
@@ -39,6 +37,8 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+
+
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = req.body as CreateProductInput;
@@ -68,31 +68,4 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const addVariant = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const input = req.body as CreateVariantInput;
-    const variant = await productService.addVariant(req.params.id, input);
-    return sendResponse(res, 201, true, 'Thêm biến thể sản phẩm thành công', variant);
-  } catch (error) {
-    next(error);
-  }
-};
 
-export const updateVariant = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const input = req.body as UpdateVariantInput;
-    const variant = await productService.updateVariant(req.params.variantId, input);
-    return sendResponse(res, 200, true, 'Cập nhật biến thể sản phẩm thành công', variant);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const deleteVariant = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await productService.removeVariant(req.params.variantId);
-    return sendResponse(res, 200, true, 'Đã tắt bán biến thể sản phẩm thành công');
-  } catch (error) {
-    next(error);
-  }
-};

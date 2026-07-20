@@ -1,11 +1,19 @@
 import { z } from 'zod';
+import {
+  variantInputSchema,
+  createVariantSchema,
+  updateVariantSchema,
+  CreateVariantInput,
+  UpdateVariantInput,
+} from './variant.schema';
 
-export const variantInputSchema = z.object({
-  attributes: z.record(z.string(), z.string()).default({}), // vd: { color: "Đỏ", size: "M" }
-  price: z.number().positive('Giá phải lớn hơn 0'),
-  stock_quantity: z.number().int().nonnegative().default(0),
-  is_active: z.boolean().default(true),
-});
+export {
+  variantInputSchema,
+  createVariantSchema,
+  updateVariantSchema,
+  CreateVariantInput,
+  UpdateVariantInput,
+};
 
 export const imageInputSchema = z.object({
   url: z.string().url('URL ảnh không hợp lệ'),
@@ -29,16 +37,6 @@ export const updateProductSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
-export const createVariantSchema = variantInputSchema;
-
-export const updateVariantSchema = z.object({
-  attributes: z.record(z.string(), z.string()).optional(),
-  price: z.number().positive().optional(),
-  stock_quantity: z.number().int().nonnegative().optional(),
-  is_active: z.boolean().optional(),
-});
-
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
-export type CreateVariantInput = z.infer<typeof createVariantSchema>;
-export type UpdateVariantInput = z.infer<typeof updateVariantSchema>;
+

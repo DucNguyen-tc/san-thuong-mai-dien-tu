@@ -4,8 +4,6 @@ import { slugify } from '../utils/slugify';
 import {
   CreateProductInput,
   UpdateProductInput,
-  CreateVariantInput,
-  UpdateVariantInput,
 } from '../schemas/product.schema';
 
 const productInclude = {
@@ -125,29 +123,5 @@ export class ProductService {
   async remove(id: string) {
     await this.getById(id);
     await prisma.product.update({ where: { id }, data: { is_active: false } });
-  }
-
-  async addVariant(productId: string, input: CreateVariantInput) {
-    await this.getById(productId);
-    return prisma.productVariant.create({
-      data: { ...input, product_id: productId },
-    });
-  }
-
-  async updateVariant(variantId: string, input: UpdateVariantInput) {
-    const variant = await prisma.productVariant.findUnique({ where: { id: variantId } });
-    if (!variant) throw new NotFoundError('Không tìm thấy biến thể sản phẩm');
-
-    return prisma.productVariant.update({
-      where: { id: variantId },
-      data: input,
-    });
-  }
-
-  /** Soft delete biến thể (tắt bán), không xóa cứng để giữ lịch sử đơn hàng cũ hợp lệ */
-  async removeVariant(variantId: string) {
-    const variant = await prisma.productVariant.findUnique({ where: { id: variantId } });
-    if (!variant) throw new NotFoundError('Không tìm thấy biến thể sản phẩm');
-    await prisma.productVariant.update({ where: { id: variantId }, data: { is_active: false } });
   }
 }

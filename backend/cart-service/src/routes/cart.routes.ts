@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { CartController } from '../controllers/cart.controller';
+import { validateBody } from '../middlewares/validate';
+import { addItemSchema, updateItemSchema } from '../schemas/cart.schema';
 
 const router = Router();
 const cartController = new CartController();
@@ -8,10 +10,18 @@ const cartController = new CartController();
 router.get('/', cartController.getCart.bind(cartController));
 
 // POST /api/cart/items - Thêm sản phẩm vào giỏ
-router.post('/items', cartController.addItem.bind(cartController));
+router.post(
+  '/items',
+  validateBody(addItemSchema),
+  cartController.addItem.bind(cartController)
+);
 
 // PUT /api/cart/items/:id - Cập nhật số lượng của một item
-router.put('/items/:id', cartController.updateItem.bind(cartController));
+router.put(
+  '/items/:id',
+  validateBody(updateItemSchema),
+  cartController.updateItem.bind(cartController)
+);
 
 // DELETE /api/cart/items/:id - Xóa một item khỏi giỏ
 router.delete('/items/:id', cartController.removeItem.bind(cartController));

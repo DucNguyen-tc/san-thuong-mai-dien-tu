@@ -1,135 +1,95 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { OrderService } from '../services/order.service';
+import { sendResponse } from '../utils/response';
+import { serializeBigInt } from '../utils/serializeBigInt';
+import { CreateOrderInput } from '../schemas/order.schema';
+import { OrderStatus } from '@prisma/client';
 
-/**
- * OrderController — Xử lý các HTTP Request rỗng cho Đơn hàng
- */
+const orderService = new OrderService();
+
+const getAuthUser = (req: Request) => {
+  const customerId = req.headers['x-user-id'];
+  const role = req.headers['x-user-role'];
+
+  if (!customerId || typeof customerId !== 'string') {
+    throw new Error('Unauthorized'); // Gateway lo phần này nhưng phòng hờ
+  }
+
+  return {
+    customerId,
+    role: typeof role === 'string' ? role : 'USER',
+  };
+};
+
 export class OrderController {
-
-  // POST /api/orders
-  public async createOrder(req: Request, res: Response): Promise<void> {
+  
+  public async createOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { customer_id, shipping_address, payment_method, items } = req.body;
-      res.status(201).json({
-        success: true,
-        message: 'Tạo đơn hàng thành công (Mock)',
-        data: {
-          id: 'mock-order-uuid',
-          customer_id: customer_id || 'mock-customer-id',
-          status: 'PENDING_PAYMENT',
-          shipping_address: shipping_address || 'Địa chỉ mặc định',
-          payment_method: payment_method || 'CASH',
-          subtotal: 300000,
-          discount_amount: 0,
-          shipping_fee: 30000,
-          total_amount: 330000,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          items: items || []
-        }
-      });
+      const { customerId } = getAuthUser(req);
+      const input = req.body as CreateOrderInput;
+      
+      const order = await orderService.createOrder(customerId, input);
+      sendResponse(res, 201, true, 'Tạo đơn hàng thành công', serializeBigInt(order));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // GET /api/orders
-  public async getOrders(req: Request, res: Response): Promise<void> {
+  public async getOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customerId = req.query.customer_id || 'mock-customer-id';
-      res.status(200).json({
-        success: true,
-        message: 'Lấy danh sách đơn hàng thành công (Mock)',
-        data: [
-          {
-            id: 'mock-order-uuid',
-            customer_id: customerId,
-            status: 'PENDING_PAYMENT',
-            shipping_address: '123 Đường ABC, Quận 1, TP. HCM',
-            payment_method: 'VNPAY',
-            subtotal: 500000,
-            discount_amount: 50000,
-            shipping_fee: 20000,
-            total_amount: 470000,
-            created_at: new Date().toISOString()
-          }
-        ]
-      });
+      const { customerId, role } = getAuthUser(req);
+      const status = req.query.status as OrderStatus | undefined;
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+      const result = await orderService.getOrders(customerId, role, { status, page, limit });
+      sendResponse(res, 200, true, 'Lấy danh sách đơn hàng thành công', serializeBigInt(result));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // GET /api/orders/:id
-  public async getOrderById(req: Request, res: Response): Promise<void> {
+  public async getOrderById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const { customerId, role } = getAuthUser(req);
       const { id } = req.params;
-      res.status(200).json({
-        success: true,
-        message: `Lấy thông tin chi tiết đơn hàng ${id} thành công (Mock)`,
-        data: {
-          id,
-          customer_id: 'mock-customer-id',
-          status: 'CONFIRMED',
-          shipping_address: '123 Đường ABC, Quận 1, TP. HCM',
-          payment_method: 'MOMO',
-          subtotal: 200000,
-          discount_amount: 0,
-          shipping_fee: 15000,
-          total_amount: 215000,
-          created_at: new Date().toISOString(),
-          items: [
-            {
-              id: 1,
-              order_id: id,
-              product_id: 'mock-product-uuid-2',
-              variant_id: 'mock-variant-uuid-2',
-              product_name_snapshot: 'Sản phẩm mẫu 2',
-              variant_attributes_snapshot: { color: 'Blue' },
-              original_unit_price: 200000,
-              unit_price_snapshot: 200000,
-              quantity: 1,
-              line_total: 200000
-            }
-          ]
-        }
-      });
+
+      const order = await orderService.getOrderById(customerId, role, id);
+      sendResponse(res, 200, true, 'Lấy chi tiết đơn hàng thành công', serializeBigInt(order));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // PUT /api/orders/:id/status
-  public async updateOrderStatus(req: Request, res: Response): Promise<void> {
+  public async updateOrderStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const { role } = getAuthUser(req);
+      
+      // Chỉ ADMIN mới được cập nhật trạng thái đơn hàng (Admin/System)
+      if (role !== 'ADMIN') {
+        res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện hành động này' });
+        return;
+      }
+
       const { id } = req.params;
-      const { status } = req.body;
-      res.status(200).json({
-        success: true,
-        message: `Cập nhật trạng thái đơn hàng ${id} thành công (Mock)`,
-        data: {
-          id,
-          status
-        }
-      });
+      const { status } = req.body as { status: OrderStatus };
+
+      const order = await orderService.updateOrderStatus(id, status);
+      sendResponse(res, 200, true, 'Cập nhật trạng thái đơn hàng thành công', serializeBigInt(order));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 
-  // POST /api/orders/:id/cancel
-  public async cancelOrder(req: Request, res: Response): Promise<void> {
+  public async cancelOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const { customerId, role } = getAuthUser(req);
       const { id } = req.params;
-      res.status(200).json({
-        success: true,
-        message: `Hủy đơn hàng ${id} thành công (Mock)`,
-        data: {
-          id,
-          status: 'CANCELLED'
-        }
-      });
+
+      const order = await orderService.cancelOrder(customerId, role, id);
+      sendResponse(res, 200, true, 'Hủy đơn hàng thành công', serializeBigInt(order));
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Lỗi máy chủ', error });
+      next(error);
     }
   }
 }
