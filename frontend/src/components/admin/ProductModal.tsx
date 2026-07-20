@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, Loader2 } from 'lucide-react';
 import { getCategoryTree } from '@/services/categoryService';
 import { uploadImage } from '@/services/uploadService';
-import type { Category } from '@/types/catalog';
+import { createProduct, updateProduct } from '@/services/productService';
+import type { Category, CatalogProduct } from '@/types/catalog';
+import { getDisplayPrice, getPrimaryImageUrl, getTotalAvailableStock } from '@/types/catalog';
 
 interface ProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editingProduct?: CatalogProduct | null;
 }
 
-export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModalProps) {
+export default function ProductModal({ isOpen, onClose, onSuccess, editingProduct }: ProductModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -23,6 +26,23 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
     stock: 0,
     image_url: '',
   });
+
+  useEffect(() => {
+    if (editingProduct) {
+      setFormData({
+        name: editingProduct.name,
+        description: editingProduct.description || '',
+        category_id: editingProduct.category_id,
+        price: getDisplayPrice(editingProduct),
+        stock: getTotalAvailableStock(editingProduct),
+        image_url: getPrimaryImageUrl(editingProduct) || '',
+      });
+    } else {
+      setFormData({
+        name: '', description: '', category_id: '', price: 0, stock: 0, image_url: ''
+      });
+    }
+  }, [editingProduct, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -50,9 +70,19 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Gọi API createProduct (demo)
-      // await createProduct(formData);
-      alert('Demo: Thêm sản phẩm thành công');
+      const payload = {
+        name: formData.name,
+        description: formData.description,
+        category_id: formData.category_id,
+        variants: [{ attributes: { default: true }, price: formData.price, stock_quantity: formData.stock }],
+        images: formData.image_url ? [{ url: formData.image_url, is_primary: true, sort_order: 1 }] : [],
+      };
+      
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+      } else {
+        await createProduct(payload);
+      }
       onSuccess();
       onClose();
     } catch (err) {
@@ -66,7 +96,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Thêm sản phẩm mới</h2>
+          <h2 className="text-lg font-bold text-gray-900">{editingProduct ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={20} />
           </button>

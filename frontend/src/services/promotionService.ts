@@ -4,7 +4,7 @@ export interface Promotion {
   id: string;
   code: string;
   name: string;
-  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discount_type: 'PERCENT' | 'FIXED';
   discount_value: number;
   min_order_value?: number;
   usage_limit?: number;
@@ -18,7 +18,7 @@ export interface Promotion {
 export interface CreatePromotionInput {
   code: string;
   name: string;
-  discount_type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  discount_type: 'PERCENT' | 'FIXED';
   discount_value: number;
   min_order_value?: number;
   usage_limit?: number;

@@ -12,6 +12,7 @@ export const validateBody =
     const result = schema.safeParse(req.body);
     if (!result.success) {
       const zodError = result.error as ZodError;
+      console.error('Validation Error:', zodError.format());
       const firstIssue = zodError.issues[0];
       const message = firstIssue
         ? `${firstIssue.path.join('.')}: ${firstIssue.message}`

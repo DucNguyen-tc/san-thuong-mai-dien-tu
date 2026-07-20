@@ -26,3 +26,17 @@ export async function getProductById(id: string): Promise<CatalogProduct> {
   const { data } = await apiClient.get<ApiEnvelope<CatalogProduct>>(`/catalog/products/${id}`);
   return data.data;
 }
+
+export async function createProduct(input: any): Promise<CatalogProduct> {
+  const { data } = await apiClient.post<ApiEnvelope<CatalogProduct>>('/catalog/products', input);
+  return data.data;
+}
+
+export async function updateProduct(id: string, input: any): Promise<CatalogProduct> {
+  const { data } = await apiClient.put<ApiEnvelope<CatalogProduct>>(`/catalog/products/${id}`, input);
+  return data.data;
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await apiClient.delete(`/catalog/products/${id}`);
+}

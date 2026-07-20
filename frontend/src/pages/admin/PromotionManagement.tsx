@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Plus, Pencil, Trash2, Tag, Percent, DollarSign } from 'lucide-react';
-import { getPromotions, createPromotion, deletePromotion, Promotion } from '@/services/promotionService';
+import { Loader2, Plus, Pencil, Trash2, Tag, Percent, DollarSign, Eye } from 'lucide-react';
+import { getPromotions, createPromotion, updatePromotion, deletePromotion } from '@/services/promotionService';
+import type { Promotion } from '@/services/promotionService';
 import { formatPrice } from '@/utils/formatters';
 
 export default function PromotionManagement() {
@@ -8,11 +9,13 @@ export default function PromotionManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewingPromo, setViewingPromo] = useState<Promotion | null>(null);
 
   const [formData, setFormData] = useState({
     code: '',
     name: '',
-    discount_type: 'PERCENTAGE' as 'PERCENTAGE' | 'FIXED_AMOUNT',
+    discount_type: 'PERCENT' as 'PERCENT' | 'FIXED',
     discount_value: 0,
     min_order_value: 0,
     usage_limit: 0,
@@ -36,17 +39,24 @@ export default function PromotionManagement() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await createPromotion({
+      const payload = {
         ...formData,
-        min_order_value: formData.min_order_value || undefined,
-        usage_limit: formData.usage_limit || undefined,
+        min_order_value: formData.min_order_value ? formData.min_order_value : null,
+        usage_limit: formData.usage_limit ? formData.usage_limit : null,
         valid_from: new Date(formData.valid_from).toISOString(),
         valid_to: new Date(formData.valid_to).toISOString(),
-      });
+      };
+      
+      if (editingId) {
+        await updatePromotion(editingId, payload);
+      } else {
+        await createPromotion(payload);
+      }
       setIsModalOpen(false);
       fetchPromotions();
-    } catch (err) {
-      alert('Tạo mã thất bại. Vui lòng kiểm tra lại thông tin.');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Lỗi hệ thống. Vui lòng kiểm tra lại thông tin.';
+      alert(`Thất bại: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -60,6 +70,21 @@ export default function PromotionManagement() {
     } catch (err) {
       alert('Lỗi khi xóa mã khuyến mãi');
     }
+  };
+
+  const handleEdit = (promo: Promotion) => {
+    setEditingId(promo.id);
+    setFormData({
+      code: promo.code,
+      name: promo.name,
+      discount_type: promo.discount_type,
+      discount_value: Number(promo.discount_value),
+      min_order_value: promo.min_order_value ? Number(promo.min_order_value) : 0,
+      usage_limit: promo.usage_limit ? Number(promo.usage_limit) : 0,
+      valid_from: new Date(promo.valid_from).toISOString().slice(0, 16),
+      valid_to: new Date(promo.valid_to).toISOString().slice(0, 16),
+    });
+    setIsModalOpen(true);
   };
 
   return (
@@ -77,8 +102,9 @@ export default function PromotionManagement() {
         </div>
         <button
           onClick={() => {
+            setEditingId(null);
             setFormData({
-              code: '', name: '', discount_type: 'PERCENTAGE', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: ''
+              code: '', name: '', discount_type: 'PERCENT', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: ''
             });
             setIsModalOpen(true);
           }}
@@ -121,7 +147,7 @@ export default function PromotionManagement() {
                         <div className="text-xs text-gray-500">{promo.name}</div>
                       </td>
                       <td className="px-6 py-4 font-medium text-blue-600 flex items-center gap-1">
-                        {promo.discount_type === 'PERCENTAGE' ? (
+                        {promo.discount_type === 'PERCENT' ? (
                           <><Percent size={14} /> {promo.discount_value}%</>
                         ) : (
                           <><DollarSign size={14} /> {formatPrice(promo.discount_value)}</>
@@ -148,7 +174,9 @@ export default function PromotionManagement() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-end gap-3">
-                          <button className="text-gray-400 hover:text-red-600 transition-colors" onClick={() => handleDelete(promo.id)}><Trash2 size={18} /></button>
+                          <button className="text-gray-400 hover:text-blue-600 transition-colors" onClick={() => setViewingPromo(promo)} title="Xem chi tiết"><Eye size={18} /></button>
+                          <button className="text-gray-400 hover:text-gray-900 transition-colors" onClick={() => handleEdit(promo)} title="Sửa"><Pencil size={18} /></button>
+                          <button className="text-gray-400 hover:text-red-600 transition-colors" onClick={() => handleDelete(promo.id)} title="Xóa"><Trash2 size={18} /></button>
                         </div>
                       </td>
                     </tr>
@@ -165,7 +193,7 @@ export default function PromotionManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">Thêm mã khuyến mãi</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Sửa mã khuyến mãi' : 'Thêm mã khuyến mãi'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
             </div>
             
@@ -186,8 +214,8 @@ export default function PromotionManagement() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Loại giảm giá</label>
                     <select value={formData.discount_type} onChange={e => setFormData({...formData, discount_type: e.target.value as any})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                      <option value="PERCENTAGE">Theo phần trăm (%)</option>
-                      <option value="FIXED_AMOUNT">Số tiền cố định (VNĐ)</option>
+                      <option value="PERCENT">Theo phần trăm (%)</option>
+                      <option value="FIXED">Số tiền cố định (VNĐ)</option>
                     </select>
                   </div>
                   <div>
@@ -228,6 +256,56 @@ export default function PromotionManagement() {
                 {isSubmitting && <Loader2 size={16} className="animate-spin mr-2" />}
                 Lưu mã khuyến mãi
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* View Modal */}
+      {viewingPromo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Chi tiết Khuyến Mãi</h2>
+              <button onClick={() => setViewingPromo(null)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-6 space-y-4 text-sm text-gray-700">
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Mã (Code):</span>
+                <span className="font-bold text-gray-900">{viewingPromo.code}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Tên:</span>
+                <span>{viewingPromo.name}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Loại giảm giá:</span>
+                <span>{viewingPromo.discount_type === 'PERCENT' ? 'Phần trăm' : 'Tiền mặt'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Mức giảm:</span>
+                <span className="font-bold text-blue-600">
+                  {viewingPromo.discount_type === 'PERCENT' ? `${viewingPromo.discount_value}%` : formatPrice(viewingPromo.discount_value)}
+                </span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Đơn tối thiểu:</span>
+                <span>{viewingPromo.min_order_value ? formatPrice(viewingPromo.min_order_value) : 'Không giới hạn'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Đã dùng / Giới hạn:</span>
+                <span>{viewingPromo.used_count} / {viewingPromo.usage_limit || 'Vô hạn'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-gray-500">Thời gian hiệu lực:</span>
+                <div className="text-right">
+                  <div>{new Date(viewingPromo.valid_from).toLocaleString('vi-VN')}</div>
+                  <div className="text-gray-400">đến</div>
+                  <div>{new Date(viewingPromo.valid_to).toLocaleString('vi-VN')}</div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button onClick={() => setViewingPromo(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-sm font-medium">Đóng</button>
             </div>
           </div>
         </div>
