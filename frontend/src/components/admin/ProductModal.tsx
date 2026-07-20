@@ -1,0 +1,182 @@
+import React, { useState, useEffect } from 'react';
+import { X, Upload, Loader2 } from 'lucide-react';
+import { getCategoryTree } from '@/services/categoryService';
+import { uploadImage } from '@/services/uploadService';
+import type { Category } from '@/types/catalog';
+
+interface ProductModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModalProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category_id: '',
+    price: 0,
+    stock: 0,
+    image_url: '',
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      getCategoryTree().then(setCategories).catch(() => {});
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadImage(file);
+      setFormData(prev => ({ ...prev, image_url: url }));
+    } catch (err) {
+      alert('Upload ảnh thất bại');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      // Gọi API createProduct (demo)
+      // await createProduct(formData);
+      alert('Demo: Thêm sản phẩm thành công');
+      onSuccess();
+      onClose();
+    } catch (err) {
+      alert('Có lỗi xảy ra');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Thêm sản phẩm mới</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto flex-1">
+          <form id="productForm" onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên sản phẩm</label>
+              <input 
+                required 
+                type="text" 
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Danh mục</label>
+              <select 
+                required
+                value={formData.category_id}
+                onChange={e => setFormData({ ...formData, category_id: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Chọn danh mục...</option>
+                {categories.map(cat => (
+                  <optgroup key={cat.id} label={cat.name}>
+                    <option value={cat.id}>{cat.name}</option>
+                    {cat.children?.map(child => (
+                      <option key={child.id} value={child.id}>-- {child.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Giá cơ bản</label>
+                <input 
+                  required 
+                  type="number" 
+                  value={formData.price}
+                  onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tồn kho</label>
+                <input 
+                  required 
+                  type="number" 
+                  value={formData.stock}
+                  onChange={e => setFormData({ ...formData, stock: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ảnh đại diện</label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50">
+                {formData.image_url ? (
+                  <div className="relative">
+                    <img src={formData.image_url} alt="Preview" className="h-32 object-contain" />
+                    <button type="button" onClick={() => setFormData({ ...formData, image_url: '' })} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X size={14}/></button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="text-gray-400 mb-2" size={24} />
+                    <label className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-500">
+                      <span>Tải ảnh lên</span>
+                      <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">PNG, JPG, WEBP lên đến 5MB</p>
+                    {uploading && <p className="text-xs text-blue-500 mt-2 flex items-center"><Loader2 size={12} className="animate-spin mr-1"/> Đang tải lên...</p>}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <textarea 
+                rows={3} 
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
+              />
+            </div>
+          </form>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+            Hủy
+          </button>
+          <button 
+            type="submit" 
+            form="productForm" 
+            disabled={isSubmitting || uploading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center"
+          >
+            {isSubmitting && <Loader2 size={16} className="animate-spin mr-2" />}
+            Lưu sản phẩm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

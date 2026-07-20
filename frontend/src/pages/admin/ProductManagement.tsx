@@ -4,12 +4,14 @@ import { getProducts } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl, getTotalAvailableStock } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
+import ProductModal from '@/components/admin/ProductModal';
 
 export default function ProductManagement() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchProducts = () => {
     let isCancelled = false;
     setIsLoading(true);
 
@@ -25,11 +27,20 @@ export default function ProductManagement() {
     return () => {
       isCancelled = true;
     };
+  };
+
+  useEffect(() => {
+    return fetchProducts();
   }, []);
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen p-8">
-      
+      <ProductModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSuccess={() => fetchProducts()} 
+      />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
@@ -39,7 +50,7 @@ export default function ProductManagement() {
           </p>
         </div>
         <button
-          disabled
+          onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 px-5 py-2.5 bg-[#0052cc] hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
         >
           <Plus size={18} />
