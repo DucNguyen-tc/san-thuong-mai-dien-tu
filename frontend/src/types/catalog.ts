@@ -8,6 +8,7 @@ export interface Category {
   parent_id: string | null;
   created_at: string;
   updated_at: string;
+  children?: Category[];
 }
 
 export interface ProductVariant {

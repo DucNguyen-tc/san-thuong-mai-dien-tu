@@ -15,3 +15,8 @@ export async function getCategories(): Promise<Category[]> {
   const { data } = await apiClient.get<ApiEnvelope<Category[]>>('/catalog/categories');
   return data.data;
 }
+
+export async function getCategoryTree(): Promise<Category[]> {
+  const { data } = await apiClient.get<ApiEnvelope<Category[]>>('/catalog/categories/tree');
+  return data.data;
+}

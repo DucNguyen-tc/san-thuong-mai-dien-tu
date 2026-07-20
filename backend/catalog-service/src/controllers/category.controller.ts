@@ -17,6 +17,15 @@ export const getCategories = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+export const getCategoryTree = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tree = await categoryService.getTree();
+    return sendResponse(res, 200, true, 'Lấy danh mục dạng cây thành công', tree);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCategoryById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const category = await categoryService.getById(req.params.id);
