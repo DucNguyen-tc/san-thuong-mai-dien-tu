@@ -1,0 +1,19 @@
+{
+  "name": "san-thuong-mai",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "concurrently \"npm run start:api-gateway\" \"npm run start:identity\" \"npm run start:catalog\" \"npm run start:cart\" \"npm run start:order\" \"npm run start:payment\" \"npm run start:notification\" \"npm run start:recommendation\" \"npm run start:frontend\"",
+    "start:api-gateway": "cd backend/api-gateway && npm run dev",
+    "start:identity": "cd backend/identity-service && npm run dev",
+    "start:catalog": "cd backend/catalog-service && npm run dev",
+    "start:cart": "cd backend/cart-service && npm run dev",
+    "start:order": "cd backend/order-service && npm run dev",
+    "start:payment": "cd backend/payment-service && npm run dev",
+    "start:notification": "cd backend/notification-service && npm run dev",
+    "start:recommendation": "cd backend/recommendation-service && npm run dev",
+    "start:frontend": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
