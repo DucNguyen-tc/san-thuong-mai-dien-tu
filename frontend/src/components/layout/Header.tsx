@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
   User,
@@ -13,6 +13,7 @@ import { useCartStore } from '@/store/useCartStore';
 const popularSearches = ['iPhone 15 Pro Max', 'MacBook Air M3', 'Giày thể thao Nam'];
 
 export default function Header() {
+  const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -101,11 +102,14 @@ export default function Header() {
           {/* User */}
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
-              <span className="hidden md:block text-sm font-medium text-on-surface">
+              <Link to="/profile" className="hidden md:block text-sm font-medium text-on-surface hover:text-primary transition-colors">
                 {user?.full_name}
-              </span>
+              </Link>
               <button
-                onClick={logout}
+                onClick={() => {
+                  logout();
+                  navigate('/');
+                }}
                 className="p-2 text-on-surface-variant hover:text-error transition-colors"
                 title="Đăng xuất"
                 aria-label="Đăng xuất"

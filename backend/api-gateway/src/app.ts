@@ -10,7 +10,6 @@ const app = express();
 // Security Middlewares
 app.use(helmet());
 app.use(cors());
-
 // Rate Limiting
 app.use(globalLimiter);
 
