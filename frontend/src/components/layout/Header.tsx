@@ -33,8 +33,16 @@ export default function Header() {
         </Link>
 
         {/* Search Bar */}
-        <div className="flex-grow max-w-2xl relative">
-          <div className="relative flex items-center bg-surface-container rounded-full border border-transparent focus-within:border-primary focus-within:bg-white transition-all duration-300">
+        <div className="flex-grow max-w-[42rem] relative">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (searchValue.trim()) {
+                window.location.href = `/products?search=${encodeURIComponent(searchValue.trim())}`;
+              }
+            }}
+            className="relative flex items-center bg-surface-container rounded-full border border-transparent focus-within:border-primary focus-within:bg-white transition-all duration-300"
+          >
             <Search size={18} className="ml-4 text-on-surface-variant shrink-0" />
             <input
               id="searchInput"
@@ -46,10 +54,10 @@ export default function Header() {
               placeholder="Tìm kiếm sản phẩm, thương hiệu..."
               className="w-full bg-transparent border-none focus:ring-0 px-4 py-2.5 text-sm text-on-surface outline-none"
             />
-            <button className="bg-primary text-white rounded-full px-6 py-2 mr-1 text-sm font-semibold hover:bg-primary-container transition-colors">
+            <button type="submit" className="bg-primary text-white rounded-full px-6 py-2 mr-1 text-sm font-semibold hover:bg-primary-container transition-colors">
               Tìm
             </button>
-          </div>
+          </form>
 
           {/* Autocomplete Dropdown */}
           {isSearchOpen && (
@@ -60,7 +68,10 @@ export default function Header() {
                   {popularSearches.map((term) => (
                     <button
                       key={term}
-                      onMouseDown={() => setSearchValue(term)}
+                      onMouseDown={() => {
+                        setSearchValue(term);
+                        window.location.href = `/products?search=${encodeURIComponent(term)}`;
+                      }}
                       className="bg-surface-container-low px-3 py-1 rounded-full text-sm hover:bg-primary-fixed cursor-pointer transition-colors"
                     >
                       {term}

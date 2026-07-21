@@ -1,4 +1,5 @@
 import type { Category, HeroSlide, Product } from '@/types/product';
+import type { CartItem } from '@/store/useCartStore';
 
 // ============================================================
 // Mock Data — Trang Chủ V-Shop
@@ -126,3 +127,60 @@ export const bestSellers: Product[] = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAXM5xiy0E5X-nU3eOnDkuq0l79ciziuMQDKAKDABRVNY_kG7sKzaZkBxNy7cOLZ-qJiVmSmO949S1M3srmoG46e1nGwmpaET5MGVYPy1Ei64FC2z5aYohTqUo6YBd16xnZ5Fv44BX6LdJ0KAKO9spK2Sq0IFCHe4acEwuwRshh4fVUOajfcCECXnVA43CWSx9aJeZ8_pnCsTslerFcBsmyeHboeBRoaz6lHhbmimWD6XgSMniWFz9LS3BLcbH0gkMH15kQKB8gHLMm',
   },
 ];
+
+// ============================================================
+// Mock Data — Cart & Checkout
+// ============================================================
+
+export const mockCartItems: CartItem[] = [
+  {
+    id: 'bs-3-space-gray',
+    product_id: 'bs-3',
+    name: 'Laptop MacBook Air M2',
+    price: 27490000,
+    quantity: 1,
+    attributes: { Màu: 'Space Gray', Dung_lượng: '256GB' },
+    image_url:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCifOsz44kwMoGvTlwubLrkDLgYwtmd-Rf6KP8S-ZyoWmiJP-N_cx_BcphG-sIonqkXHdgSNKiAy2edyRg69grIfZ99xiccZWDHgwy7ErkXCpTHkxf570tesUavpCF8JmVyr9zq5Y431jgGKMS_DJPQYgelxzjEWn0Xlo_EZUnZRmcrxDfgjKVsL9-jLdbntZZenQqCrVD61eFbHlB0bypXga9CyhFPvnLCo3FJKKCUmzqgH1fMAIfZMO9k4jHQSnpAzeIrzOdW6TjS',
+  },
+  {
+    id: 'ai-1-black',
+    product_id: 'ai-1',
+    name: 'Tai nghe Sony WH-1000XM5',
+    price: 8490000,
+    quantity: 1,
+    attributes: { Màu: 'Đen' },
+    image_url:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCLtiVoJ4rPiYI1apMLHyLBQiVhnI0waw34IYI4wedaIGvm0baLI50MQkt3sWPkUe6YpLzU9EE9EBe979NcXZk-F65sNFnFuss9DOKX_hEjuMVsvp_n5R-Dg5VpCyE6WKL7B1rD8f74fhbq_40wCmw3oCdMgTqtncd__fzodosYus60x5pjGULOQ0TlKr5VGTStjq14u18Sp4ZUnlCEPQ_WAvtEEC0ZhAw5U9QRymnPjiv3JHrOtI8bf_BpuUSP5J0e6AjGQYd6X-y4',
+  },
+];
+
+export const mockProvinces = [
+  { id: 'p1', name: 'Hà Nội' },
+  { id: 'p2', name: 'Hồ Chí Minh' },
+  { id: 'p3', name: 'Đà Nẵng' },
+];
+
+export const mockDistricts: Record<string, { id: string; name: string }[]> = {
+  p1: [
+    { id: 'd1_1', name: 'Quận Ba Đình' },
+    { id: 'd1_2', name: 'Quận Hoàn Kiếm' },
+  ],
+  p2: [
+    { id: 'd2_1', name: 'Quận 1' },
+    { id: 'd2_2', name: 'Quận 3' },
+  ],
+  p3: [
+    { id: 'd3_1', name: 'Quận Hải Châu' },
+    { id: 'd3_2', name: 'Quận Thanh Khê' },
+  ],
+};
+
+export const mockWards: Record<string, { id: string; name: string }[]> = {
+  d1_1: [{ id: 'w1_1_1', name: 'Phường Phúc Xá' }],
+  d1_2: [{ id: 'w1_2_1', name: 'Phường Tràng Tiền' }],
+  d2_1: [{ id: 'w2_1_1', name: 'Phường Bến Nghé' }],
+  d2_2: [{ id: 'w2_2_1', name: 'Phường Võ Thị Sáu' }],
+  d3_1: [{ id: 'w3_1_1', name: 'Phường Hải Châu I' }],
+  d3_2: [{ id: 'w3_2_1', name: 'Phường Vĩnh Trung' }],
+};

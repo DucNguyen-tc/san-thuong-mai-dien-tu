@@ -14,7 +14,8 @@ app.get('/health', (req, res) => {
 });
 
 // Import and use routes here
-// import routes from './routes';
-// app.use('/api', routes);
+import routes from './routes';
+app.use('/api', routes);
 
 export default app;
+

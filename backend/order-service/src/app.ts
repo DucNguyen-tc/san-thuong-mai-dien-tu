@@ -14,7 +14,14 @@ app.get('/health', (req, res) => {
 });
 
 // Import and use routes here
-// import routes from './routes';
-// app.use('/api', routes);
+import routes from './routes';
+import { errorHandler } from './middlewares/errorHandler';
+
+// Mount tại /api/orders (từ routes/index.ts)
+app.use('/api', routes);
+
+// Error handler — PHẢI đăng ký sau cùng
+app.use(errorHandler);
 
 export default app;
+
