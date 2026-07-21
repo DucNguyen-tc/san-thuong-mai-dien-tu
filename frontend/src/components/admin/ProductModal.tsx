@@ -40,16 +40,16 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
         if (editingProduct.variants && editingProduct.variants.length > 0) {
           setVariants(editingProduct.variants.map(v => ({
             id: v.id,
-            attributes: v.attributes as Record<string, string>,
+            attributes: (v.attributes || {}) as Record<string, string>,
             price: Number(v.price),
             stock_quantity: v.stock_quantity
           })));
         } else {
-          setVariants([{ attributes: { default: "true" }, price: 0, stock_quantity: 0 }]);
+          setVariants([{ attributes: {}, price: 0, stock_quantity: 0 }]);
         }
       } else {
         setFormData({ name: '', description: '', category_id: '', image_url: '' });
-        setVariants([{ attributes: { default: "true" }, price: 0, stock_quantity: 0 }]);
+        setVariants([{ attributes: {}, price: 0, stock_quantity: 0 }]);
       }
       getCategoryTree().then(setCategories).catch(() => {});
     }
@@ -72,7 +72,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
   };
 
   const handleAddVariant = () => {
-    setVariants([...variants, { attributes: { name: "Mặc định" }, price: 0, stock_quantity: 0 }]);
+    setVariants([...variants, { attributes: {}, price: 0, stock_quantity: 0 }]);
   };
 
   const handleRemoveVariant = (index: number) => {
@@ -86,9 +86,9 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
     setVariants(newVariants);
   };
   
-  const updateVariantAttribute = (index: number, value: string) => {
+  const updateVariantAttribute = (index: number, key: string, value: string) => {
     const newVariants = [...variants];
-    newVariants[index].attributes = { name: value };
+    newVariants[index].attributes = { ...newVariants[index].attributes, [key]: value };
     setVariants(newVariants);
   };
 
@@ -173,15 +173,24 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
                 {variants.map((v, index) => (
                   <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50 relative">
                     <div className="flex-1 space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">Tên loại (VD: Đen, XL)</label>
+                          <label className="block text-xs text-gray-500 mb-1">Màu sắc (VD: Đen)</label>
                           <input 
                             type="text"
-                            required
-                            value={v.attributes.name || v.attributes.default || ''}
-                            onChange={(e) => updateVariantAttribute(index, e.target.value)}
-                            placeholder="Mặc định..."
+                            value={v.attributes.color || v.attributes.name || ''}
+                            onChange={(e) => updateVariantAttribute(index, 'color', e.target.value)}
+                            placeholder="Trống nếu k có"
+                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Size/Dung lượng</label>
+                          <input 
+                            type="text"
+                            value={v.attributes.size || ''}
+                            onChange={(e) => updateVariantAttribute(index, 'size', e.target.value)}
+                            placeholder="Trống nếu k có"
                             className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
                           />
                         </div>
