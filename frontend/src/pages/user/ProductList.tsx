@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronRight, ChevronDown, Heart, Search, ShoppingCart, Star, Filter, ArrowRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, Heart, ShoppingCart, Star } from 'lucide-react';
 import { getProducts } from '@/services/productService';
 import { getCategoryTree } from '@/services/categoryService';
 import type { CatalogProduct, Category } from '@/types/catalog';

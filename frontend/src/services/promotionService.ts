@@ -51,3 +51,8 @@ export async function updatePromotion(id: string, input: Partial<CreatePromotion
 export async function deletePromotion(id: string): Promise<void> {
   await apiClient.delete(`/catalog/promotions/${id}`);
 }
+
+export async function addPromotionItem(promotionId: string, productId: string): Promise<any> {
+  const { data } = await apiClient.post(`/catalog/promotions/${promotionId}/items`, { product_id: productId });
+  return data;
+}

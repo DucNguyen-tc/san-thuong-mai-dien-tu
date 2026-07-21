@@ -35,6 +35,8 @@ export const updateProductSchema = z.object({
   name: z.string().trim().min(2).max(255).optional(),
   description: z.string().trim().min(1).optional(),
   is_active: z.boolean().optional(),
+  variants: z.array(variantInputSchema).optional(),
+  images: z.array(imageInputSchema).optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

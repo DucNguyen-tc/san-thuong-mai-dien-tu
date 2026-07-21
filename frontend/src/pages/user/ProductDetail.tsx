@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Heart, Search, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
+import { Heart, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
 import { getProductById } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
