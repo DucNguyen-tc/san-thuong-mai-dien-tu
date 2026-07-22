@@ -106,15 +106,39 @@ export class ProductService {
 
     const slug = input.name ? await generateUniqueSlug(input.name, id) : product.slug;
 
+    const updateData: any = {
+      category_id: input.category_id ?? product.category_id,
+      name: input.name ?? product.name,
+      slug,
+      description: input.description ?? product.description,
+      is_active: input.is_active ?? product.is_active,
+    };
+
+    if (input.images) {
+      updateData.images = {
+        deleteMany: {},
+        create: input.images,
+      };
+    }
+
+    if (input.variants && input.variants.length > 0) {
+      if (product.variants.length > 0) {
+        updateData.variants = {
+          update: {
+            where: { id: product.variants[0].id },
+            data: input.variants[0],
+          }
+        };
+      } else {
+        updateData.variants = {
+          create: input.variants,
+        };
+      }
+    }
+
     return prisma.product.update({
       where: { id },
-      data: {
-        category_id: input.category_id ?? product.category_id,
-        name: input.name ?? product.name,
-        slug,
-        description: input.description ?? product.description,
-        is_active: input.is_active ?? product.is_active,
-      },
+      data: updateData,
       include: productInclude,
     });
   }

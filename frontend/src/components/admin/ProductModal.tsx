@@ -4,7 +4,7 @@ import { getCategoryTree } from '@/services/categoryService';
 import { uploadImage } from '@/services/uploadService';
 import { createProduct, updateProduct } from '@/services/productService';
 import type { Category, CatalogProduct } from '@/types/catalog';
-import { getDisplayPrice, getPrimaryImageUrl, getTotalAvailableStock } from '@/types/catalog';
+import { getPrimaryImageUrl } from '@/types/catalog';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -22,33 +22,38 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
     name: '',
     description: '',
     category_id: '',
-    price: 0,
-    stock: 0,
     image_url: '',
   });
-
-  useEffect(() => {
-    if (editingProduct) {
-      setFormData({
-        name: editingProduct.name,
-        description: editingProduct.description || '',
-        category_id: editingProduct.category_id,
-        price: getDisplayPrice(editingProduct),
-        stock: getTotalAvailableStock(editingProduct),
-        image_url: getPrimaryImageUrl(editingProduct) || '',
-      });
-    } else {
-      setFormData({
-        name: '', description: '', category_id: '', price: 0, stock: 0, image_url: ''
-      });
-    }
-  }, [editingProduct, isOpen]);
+  
+  const [variants, setVariants] = useState<{ id?: string, attributes: Record<string, string>, price: number, stock_quantity: number }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
+      if (editingProduct) {
+        setFormData({
+          name: editingProduct.name,
+          description: editingProduct.description || '',
+          category_id: editingProduct.category_id,
+          image_url: getPrimaryImageUrl(editingProduct) || '',
+        });
+        
+        if (editingProduct.variants && editingProduct.variants.length > 0) {
+          setVariants(editingProduct.variants.map(v => ({
+            id: v.id,
+            attributes: (v.attributes || {}) as Record<string, string>,
+            price: Number(v.price),
+            stock_quantity: v.stock_quantity
+          })));
+        } else {
+          setVariants([{ attributes: {}, price: 0, stock_quantity: 0 }]);
+        }
+      } else {
+        setFormData({ name: '', description: '', category_id: '', image_url: '' });
+        setVariants([{ attributes: {}, price: 0, stock_quantity: 0 }]);
+      }
       getCategoryTree().then(setCategories).catch(() => {});
     }
-  }, [isOpen]);
+  }, [editingProduct, isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,6 +71,27 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
     }
   };
 
+  const handleAddVariant = () => {
+    setVariants([...variants, { attributes: {}, price: 0, stock_quantity: 0 }]);
+  };
+
+  const handleRemoveVariant = (index: number) => {
+    if (variants.length === 1) return;
+    setVariants(variants.filter((_, i) => i !== index));
+  };
+
+  const updateVariant = (index: number, field: string, value: any) => {
+    const newVariants = [...variants];
+    newVariants[index] = { ...newVariants[index], [field]: value };
+    setVariants(newVariants);
+  };
+  
+  const updateVariantAttribute = (index: number, key: string, value: string) => {
+    const newVariants = [...variants];
+    newVariants[index].attributes = { ...newVariants[index].attributes, [key]: value };
+    setVariants(newVariants);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -74,7 +100,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
         name: formData.name,
         description: formData.description,
         category_id: formData.category_id,
-        variants: [{ attributes: { default: true }, price: formData.price, stock_quantity: formData.stock }],
+        variants: variants,
         images: formData.image_url ? [{ url: formData.image_url, is_primary: true, sort_order: 1 }] : [],
       };
       
@@ -85,8 +111,9 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
       }
       onSuccess();
       onClose();
-    } catch (err) {
-      alert('Có lỗi xảy ra');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Lỗi hệ thống. Vui lòng kiểm tra lại thông tin.';
+      alert(`Thất bại: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -135,26 +162,55 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Giá cơ bản</label>
-                <input 
-                  required 
-                  type="number" 
-                  value={formData.price}
-                  onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
-                />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">Danh sách biến thể (Màu, Size...)</label>
+                <button type="button" onClick={handleAddVariant} className="text-sm text-blue-600 flex items-center hover:underline">
+                  Thêm biến thể
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tồn kho</label>
-                <input 
-                  required 
-                  type="number" 
-                  value={formData.stock}
-                  onChange={e => setFormData({ ...formData, stock: Number(e.target.value) })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" 
-                />
+              <div className="space-y-3">
+                {variants.map((v, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50 relative">
+                    <div className="flex-1 space-y-3">
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Màu sắc (VD: Đen)</label>
+                          <input 
+                            type="text"
+                            value={v.attributes.color || v.attributes.name || ''}
+                            onChange={(e) => updateVariantAttribute(index, 'color', e.target.value)}
+                            placeholder="Trống nếu k có"
+                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Size/Dung lượng</label>
+                          <input 
+                            type="text"
+                            value={v.attributes.size || ''}
+                            onChange={(e) => updateVariantAttribute(index, 'size', e.target.value)}
+                            placeholder="Trống nếu k có"
+                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Giá (VNĐ)</label>
+                          <input type="number" required min={0} value={v.price} onChange={e => updateVariant(index, 'price', Number(e.target.value))} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Tồn kho</label>
+                          <input type="number" required min={0} value={v.stock_quantity} onChange={e => updateVariant(index, 'stock_quantity', Number(e.target.value))} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                    {variants.length > 1 && (
+                      <button type="button" onClick={() => handleRemoveVariant(index)} className="text-red-500 p-1 hover:bg-red-50 rounded">
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -181,8 +237,9 @@ export default function ProductModal({ isOpen, onClose, onSuccess, editingProduc
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả <span className="text-red-500">*</span></label>
               <textarea 
+                required
                 rows={3} 
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}

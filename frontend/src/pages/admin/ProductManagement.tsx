@@ -143,7 +143,7 @@ export default function ProductManagement() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-blue-600 mb-1">{product.name}</div>
-                        <div className="text-xs text-gray-500">SKU: APP-{product.id.split('-')[0].toUpperCase()}</div>
+                        <div className="text-xs text-gray-500">SKU: APP-{product.id?.split('-')?.[0]?.toUpperCase() || 'UNKNOWN'}</div>
                       </td>
                       <td className="px-6 py-4 text-gray-600">{product.category?.name || 'Chưa phân loại'}</td>
                       <td className="px-6 py-4 font-bold text-gray-900">{formatPrice(getDisplayPrice(product))}</td>
@@ -230,7 +230,7 @@ export default function ProductManagement() {
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="font-semibold text-gray-500">Mã SKU:</span>
-                <span>APP-{viewingProduct.id.split('-')[0].toUpperCase()}</span>
+                <span>APP-{viewingProduct.id?.split('-')?.[0]?.toUpperCase() || 'UNKNOWN'}</span>
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="font-semibold text-gray-500">Danh mục:</span>

@@ -6,6 +6,8 @@ const router = Router();
 
 const isDemo = !process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY === 'demo';
 
+import fs from 'fs';
+
 // Endpoint upload 1 ảnh (dùng cho cả danh mục và sản phẩm)
 router.post('/', upload.single('image'), (req: Request, res: Response) => {
   try {
@@ -13,9 +15,14 @@ router.post('/', upload.single('image'), (req: Request, res: Response) => {
       return sendResponse(res, 400, false, 'Không có file nào được tải lên');
     }
     
-    const url = isDemo 
-      ? `https://via.placeholder.com/600x400?text=${encodeURIComponent(req.file.originalname)}`
-      : req.file.path;
+    let url = req.file.path;
+    if (isDemo) {
+      const fileData = fs.readFileSync(req.file.path);
+      const base64 = fileData.toString('base64');
+      url = `data:${req.file.mimetype};base64,${base64}`;
+      // Xóa file tạm
+      fs.unlinkSync(req.file.path);
+    }
 
     return sendResponse(res, 200, true, 'Upload ảnh thành công', { url });
   } catch (error) {
@@ -30,7 +37,17 @@ router.post('/multiple', upload.array('images', 5), (req: Request, res: Response
       return sendResponse(res, 400, false, 'Không có file nào được tải lên');
     }
     
-    const urls = (req.files as Express.Multer.File[]).map(file => file.path);
+    let urls = (req.files as Express.Multer.File[]).map(file => file.path);
+    
+    if (isDemo) {
+      urls = (req.files as Express.Multer.File[]).map(file => {
+        const fileData = fs.readFileSync(file.path);
+        const base64 = fileData.toString('base64');
+        const url = `data:${file.mimetype};base64,${base64}`;
+        fs.unlinkSync(file.path);
+        return url;
+      });
+    }
     
     return sendResponse(res, 200, true, 'Upload danh sách ảnh thành công', {
       urls,

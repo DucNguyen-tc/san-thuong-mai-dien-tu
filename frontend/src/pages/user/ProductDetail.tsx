@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Heart, Search, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
+import { Heart, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
 import { getProductById } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
@@ -11,6 +11,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState<CatalogProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('desc');
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -19,7 +20,14 @@ export default function ProductDetail() {
 
     getProductById(id)
       .then((data) => {
-        if (!isCancelled) setProduct(data);
+        if (!isCancelled) {
+          setProduct(data);
+          if (data.variants && data.variants.length > 0) {
+            const activeVariants = data.variants.filter(v => v.is_active);
+            if (activeVariants.length > 0) setSelectedVariantId(activeVariants[0].id);
+            else setSelectedVariantId(data.variants[0].id);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -46,7 +54,31 @@ export default function ProductDetail() {
   }
 
   const primaryImage = getPrimaryImageUrl(product) || 'https://via.placeholder.com/600';
-  const price = getDisplayPrice(product);
+  
+  const selectedVariant = product.variants?.find(v => v.id === selectedVariantId);
+  const currentPrice = selectedVariant ? Number(selectedVariant.price) : getDisplayPrice(product);
+  const availableStock = selectedVariant ? selectedVariant.stock_quantity - selectedVariant.stock_reserved : 0;
+  const isOutOfStock = availableStock <= 0;
+
+  const activeVariants = product.variants?.filter(v => v.is_active) || [];
+  const hasColor = activeVariants.some(v => v.attributes?.color);
+  const hasSize = activeVariants.some(v => v.attributes?.size);
+  const colors = Array.from(new Set(activeVariants.map(v => v.attributes?.color).filter(Boolean)));
+  const sizes = Array.from(new Set(activeVariants.map(v => v.attributes?.size).filter(Boolean)));
+
+  const handleSelectColor = (color: string) => {
+    const currentSize = selectedVariant?.attributes?.size;
+    let target = activeVariants.find(v => v.attributes?.color === color && v.attributes?.size === currentSize);
+    if (!target) target = activeVariants.find(v => v.attributes?.color === color);
+    if (target) setSelectedVariantId(target.id);
+  };
+
+  const handleSelectSize = (size: string) => {
+    const currentColor = selectedVariant?.attributes?.color;
+    let target = activeVariants.find(v => v.attributes?.size === size && v.attributes?.color === currentColor);
+    if (!target) target = activeVariants.find(v => v.attributes?.size === size);
+    if (target) setSelectedVariantId(target.id);
+  };
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen pb-16">
@@ -99,38 +131,95 @@ export default function ProductDetail() {
                  <span className="text-sm text-gray-600 ml-1">4.8 (124 đánh giá)</span>
                </div>
                <div className="w-px h-4 bg-gray-300"></div>
-               <span className="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-sm uppercase tracking-wide">Còn hàng</span>
+               {isOutOfStock ? (
+                 <span className="text-xs font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-sm uppercase tracking-wide">Hết hàng</span>
+               ) : (
+                 <span className="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-sm uppercase tracking-wide">Còn hàng ({availableStock})</span>
+               )}
             </div>
 
             <div className="flex items-end gap-3 mb-6">
-              <span className="text-3xl font-bold text-blue-600">{formatPrice(price)}</span>
-              <span className="text-lg text-gray-400 line-through mb-1">{formatPrice(price * 1.25)}</span>
+              <span className="text-3xl font-bold text-blue-600">{formatPrice(currentPrice)}</span>
+              <span className="text-lg text-gray-400 line-through mb-1">{formatPrice(currentPrice * 1.25)}</span>
             </div>
 
-            {/* Colors */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Màu sắc: <span className="font-normal text-gray-600">Midnight Blue</span></h3>
-              <div className="flex items-center gap-3">
-                <button className="w-8 h-8 rounded-full bg-[#1b365d] ring-2 ring-offset-2 ring-blue-600"></button>
-                <button className="w-8 h-8 rounded-full bg-[#2c3e50] ring-1 ring-gray-300 hover:ring-gray-400"></button>
-                <button className="w-8 h-8 rounded-full bg-[#e8e8e8] ring-1 ring-gray-300 hover:ring-gray-400"></button>
+            {/* Variants */}
+            {product.variants && product.variants.length > 0 && (
+              <div className="space-y-6 mb-8">
+                {hasColor && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      Màu sắc: <span className="font-normal text-gray-600">{selectedVariant?.attributes?.color}</span>
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {colors.map(color => (
+                        <button 
+                          key={color}
+                          onClick={() => handleSelectColor(color)}
+                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
+                            selectedVariant?.attributes?.color === color 
+                              ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                              : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {hasSize && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      Dung lượng / Size: <span className="font-normal text-gray-600">{selectedVariant?.attributes?.size}</span>
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {sizes.map(size => (
+                        <button 
+                          key={size}
+                          onClick={() => handleSelectSize(size)}
+                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
+                            selectedVariant?.attributes?.size === size 
+                              ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                              : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Fallback for old 1D variants */}
+                {!hasColor && !hasSize && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      Tùy chọn: <span className="font-normal text-gray-600">{selectedVariant?.attributes?.name || selectedVariant?.attributes?.default || 'Mặc định'}</span>
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {product.variants.filter(v => v.is_active).map(v => (
+                        <button 
+                          key={v.id}
+                          onClick={() => setSelectedVariantId(v.id)}
+                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
+                            selectedVariantId === v.id 
+                              ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                              : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                          }`}
+                        >
+                          {v.attributes?.name || v.attributes?.default || 'Mặc định'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Storage */}
-            <div className="mb-8">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Dung lượng: <span className="font-normal text-gray-600">256GB</span></h3>
-              <div className="flex flex-wrap items-center gap-3">
-                <button className="px-6 py-2 rounded border-2 border-blue-600 bg-blue-50 text-blue-700 font-medium text-sm">256GB</button>
-                <button className="px-6 py-2 rounded border border-gray-300 hover:border-gray-400 text-gray-700 text-sm">512GB</button>
-                <button className="px-6 py-2 rounded border border-gray-300 hover:border-gray-400 text-gray-700 text-sm">1TB</button>
-              </div>
-            </div>
+            )}
 
             {/* Actions */}
             <div className="grid grid-cols-2 gap-4 mb-8">
-              <button className="py-3 bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold rounded-lg transition-colors shadow-sm">Mua Ngay</button>
-              <button className="py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+              <button disabled={isOutOfStock} className="py-3 bg-[#ff9900] hover:bg-[#e68a00] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors shadow-sm">Mua Ngay</button>
+              <button disabled={isOutOfStock} className="py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 disabled:bg-gray-50 disabled:cursor-not-allowed font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
                 <ShoppingCart size={18} /> Thêm vào giỏ
               </button>
             </div>
@@ -156,15 +245,7 @@ export default function ProductDetail() {
           <div className="p-8">
             {activeTab === 'desc' && (
               <div className="prose max-w-none text-gray-600 text-sm leading-relaxed">
-                <p className="mb-6">{product.description}</p>
-                <p className="mb-6">Sản phẩm định nghĩa lại khái niệm về thiết bị di động cao cấp. Với hệ thống camera tân tiến nhất, màn hình mượt mà và hiệu năng đỉnh cao từ chip, đây là người bạn đồng hành hoàn hảo cho công việc và giải trí.</p>
-                <div className="bg-gray-50 rounded-xl overflow-hidden flex items-center">
-                  <img src="https://via.placeholder.com/600x300?text=Feature+Image" className="w-1/2 object-cover" />
-                  <div className="p-8 w-1/2">
-                    <h4 className="text-lg font-bold text-gray-900 mb-2">Màn hình Đỉnh cao</h4>
-                    <p>Trải nghiệm thị giác không giới hạn với độ sáng lên tới 2000 nits, giúp bạn dễ dàng sử dụng ngay cả dưới ánh nắng gắt. Công nghệ Pro-Refresh tự động điều chỉnh tần số quét.</p>
-                  </div>
-                </div>
+                <p className="mb-6 whitespace-pre-wrap">{product.description}</p>
               </div>
             )}
             {activeTab === 'spec' && <div className="text-sm text-gray-600">Nội dung thông số...</div>}

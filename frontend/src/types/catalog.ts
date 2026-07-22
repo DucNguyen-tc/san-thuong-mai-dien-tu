@@ -66,22 +66,25 @@ export interface ListProductsQuery {
 
 /** Lấy giá thấp nhất trong các biến thể còn bán, dùng hiển thị ở ProductCard */
 export function getDisplayPrice(product: CatalogProduct): number {
-  const activePrices = product.variants.filter((v) => v.is_active).map((v) => v.price);
+  if (!product || !Array.isArray(product.variants)) return 0;
+  const activePrices = product.variants.filter((v) => v?.is_active).map((v) => Number(v?.price) || 0);
   if (activePrices.length === 0) return 0;
   return Math.min(...activePrices);
 }
 
 /** Lấy ảnh đại diện: ưu tiên ảnh is_primary, fallback ảnh đầu tiên, fallback placeholder */
 export function getPrimaryImageUrl(product: CatalogProduct): string {
-  const primary = product.images.find((img) => img.is_primary);
-  if (primary) return primary.url;
-  if (product.images[0]) return product.images[0].url;
+  if (!product || !Array.isArray(product.images) || product.images.length === 0) return 'https://placehold.co/400x400?text=No+Image';
+  const primary = product.images.find((img) => img?.is_primary);
+  if (primary && primary.url) return primary.url;
+  if (product.images[0] && product.images[0].url) return product.images[0].url;
   return 'https://placehold.co/400x400?text=No+Image';
 }
 
 /** Tổng tồn kho khả dụng (chưa bị giữ chỗ) trên toàn bộ biến thể */
 export function getTotalAvailableStock(product: CatalogProduct): number {
+  if (!product || !Array.isArray(product.variants)) return 0;
   return product.variants
-    .filter((v) => v.is_active)
-    .reduce((sum, v) => sum + Math.max(0, v.stock_quantity - v.stock_reserved), 0);
+    .filter((v) => v?.is_active)
+    .reduce((sum, v) => sum + Math.max(0, (Number(v?.stock_quantity) || 0) - (Number(v?.stock_reserved) || 0)), 0);
 }

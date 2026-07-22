@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 
 interface ProtectedRouteProps {
@@ -16,14 +16,17 @@ interface ProtectedRouteProps {
  */
 export default function ProtectedRoute({ requiredRole }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
+  const location = useLocation();
 
   // 1. Chưa đăng nhập
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    // Redirect to login but save the attempted URL
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // 2. Không đủ quyền
   if (requiredRole && user?.role !== requiredRole) {
+    // Redirect to home if no permission
     return <Navigate to="/" replace />;
   }
 

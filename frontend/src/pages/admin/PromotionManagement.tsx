@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Plus, Pencil, Trash2, Tag, Percent, DollarSign, Eye } from 'lucide-react';
-import { getPromotions, createPromotion, updatePromotion, deletePromotion } from '@/services/promotionService';
+import { getPromotions, createPromotion, updatePromotion, deletePromotion, addPromotionItem } from '@/services/promotionService';
 import type { Promotion } from '@/services/promotionService';
 import { formatPrice } from '@/utils/formatters';
 
@@ -21,6 +21,7 @@ export default function PromotionManagement() {
     usage_limit: 0,
     valid_from: '',
     valid_to: '',
+    applicable_product_id: '',
   });
 
   const fetchPromotions = () => {
@@ -40,18 +41,32 @@ export default function PromotionManagement() {
     setIsSubmitting(true);
     try {
       const payload = {
-        ...formData,
-        min_order_value: formData.min_order_value ? formData.min_order_value : null,
-        usage_limit: formData.usage_limit ? formData.usage_limit : null,
+        code: formData.code,
+        name: formData.name,
+        discount_type: formData.discount_type,
+        discount_value: formData.discount_value,
+        min_order_value: formData.min_order_value ? formData.min_order_value : undefined,
+        usage_limit: formData.usage_limit ? formData.usage_limit : undefined,
         valid_from: new Date(formData.valid_from).toISOString(),
         valid_to: new Date(formData.valid_to).toISOString(),
       };
       
+      let savedPromo;
       if (editingId) {
         await updatePromotion(editingId, payload);
+        savedPromo = { id: editingId };
       } else {
-        await createPromotion(payload);
+        savedPromo = await createPromotion(payload);
       }
+      
+      if (formData.applicable_product_id) {
+        try {
+          await addPromotionItem(savedPromo.id, formData.applicable_product_id);
+        } catch (e) {
+          console.warn('Failed to add applicable product, ID might be invalid');
+        }
+      }
+
       setIsModalOpen(false);
       fetchPromotions();
     } catch (err: any) {
@@ -83,6 +98,7 @@ export default function PromotionManagement() {
       usage_limit: promo.usage_limit ? Number(promo.usage_limit) : 0,
       valid_from: new Date(promo.valid_from).toISOString().slice(0, 16),
       valid_to: new Date(promo.valid_to).toISOString().slice(0, 16),
+      applicable_product_id: '',
     });
     setIsModalOpen(true);
   };
@@ -104,7 +120,7 @@ export default function PromotionManagement() {
           onClick={() => {
             setEditingId(null);
             setFormData({
-              code: '', name: '', discount_type: 'PERCENT', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: ''
+              code: '', name: '', discount_type: 'PERCENT', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: '', applicable_product_id: ''
             });
             setIsModalOpen(true);
           }}
@@ -244,6 +260,12 @@ export default function PromotionManagement() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
                     <input required type="datetime-local" value={formData.valid_to} onChange={e => setFormData({...formData, valid_to: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ID Sản phẩm áp dụng (Tùy chọn)</label>
+                  <input type="text" value={formData.applicable_product_id} onChange={e => setFormData({...formData, applicable_product_id: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="VD: 550e8400-e29b-41d4-a716-446655440000" />
+                  <p className="text-xs text-gray-500 mt-1">Chỉ nhập 1 ID sản phẩm để test. Bỏ trống nếu áp dụng toàn shop.</p>
                 </div>
               </form>
             </div>
