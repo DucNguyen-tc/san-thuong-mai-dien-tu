@@ -70,16 +70,6 @@
   /* --- Font Family --- */
   --font-sans: "Inter", system-ui, Avenir, Helvetica, Arial, sans-serif;
 
-  /* --- Spacing --- */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 40px;
-  --spacing-base: 4px;
-  --spacing-gutter: 20px;
-  --spacing-container-max: 1280px;
-
   /* --- Typography --- */
   --text-headline-lg: 32px;
   --text-headline-lg--line-height: 40px;
