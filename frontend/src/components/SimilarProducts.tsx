@@ -23,8 +23,8 @@ export default function SimilarProducts({ productId }: SimilarProductsProps) {
       try {
         // Gọi Recommendation Service (Giả sử chạy port 3004 hoặc qua API Gateway)
         // Lưu ý: Cần chỉnh lại URL base nếu có API Gateway
-        const API_URL = import.meta.env.VITE_RECOMMENDATION_API_URL || 'http://localhost:3004/api/recommendations';
-        const res = await axios.get(`${API_URL}/${productId}?limit=4`);
+        const API_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:3000/api';
+        const res = await axios.get(`${API_URL}/recommendations/${productId}?limit=4`);
         const similarIds: string[] = res.data?.data || [];
 
         if (similarIds.length === 0) {

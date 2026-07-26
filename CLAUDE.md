@@ -6,6 +6,7 @@
 3. **Context:** User đang tương tác là **Người B** (phụ trách Catalog & AI Recommendation).
 4. **Hướng dẫn Test (Nghiệm thu):** Mỗi khi hoàn thành xong một task hoặc tính năng, AI **PHẢI** cung cấp hướng dẫn chi tiết cách test nghiệm thu trên Frontend (nếu có UI) để User dễ dàng kiểm tra.
 5. **Quản lý Git (Branching):** Khi bắt đầu làm các task của một Tuần mới, luôn phải tạo nhánh mới tương ứng (Ví dụ: `feature/tuan3-catalog-recommendation`) để commit code, tránh commit nhầm vào nhánh của tuần cũ.
+6. **Nạp Seed Data (Dữ liệu mẫu):** Phải luôn tự động chạy lệnh nạp seed data (vd: `npx prisma db seed`) vào các service liên quan để có sẵn dữ liệu trước khi báo User vào test giao diện.
 
 ## Architecture
 Microservices architecture using Node.js/Express for backend services and React/Vite for the frontend.
