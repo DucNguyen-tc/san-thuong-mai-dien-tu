@@ -5,6 +5,7 @@ import { getProductById } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
+import SimilarProducts from '@/components/SimilarProducts';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -253,29 +254,8 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* Similar Products */}
-        <div className="mt-12 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Sản phẩm tương tự <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-2 relative -top-1">GỢI Ý</span></h2>
-            <div className="flex gap-2">
-               <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50"><ChevronLeft size={20} /></button>
-               <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50"><ChevronRight size={20} /></button>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 gap-5">
-             {[1,2,3,4].map(i => (
-               <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 relative group hover:shadow-lg transition-shadow">
-                 <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 z-10"><Heart size={18} /></button>
-                 <div className="aspect-square bg-gray-50 rounded-lg mb-4 overflow-hidden">
-                    <img src={`https://via.placeholder.com/200?text=Tuong+tu+${i}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                 </div>
-                 <h4 className="text-sm font-medium text-gray-900 mb-1">Tai nghe V-Audio Pro X</h4>
-                 <div className="text-blue-600 font-bold mb-3">4.250.000đ</div>
-                 <button className="w-full py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded text-sm font-medium flex justify-center items-center gap-2"><ShoppingCart size={16} /></button>
-               </div>
-             ))}
-          </div>
-        </div>
+        {/* Similar Products (AI Recommended) */}
+        {id && <SimilarProducts productId={id} />}
 
       </div>
     </div>
