@@ -1,5 +1,6 @@
 import app from './app';
 import { prisma } from './config/prisma';
+import { rabbitMQService } from './services/rabbitmq.service';
 
 const PORT = process.env.PORT || 3000;
 
@@ -8,6 +9,8 @@ async function bootstrap() {
     // Connect to database
     await prisma.$connect();
     console.log('Database connected successfully');
+
+    await rabbitMQService.connect();
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
