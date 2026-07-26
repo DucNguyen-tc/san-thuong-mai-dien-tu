@@ -5,7 +5,7 @@
 2. **Giải thích & Đợi duyệt:** Trước khi thực thi bất kỳ câu lệnh (command) nào hoặc chỉnh sửa lớn, AI **PHẢI** giải thích rõ hướng đi sắp làm và ĐỢI user duyệt.
 3. **Context:** User đang tương tác là **Người B** (phụ trách Catalog & AI Recommendation).
 4. **Hướng dẫn Test (Nghiệm thu):** Mỗi khi hoàn thành xong một task hoặc tính năng, AI **PHẢI** cung cấp hướng dẫn chi tiết cách test nghiệm thu trên Frontend (nếu có UI) để User dễ dàng kiểm tra.
-5. **Quản lý Git (Branching):** Khi bắt đầu làm các task của một Tuần mới, luôn phải tạo nhánh mới tương ứng (Ví dụ: `feature/tuan3-catalog-recommendation`) để commit code, tránh commit nhầm vào nhánh của tuần cũ.
+5. **Quản lý Git (Branching):** Khi bắt đầu làm các task của một Tuần mới, AI **PHẢI** tự động kéo code mới nhất từ nhánh `develop` về (`git pull origin develop`), sau đó mới tạo nhánh làm việc mới tương ứng cho tuần đó (Ví dụ: `feature/tuan3-catalog-recommendation`) để commit code, tránh commit nhầm vào nhánh của tuần cũ hoặc bị lỗi thời so với team.
 6. **Nạp Seed Data (Dữ liệu mẫu):** Phải luôn tự động chạy lệnh nạp seed data (vd: `npx prisma db seed`) vào các service liên quan để có sẵn dữ liệu trước khi báo User vào test giao diện.
 
 ## Architecture
