@@ -43,6 +43,31 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return sendResponse(res, 400, false, 'Refresh token is required');
+    }
+    const result = await authService.refreshToken(refreshToken);
+    return sendResponse(res, 200, true, 'Token refreshed successfully', result);
+  } catch (error: any) {
+    return sendResponse(res, 401, false, error.message);
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await authService.logout(refreshToken);
+    }
+    return sendResponse(res, 200, true, 'Logout successful');
+  } catch (error: any) {
+    return sendResponse(res, 400, false, error.message);
+  }
+};
+
 export const googleCallback = async (req: Request, res: Response) => {
   try {
     const user = req.user as any;

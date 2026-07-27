@@ -14,6 +14,12 @@ const proxyOptions = (target: string) => ({
   pathRewrite: (path: string, req: any) => {
     return req.originalUrl;
   },
+  onProxyReq: (proxyReq: any, req: any, res: any) => {
+    if (req.headers['x-user-id']) {
+      proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
+      proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+    }
+  }
 });
 
 // ==========================================
@@ -54,5 +60,10 @@ router.use(
   "/payments",
   createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL)),
 );
+
+// Identity service protected routes
+router.use("/users", createProxyMiddleware(proxyOptions(env.IDENTITY_SERVICE_URL)));
+router.use("/admin", createProxyMiddleware(proxyOptions(env.IDENTITY_SERVICE_URL)));
+router.use("/addresses", createProxyMiddleware(proxyOptions(env.IDENTITY_SERVICE_URL)));
 
 export default router;

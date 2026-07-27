@@ -1,6 +1,7 @@
 import { PrismaClient, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 
@@ -67,5 +68,60 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  async refreshToken(token: string) {
+    // Verify the refresh token to extract user ID
+    let decoded: any;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch (e) {
+      throw new Error('Invalid refresh token');
+    }
+    
+    // Find refresh tokens for user
+    const dbTokens = await prisma.refreshToken.findMany({
+      where: { user_id: decoded.userId }
+    });
+    
+    // Find the matching hashed token
+    let matchedTokenId = null;
+    for (const dbToken of dbTokens) {
+      if (dbToken.expires_at < new Date()) continue; // Skip expired
+      const isValid = await bcrypt.compare(token, dbToken.token_hash);
+      if (isValid) {
+        matchedTokenId = dbToken.id;
+        break;
+      }
+    }
+    
+    if (!matchedTokenId) {
+      throw new Error('Invalid or expired refresh token');
+    }
+    
+    // Generate new access token
+    const accessToken = generateAccessToken({ userId: decoded.userId, role: decoded.role });
+    return { accessToken };
+  }
+
+  async logout(token: string) {
+    let decoded: any;
+    try {
+      decoded = verifyRefreshToken(token);
+    } catch (e) {
+      return; // If token is invalid, nothing to log out
+    }
+    
+    const dbTokens = await prisma.refreshToken.findMany({
+      where: { user_id: decoded.userId }
+    });
+    
+    for (const dbToken of dbTokens) {
+      const isValid = await bcrypt.compare(token, dbToken.token_hash);
+      if (isValid) {
+        await prisma.refreshToken.delete({ where: { id: dbToken.id } });
+        break;
+      }
+    }
   }
 }

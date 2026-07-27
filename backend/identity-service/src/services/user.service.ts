@@ -96,4 +96,60 @@ export class UserService {
       },
     });
   }
+
+  async createUserByAdmin(data: any) {
+    const { email, password, full_name, role, is_active } = data;
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new Error('Email đã được sử dụng');
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(password || '123456', salt);
+
+    return await prisma.user.create({
+      data: {
+        email,
+        full_name,
+        password_hash,
+        role: role || 'CUSTOMER',
+        is_active: is_active !== undefined ? is_active : true,
+      },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+        is_active: true,
+      }
+    });
+  }
+
+  async updateUserByAdmin(userId: string, data: any) {
+    const { email, full_name, role, is_active } = data;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+
+    if (email && email !== user.email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) throw new Error('Email đã được sử dụng');
+    }
+
+    return await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: email || user.email,
+        full_name: full_name || user.full_name,
+        role: role || user.role,
+        is_active: is_active !== undefined ? is_active : user.is_active,
+      },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+        is_active: true,
+      }
+    });
+  }
 }

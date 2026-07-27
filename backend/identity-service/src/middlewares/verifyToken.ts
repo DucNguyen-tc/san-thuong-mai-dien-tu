@@ -14,30 +14,21 @@ export interface AuthRequest extends Request {
  * Để bảo vệ các route yêu cầu đăng nhập.
  */
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Không tìm thấy Token xác thực (Unauthorized)',
-      });
-    }
+  // Đọc thông tin user do API Gateway truyền xuống qua Header
+  const userId = req.headers['x-user-id'] as string;
+  const role = req.headers['x-user-role'] as string;
 
-    const token = authHeader.split(' ')[1];
-
-    const secret = process.env.JWT_SECRET || 'super-secret-jwt-key';
-    const decoded = jwt.verify(token, secret) as { userId: string; role: string };
-
-    // Gắn thông tin user vào request
-    req.user = decoded;
-    
-    next();
-  } catch (error) {
-    return res.status(403).json({
+  if (!userId || !role) {
+    return res.status(401).json({
       success: false,
-      message: 'Token không hợp lệ hoặc đã hết hạn (Forbidden)',
+      message: 'Không có quyền truy cập. Yêu cầu phải đi qua API Gateway.',
     });
   }
+
+  // Gắn thông tin user vào request để các Controller bên dưới sử dụng
+  req.user = { userId, role };
+  
+  next();
 };
 
 /**
