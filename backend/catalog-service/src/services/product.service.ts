@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma';
+import { publishProductEvent } from '../rabbitmq/publisher';
 import { NotFoundError } from '../exceptions/AppError';
 import { slugify } from '../utils/slugify';
 import {
@@ -82,7 +83,7 @@ export class ProductService {
 
     const slug = await generateUniqueSlug(input.name);
 
-    return prisma.product.create({
+    const newProduct = await prisma.product.create({
       data: {
         category_id: input.category_id,
         name: input.name,
@@ -94,6 +95,9 @@ export class ProductService {
       },
       include: productInclude,
     });
+
+    publishProductEvent('product.created', newProduct);
+    return newProduct;
   }
 
   async update(id: string, input: UpdateProductInput) {
@@ -136,11 +140,14 @@ export class ProductService {
       }
     }
 
-    return prisma.product.update({
+    const updatedProduct = await prisma.product.update({
       where: { id },
       data: updateData,
       include: productInclude,
     });
+
+    publishProductEvent('product.updated', updatedProduct);
+    return updatedProduct;
   }
 
   /** Soft delete — theo đúng nguyên tắc thiết kế DB (tránh ID mồ côi ở Cart/Order) */

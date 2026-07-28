@@ -13,8 +13,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Service is running' });
 });
 
+import recommendationRoutes from './routes/recommendation.routes';
+
 // Import and use routes here
-// import routes from './routes';
-// app.use('/api', routes);
+app.use('/api/recommendations', recommendationRoutes);
 
 export default app;

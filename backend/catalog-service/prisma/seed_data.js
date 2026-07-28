@@ -11,7 +11,7 @@ const seedData = async () => {
     const categoryIds = {};
 
     for (const cat of categoriesToCreate) {
-      const catRes = await fetch('http://localhost:3001/api/catalog/categories', {
+      const catRes = await fetch('http://localhost:3002/api/catalog/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cat),
@@ -59,11 +59,11 @@ const seedData = async () => {
     for (const prod of productsToCreate) {
       if (!prod.category_id) {
           // If category creation failed for some reason, we fetch the first category
-          const allCats = await fetch('http://localhost:3001/api/catalog/categories').then(r => r.json());
+          const allCats = await fetch('http://localhost:3002/api/catalog/categories').then(r => r.json());
           if (allCats.data && allCats.data.length > 0) prod.category_id = allCats.data[0].id;
       }
       
-      const prodRes = await fetch('http://localhost:3001/api/catalog/products', {
+      const prodRes = await fetch('http://localhost:3002/api/catalog/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prod),
