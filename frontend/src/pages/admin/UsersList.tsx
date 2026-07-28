@@ -18,6 +18,18 @@ const UsersList: React.FC = () => {
   const [total, setTotal] = useState(0);
   const limit = 10;
 
+  // Add / Edit Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+    role: 'CUSTOMER',
+    is_active: true
+  });
+  const [modalLoading, setModalLoading] = useState(false);
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -46,6 +58,36 @@ const UsersList: React.FC = () => {
     }
   };
 
+  const handleEditClick = (user: User) => {
+    setEditingId(user.id);
+    setFormData({
+      full_name: user.full_name,
+      email: user.email,
+      password: '',
+      role: user.role,
+      is_active: user.is_active
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalLoading(true);
+    try {
+      if (editingId) {
+        await api.put(`/admin/users/${editingId}`, formData);
+      } else {
+        await api.post('/admin/users', formData);
+      }
+      setShowModal(false);
+      fetchUsers();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi lưu người dùng');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const totalPages = Math.ceil(total / limit);
 
   const getInitials = (name: string) => {
@@ -66,7 +108,14 @@ const UsersList: React.FC = () => {
           <h1 className="text-2xl font-bold text-on-surface">Quản lý người dùng</h1>
           <p className="text-sm text-on-surface-variant mt-1">Xem và quản lý tất cả người dùng, vai trò và trạng thái trên nền tảng.</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary-container transition-all">
+        <button 
+          onClick={() => {
+            setEditingId(null);
+            setFormData({ full_name: '', email: '', password: '', role: 'CUSTOMER', is_active: true });
+            setShowModal(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary-container transition-all"
+        >
           <span className="material-symbols-outlined text-[18px]">add</span>
           + Thêm người dùng mới
         </button>
@@ -162,7 +211,11 @@ const UsersList: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button className="p-1.5 rounded-lg hover:bg-surface-container transition-colors" title="Chỉnh sửa">
+                        <button 
+                          onClick={() => handleEditClick(user)}
+                          className="p-1.5 rounded-lg hover:bg-surface-container transition-colors" 
+                          title="Chỉnh sửa"
+                        >
                           <span className="material-symbols-outlined text-[18px] text-on-surface-variant">edit</span>
                         </button>
                         {user.role !== 'ADMIN' && (
@@ -252,6 +305,92 @@ const UsersList: React.FC = () => {
           <p className="text-3xl font-bold text-red-600">{users.filter(u => !u.is_active).length}</p>
         </div>
       </div>
+
+      {/* Add / Edit User Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg overflow-hidden shadow-xl">
+            <div className="p-6 border-b border-outline-variant">
+              <h2 className="text-xl font-semibold text-on-surface">{editingId ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}</h2>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs text-outline uppercase tracking-wider">Họ và tên *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.full_name}
+                  onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                  className="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Nhập họ và tên"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-outline uppercase tracking-wider">Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder="Địa chỉ email"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-outline uppercase tracking-wider">Mật khẩu {!editingId && '*'}</label>
+                <input
+                  type="password"
+                  required={!editingId}
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  placeholder={editingId ? "Bỏ trống nếu không muốn đổi mật khẩu (Chưa hỗ trợ API đổi MK ở đây)" : "Mật khẩu cho tài khoản"}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-outline uppercase tracking-wider">Vai trò</label>
+                  <select
+                    value={formData.role}
+                    onChange={e => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  >
+                    <option value="CUSTOMER">Khách hàng</option>
+                    <option value="ADMIN">Quản trị viên</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-outline uppercase tracking-wider">Trạng thái</label>
+                  <select
+                    value={formData.is_active.toString()}
+                    onChange={e => setFormData({ ...formData, is_active: e.target.value === 'true' })}
+                    className="w-full p-3 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white"
+                  >
+                    <option value="true">Hoạt động</option>
+                    <option value="false">Đã chặn</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold hover:bg-surface-container transition-all"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={modalLoading}
+                  className="px-5 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary-container transition-all disabled:opacity-50"
+                >
+                  {modalLoading ? 'Đang lưu...' : (editingId ? 'Cập nhật' : 'Thêm mới')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

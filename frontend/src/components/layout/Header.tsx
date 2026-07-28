@@ -109,6 +109,14 @@ export default function Header() {
           {/* User */}
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
+              {user?.role === 'ADMIN' && (
+                <Link to="/admin" className="hidden md:block text-sm font-medium text-purple-600 hover:text-purple-800 transition-colors mr-2 px-3 py-1 bg-purple-50 rounded-full border border-purple-200">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
+                    Quản trị
+                  </span>
+                </Link>
+              )}
               <Link to="/profile" className="hidden md:block text-sm font-medium text-on-surface hover:text-primary transition-colors">
                 {user?.full_name}
               </Link>

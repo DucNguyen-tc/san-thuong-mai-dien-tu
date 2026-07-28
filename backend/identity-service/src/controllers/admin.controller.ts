@@ -25,3 +25,22 @@ export const toggleUserActive = async (req: Request, res: Response) => {
     return sendResponse(res, 400, false, error.message);
   }
 };
+
+export const createUser = async (req: Request, res: Response) => {
+  try {
+    const user = await userService.createUserByAdmin(req.body);
+    return sendResponse(res, 201, true, 'Thêm người dùng thành công', user);
+  } catch (error: any) {
+    return sendResponse(res, 400, false, error.message);
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const user = await userService.updateUserByAdmin(userId, req.body);
+    return sendResponse(res, 200, true, 'Cập nhật người dùng thành công', user);
+  } catch (error: any) {
+    return sendResponse(res, 400, false, error.message);
+  }
+};
