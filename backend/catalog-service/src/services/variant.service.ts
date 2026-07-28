@@ -94,7 +94,12 @@ export class VariantService {
         id: { in: variantIds },
       },
       include: {
-        product: true,
+        images: true,
+        product: {
+          include: {
+            images: true,
+          }
+        },
       },
     });
   }

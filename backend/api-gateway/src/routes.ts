@@ -39,6 +39,24 @@ router.use(
   createProxyMiddleware(proxyOptions(env.RECOMMENDATION_SERVICE_URL)),
 );
 
+// Payment Return & Callback routes (Public - Browser/Gateway Redirects don't carry JWT Authorization headers)
+router.use(
+  "/payments/vnpay/return",
+  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
+);
+router.use(
+  "/payments/momo/return",
+  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
+);
+router.use(
+  "/payments/momo/simulator",
+  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
+);
+router.use(
+  "/payments/callback",
+  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
+);
+
 // ==========================================
 // Protected Routes (Authentication Required)
 // ==========================================

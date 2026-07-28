@@ -5,6 +5,9 @@ import { getProductById } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
+import { useCartStore } from '@/store/useCartStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useNavigate } from 'react-router-dom';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -12,6 +15,11 @@ export default function ProductDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('desc');
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  
+  const { addItem, isLoading: isAddingToCart } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
+  const navigate = useNavigate();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +86,30 @@ export default function ProductDetail() {
     let target = activeVariants.find(v => v.attributes?.size === size && v.attributes?.color === currentColor);
     if (!target) target = activeVariants.find(v => v.attributes?.size === size);
     if (target) setSelectedVariantId(target.id);
+  };
+
+  const handleAddToCart = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    
+    if (!selectedVariantId || !product.id) return;
+    
+    try {
+      await addItem(product.id, selectedVariantId, 1, {
+        name: product.name,
+        price: currentPrice,
+        attributes: selectedVariant?.attributes || {},
+        image_url: primaryImage
+      });
+      
+      setToastMessage('Thêm vào giỏ hàng thành công!');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setToastMessage('Lỗi khi thêm vào giỏ hàng. Vui lòng thử lại!');
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   return (
@@ -219,8 +251,16 @@ export default function ProductDetail() {
             {/* Actions */}
             <div className="grid grid-cols-2 gap-4 mb-8">
               <button disabled={isOutOfStock} className="py-3 bg-[#ff9900] hover:bg-[#e68a00] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors shadow-sm">Mua Ngay</button>
-              <button disabled={isOutOfStock} className="py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 disabled:bg-gray-50 disabled:cursor-not-allowed font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
-                <ShoppingCart size={18} /> Thêm vào giỏ
+              <button 
+                disabled={isOutOfStock || isAddingToCart} 
+                onClick={handleAddToCart}
+                className="py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 disabled:bg-gray-50 disabled:cursor-not-allowed font-bold rounded-lg transition-colors flex items-center justify-center gap-2 relative overflow-hidden"
+              >
+                {isAddingToCart ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <><ShoppingCart size={18} /> Thêm vào giỏ</>
+                )}
               </button>
             </div>
 
@@ -278,6 +318,14 @@ export default function ProductDetail() {
         </div>
 
       </div>
+      
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium z-50 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">
+          {toastMessage.includes('thành công') ? <ShoppingCart size={16} className="text-green-400" /> : null}
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { ShoppingCart, ArrowLeft, ListX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Cart() {
-  const { items, updateQuantity, removeItem, addItem } = useCartStore();
+  const { items, updateQuantity, removeItem } = useCartStore();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Auto select all items when cart changes (naive implementation)
@@ -29,9 +29,7 @@ export default function Cart() {
     }
   };
 
-  const loadMockData = () => {
-    mockCartItems.forEach((item) => addItem(item));
-  };
+
 
   const selectedItems = items.filter((item) => selectedIds.includes(item.id));
   const subtotal = selectedItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -57,18 +55,12 @@ export default function Cart() {
             >
               Về trang chủ
             </Link>
-            <button
-              onClick={loadMockData}
-              className="px-lg py-md border border-primary text-primary font-bold rounded-lg hover:bg-primary/5 transition-all"
-            >
-              Load dữ liệu giả lập
-            </button>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-lg items-start">
-          {/* Left Column: Cart Items (75%) */}
-          <div className="lg:col-span-3 space-y-md">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
+          {/* Left Column: Cart Items (66%) */}
+          <div className="lg:col-span-8 space-y-md">
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden">
               {/* Desktop Header */}
               <div className="hidden md:grid grid-cols-[auto_1fr_120px_140px_140px_auto] gap-md items-center px-lg py-md border-b border-outline-variant bg-surface-container-lowest font-bold text-on-surface-variant">
@@ -125,12 +117,13 @@ export default function Cart() {
             </div>
           </div>
 
-          {/* Right Column: Sidebar (25%) */}
-          <div className="lg:col-span-1">
+          {/* Right Column: Sidebar (33%) */}
+          <div className="lg:col-span-4">
             <CartSummary
               selectedCount={selectedCount}
               subtotal={subtotal}
               shippingFee={shippingFee}
+              selectedIds={selectedIds}
             />
           </div>
         </div>
