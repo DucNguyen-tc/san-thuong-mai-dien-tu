@@ -2,9 +2,14 @@ import { Router } from 'express';
 import { OrderController } from '../controllers/order.controller';
 import { validateBody } from '../middlewares/validate';
 import { createOrderSchema, updateOrderStatusSchema } from '../schemas/order.schema';
+import { StatsController } from '../controllers/stats.controller';
 
 const router = Router();
 const orderController = new OrderController();
+const statsController = new StatsController();
+
+// GET /api/orders/internal/stats - Lấy thống kê đơn hàng (dành cho Identity Dashboard)
+router.get('/internal/stats', statsController.getDashboardStats.bind(statsController));
 
 // POST /api/orders - Tạo đơn hàng mới
 router.post(
