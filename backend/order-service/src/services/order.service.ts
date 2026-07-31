@@ -3,14 +3,16 @@ import { prisma } from '../config/prisma';
 import { NotFoundError, BadRequestError } from '../exceptions/AppError';
 import { CreateOrderInput } from '../schemas/order.schema';
 import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { rabbitMQPublisher } from '../rabbitmq/publisher';
 
 const CATALOG_URL = process.env.CATALOG_SERVICE_URL || 'http://localhost:3002';
 const CART_URL = process.env.CART_SERVICE_URL || 'http://localhost:3003';
+const PAYMENT_URL = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3005';
 
 export class OrderService {
   
   public async createOrder(customerId: string, input: CreateOrderInput) {
-    let orderItemsInput: { product_id: string; variant_id: string; quantity: number }[] = [];
+    let orderItemsInput: { cart_item_id?: string; product_id: string; variant_id: string; quantity: number }[] = [];
     let isFromCart = false;
 
     // 1. Xác định danh sách items cần mua
@@ -29,6 +31,7 @@ export class OrderService {
             throw new BadRequestError('Giỏ hàng trống. Không thể đặt hàng.');
           }
           orderItemsInput = cart.items.map((item: any) => ({
+            cart_item_id: item.id.toString(),
             product_id: item.product_id,
             variant_id: item.variant_id,
             quantity: item.quantity,
@@ -73,7 +76,10 @@ export class OrderService {
       if (!liveVariant.is_active || !liveVariant.product?.is_active) {
         throw new BadRequestError(`Sản phẩm ${liveVariant.product?.name || ''} đã ngừng kinh doanh`);
       }
-      if (liveVariant.stock_quantity < item.quantity) {
+      // Tạm thời check tồn kho khả dụng nhanh bằng phép toán, 
+      // bước giữ kho (reserve) sẽ check lại chính xác với Lock trong DB
+      const availableStock = liveVariant.stock_quantity - liveVariant.stock_reserved;
+      if (availableStock < item.quantity) {
         throw new BadRequestError(`Sản phẩm ${liveVariant.product?.name || ''} không đủ hàng tồn kho`);
       }
 
@@ -81,13 +87,21 @@ export class OrderService {
       const lineTotal = price * item.quantity;
       subtotal += lineTotal;
 
+      let imageUrl = null;
+      if (liveVariant.images && liveVariant.images.length > 0) {
+         imageUrl = liveVariant.images[0].url;
+      } else if (liveVariant.product && liveVariant.product.images && liveVariant.product.images.length > 0) {
+         imageUrl = liveVariant.product.images[0].url;
+      }
+
       orderItemsToCreate.push({
         product_id: item.product_id,
         variant_id: item.variant_id,
         product_name_snapshot: liveVariant.product.name,
+        product_image_snapshot: imageUrl,
         variant_attributes_snapshot: liveVariant.attributes,
         original_unit_price: price,
-        unit_price_snapshot: price, // Có thể cập nhật logic giảm giá tại đây nếu có promotion
+        unit_price_snapshot: price,
         quantity: item.quantity,
         line_total: lineTotal,
       });
@@ -98,12 +112,11 @@ export class OrderService {
     const discountAmount = 0;
     const totalAmount = subtotal + shippingFee - discountAmount;
 
-    // 3. Thực hiện tạo Order và cập nhật kho
+    // 3. Thực hiện tạo Order
     const orderStatus = input.payment_method === 'CASH' ? OrderStatus.CONFIRMED : OrderStatus.PENDING_PAYMENT;
 
     const createdOrder = await prisma.$transaction(async (tx) => {
-      // Tạo order trong DB
-      const order = await tx.order.create({
+      return await tx.order.create({
         data: {
           customer_id: customerId,
           status: orderStatus,
@@ -119,40 +132,81 @@ export class OrderService {
         },
         include: { items: true },
       });
-
-      return order;
     });
 
-    // 4. Trừ tồn kho đồng bộ bên catalog-service
+    // 4. SAGA: Reserve Stock (Giữ kho)
     try {
-      const stockItems = orderItemsInput.map(item => ({
-        variantId: item.variant_id,
+      const reserveItems = orderItemsInput.map(item => ({
+        variant_id: item.variant_id,
         quantity: item.quantity,
       }));
-      await axios.put(`${CATALOG_URL}/api/catalog/variants/stock`, {
-        items: stockItems,
-        action: 'deduct',
+      
+      await axios.post(`${CATALOG_URL}/api/catalog/stock-reservations/batch`, {
+        order_id: createdOrder.id,
+        items: reserveItems
       });
     } catch (error: any) {
-      console.error('Failed to deduct stock in catalog:', error.message);
-      // Rollback đơn hàng bằng cách xóa đơn hàng vừa tạo để đảm bảo tính nhất quán dữ liệu
-      await prisma.order.delete({ where: { id: createdOrder.id } });
-      throw new BadRequestError('Không thể cập nhật tồn kho. Giao dịch đặt hàng bị hủy.');
+      console.error('Failed to reserve stock in catalog:', error.response?.data || error.message);
+      // Bù trừ: Hủy đơn hàng vì không đủ kho
+      await prisma.order.update({
+        where: { id: createdOrder.id },
+        data: { status: OrderStatus.CANCELLED }
+      });
+      throw new BadRequestError(error.response?.data?.message || 'Sản phẩm không đủ tồn kho để đặt hàng.');
     }
 
-    // 5. Làm trống giỏ hàng nếu mua từ Cart
+    // 5. Xóa các sản phẩm đã mua khỏi Giỏ hàng (nếu mua từ Cart)
     if (isFromCart) {
-      try {
-        await axios.delete(`${CART_URL}/api/cart`, {
-          headers: { 'x-user-id': customerId },
-        });
-      } catch (error: any) {
-        // Lỗi xóa giỏ hàng không cần rollback đơn hàng vì đơn hàng đã tạo thành công và trừ kho rồi.
-        console.error('Failed to clear cart after checkout:', error.message);
+      // Chạy xóa từng item, không quan trọng nếu có item bị lỗi xóa
+      for (const item of orderItemsInput) {
+        if (item.cart_item_id) {
+          try {
+            await axios.delete(`${CART_URL}/api/cart/items/${item.cart_item_id}`, {
+              headers: { 'x-user-id': customerId },
+            });
+          } catch (error: any) {
+            console.error(`Failed to remove item ${item.cart_item_id} from cart:`, error.message);
+          }
+        }
       }
     }
 
-    return createdOrder;
+    let paymentUrl: string | undefined;
+
+    // 6. SAGA: Khởi tạo thanh toán
+    try {
+      const paymentResponse = await axios.post(`${PAYMENT_URL}/api/payments/create`, {
+        order_id: createdOrder.id,
+        amount: totalAmount,
+        method: input.payment_method
+      });
+
+      if (paymentResponse.data?.success && paymentResponse.data?.data) {
+         paymentUrl = paymentResponse.data.data.payment_url;
+      }
+
+      // Đối với CASH: Order là CONFIRMED -> Tiến hành Commit Stock ngay lập tức
+      if (input.payment_method === 'CASH') {
+        await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${createdOrder.id}/commit`);
+        // Publish notification event
+        this.publishOrderNotification(createdOrder, 'COMPLETED').catch(e => console.error(e));
+      }
+      
+    } catch (error: any) {
+      console.error('Failed to initialize payment:', error.response?.data || error.message);
+      // Bù trừ (Compensation): Nhả kho và Hủy đơn hàng
+      await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${createdOrder.id}/release`);
+      await prisma.order.update({
+        where: { id: createdOrder.id },
+        data: { status: OrderStatus.CANCELLED }
+      });
+      throw new BadRequestError('Không thể khởi tạo giao dịch thanh toán.');
+    }
+
+    return {
+      ...createdOrder,
+      payment_url: paymentUrl
+    };
   }
 
   public async getOrders(
@@ -223,28 +277,43 @@ export class OrderService {
 
     const oldStatus = order.status;
     
-    // Nếu trạng thái mới là CANCELLED và trạng thái cũ chưa phải CANCELLED -> hoàn trả lại kho
+    // Nếu trạng thái mới là CANCELLED và trạng thái cũ chưa phải CANCELLED -> Hoàn trả lại kho (Release)
     if (status === OrderStatus.CANCELLED && oldStatus !== OrderStatus.CANCELLED) {
       try {
-        const stockItems = order.items.map(item => ({
-          variantId: item.variant_id,
-          quantity: item.quantity,
-        }));
-        await axios.put(`${CATALOG_URL}/api/catalog/variants/stock`, {
-          items: stockItems,
-          action: 'restore',
-        });
+        await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${orderId}/release`);
       } catch (error: any) {
-        console.error('Failed to restore stock in catalog:', error.message);
+        console.error('Failed to release stock in catalog:', error.message);
         throw new BadRequestError('Không thể hoàn kho. Không thể cập nhật trạng thái hủy đơn.');
       }
     }
 
-    return prisma.order.update({
+    // Nếu trạng thái mới là CONFIRMED và trạng thái cũ chưa phải CONFIRMED -> Chốt trừ kho (Commit)
+    if (status === OrderStatus.CONFIRMED && oldStatus !== OrderStatus.CONFIRMED) {
+      try {
+        await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${orderId}/commit`);
+        // Publish notification event
+        this.publishOrderNotification(order, 'COMPLETED').catch(e => console.error(e));
+      } catch (error: any) {
+        console.error('Failed to commit stock in catalog:', error.message);
+        throw new BadRequestError('Không thể chốt kho. Không thể cập nhật trạng thái đơn hàng.');
+      }
+    }
+
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: { status },
       include: { items: true },
     });
+
+    if (status === OrderStatus.SHIPPING && oldStatus !== OrderStatus.SHIPPING) {
+      this.publishOrderNotification(updatedOrder, 'SHIPPING').catch(e => console.error(e));
+    } else if (status === OrderStatus.COMPLETED && oldStatus !== OrderStatus.COMPLETED) {
+      this.publishOrderNotification(updatedOrder, 'DELIVERED').catch(e => console.error(e));
+    } else if (status === OrderStatus.CANCELLED && oldStatus !== OrderStatus.CANCELLED) {
+      this.publishOrderNotification(updatedOrder, 'CANCELLED').catch(e => console.error(e));
+    }
+
+    return updatedOrder;
   }
 
   public async cancelOrder(customerId: string, role: string, orderId: string) {
@@ -267,25 +336,88 @@ export class OrderService {
       throw new BadRequestError('Không thể hủy đơn hàng ở trạng thái hiện tại');
     }
 
-    // Hoàn lại kho
+    // Hoàn lại kho bằng API Release bù trừ Saga
     try {
-      const stockItems = order.items.map(item => ({
-        variantId: item.variant_id,
-        quantity: item.quantity,
-      }));
-      await axios.put(`${CATALOG_URL}/api/catalog/variants/stock`, {
-        items: stockItems,
-        action: 'restore',
-      });
+      await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${orderId}/release`);
     } catch (error: any) {
-      console.error('Failed to restore stock during cancellation:', error.message);
+      console.error('Failed to release stock during cancellation:', error.message);
       throw new BadRequestError('Lỗi hệ thống khi hoàn kho. Vui lòng thử lại sau.');
     }
 
-    return prisma.order.update({
+    // Bù trừ: Cập nhật trạng thái thanh toán thành FAILED nếu đang PENDING
+    try {
+      const paymentRes = await axios.get(`${PAYMENT_URL}/api/payments/order/${orderId}`);
+      if (paymentRes.data?.success && paymentRes.data?.data?.id) {
+        const paymentId = paymentRes.data.data.id;
+        const currentPaymentStatus = paymentRes.data.data.status;
+        if (currentPaymentStatus === 'PENDING') {
+          await axios.put(`${PAYMENT_URL}/api/payments/${paymentId}/status`, {
+            status: 'FAILED',
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to update payment status during cancellation:', error.message);
+      // Không ném lỗi ra ngoài để tránh block việc hủy đơn, chỉ log lại
+    }
+
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: { status: OrderStatus.CANCELLED },
       include: { items: true },
     });
+
+    this.publishOrderNotification(updatedOrder, 'CANCELLED').catch(e => console.error(e));
+
+    return updatedOrder;
+  }
+
+  /**
+   * Helper method to publish order events to RabbitMQ
+   */
+  private async publishOrderNotification(order: any, eventType: 'COMPLETED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED') {
+    try {
+      const IDENTITY_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+      const userRes = await axios.get(`${IDENTITY_URL}/api/users/profile`, {
+        headers: { 'x-user-id': order.customer_id, 'x-user-role': 'USER' }
+      });
+
+      let customerName = 'Khách hàng';
+      let email = '';
+
+      if (userRes.data?.success && userRes.data?.data) {
+        customerName = userRes.data.data.full_name || 'Khách hàng';
+        email = userRes.data.data.email || '';
+      }
+
+      if (!email) {
+        console.warn(`[OrderService] No email found for user ${order.customer_id}. Skip publishing ${eventType} event.`);
+        return;
+      }
+
+      const payload = {
+        orderId: order.id,
+        customerName,
+        email,
+        totalAmount: order.total_amount.toString()
+      };
+
+      switch (eventType) {
+        case 'COMPLETED':
+          await rabbitMQPublisher.publishOrderCompletedEvent(payload);
+          break;
+        case 'SHIPPING':
+          await rabbitMQPublisher.publishOrderShippingEvent(payload);
+          break;
+        case 'DELIVERED':
+          await rabbitMQPublisher.publishOrderDeliveredEvent(payload);
+          break;
+        case 'CANCELLED':
+          await rabbitMQPublisher.publishOrderCancelledEvent(payload);
+          break;
+      }
+    } catch (error: any) {
+      console.error(`[OrderService] Failed to publish ${eventType} for order ${order.id}:`, error.message);
+    }
   }
 }

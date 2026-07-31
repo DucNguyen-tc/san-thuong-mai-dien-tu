@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import routes from './routes';
+import { errorHandler } from './middlewares/errorHandler';
 
 const app = express();
 
@@ -10,12 +12,13 @@ app.use(express.urlencoded({ extended: true }));
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Service is running' });
+  res.status(200).json({ status: 'ok', message: 'Payment Service is running' });
 });
 
-// Import and use routes here
-import routes from './routes';
+// Mount các routes tại /api
 app.use('/api', routes);
 
-export default app;
+// Error handler — PHẢI đăng ký sau cùng (AGENT.md mục 4.2)
+app.use(errorHandler);
 
+export default app;

@@ -6,12 +6,14 @@ interface CartSummaryProps {
   selectedCount: number;
   subtotal: number;
   shippingFee: number;
+  selectedIds: string[];
 }
 
 export function CartSummary({
   selectedCount,
   subtotal,
   shippingFee,
+  selectedIds,
 }: CartSummaryProps) {
   const navigate = useNavigate();
   const total = subtotal + shippingFee;
@@ -54,7 +56,7 @@ export function CartSummary({
       </div>
 
       <button
-        onClick={() => navigate('/checkout')}
+        onClick={() => navigate('/checkout', { state: { selectedIds } })}
         disabled={selectedCount === 0}
         className="w-full py-md bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >

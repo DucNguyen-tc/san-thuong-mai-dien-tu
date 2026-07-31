@@ -3,9 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronRight, ChevronDown, Heart, ShoppingCart, Star } from 'lucide-react';
 import { getProducts } from '@/services/productService';
 import { getCategoryTree } from '@/services/categoryService';
+import { formatPrice } from '@/utils/formatters';
 import type { CatalogProduct, Category } from '@/types/catalog';
 import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
-import { formatPrice } from '@/utils/formatters';
 
 export default function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -230,14 +230,6 @@ export default function ProductList() {
                           <span className="text-gray-400 text-xs line-through">{formatPrice(getDisplayPrice(product) * 1.2)}</span>
                         )}
                       </div>
-                      
-                      <button 
-                        onClick={(e) => { e.preventDefault(); alert('Đã thêm vào giỏ hàng!'); }}
-                        className="w-full py-2 bg-[#f39c12] hover:bg-[#e67e22] text-white font-medium rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <ShoppingCart size={16} />
-                        Thêm vào giỏ
-                      </button>
                     </div>
                   </div>
                 </Link>
@@ -277,8 +269,6 @@ export default function ProductList() {
 
         </div>
       </div>
-      
-
     </div>
   );
 }
