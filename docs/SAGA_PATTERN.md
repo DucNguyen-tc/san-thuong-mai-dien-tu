@@ -288,7 +288,7 @@ Nếu người dùng tắt trình duyệt sau khi tạo đơn mà không thực 
    - Đã tích hợp thành công Webhook (IPN) từ VNPAY và MoMo về `payment-service`.
    - Áp dụng xác thực chữ ký (Checksum/Signature verification) để bảo mật endpoint Webhook.
    - Viết cơ chế Idempotency chống gọi đúp Webhook, đồng thời tự động cập nhật và gọi `order-service` để chốt đơn/nhả kho.
-4. **Giai đoạn 4 (Event-Driven Notifications):**
+4. **Giai đoạn 4 (Event-Driven Notifications) — [HOÀN THÀNH]:**
    - Đăng ký RabbitMQ publisher tại `order-service` và subscriber tại `notification-service`.
 
 

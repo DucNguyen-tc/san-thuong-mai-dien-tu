@@ -148,6 +148,37 @@ export default function ProductDetail() {
     }
   };
 
+  const handleBuyNow = async () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+
+    if (!selectedVariantId || !product.id) return;
+
+    try {
+      await addItem(product.id, selectedVariantId, 1, {
+        name: product.name,
+        price: currentPrice,
+        attributes: selectedVariant?.attributes || {},
+        image_url: primaryImage,
+      });
+
+      // Lấy danh sách item mới nhất để tìm cart_item_id vừa tạo
+      const latestItems = useCartStore.getState().items;
+      const addedItem = latestItems.find((item) => item.variant_id === selectedVariantId);
+
+      if (addedItem) {
+        navigate("/checkout", { state: { selectedIds: [addedItem.id] } });
+      } else {
+        navigate("/checkout");
+      }
+    } catch (error) {
+      setToastMessage("Lỗi khi xử lý Mua ngay. Vui lòng thử lại!");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
   return (
     <div className="bg-[#f8f9fa] min-h-screen pb-16">
       <div className="max-w-7xl mx-auto px-4 mt-6">
@@ -347,7 +378,8 @@ export default function ProductDetail() {
             <div className="grid grid-cols-2 gap-4 mb-8">
               <button
                 disabled={isOutOfStock}
-                className="py-3 bg-[#ff9900] hover:bg-[#e68a00] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors shadow-sm"
+                onClick={handleBuyNow}
+                className="py-3 bg-[#ff9900] hover:bg-[#e68a00] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
               >
                 Mua Ngay
               </button>

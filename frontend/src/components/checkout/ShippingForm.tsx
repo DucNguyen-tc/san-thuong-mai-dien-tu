@@ -42,7 +42,8 @@ export function ShippingForm({ onFormUpdate }: ShippingFormProps) {
     mode: 'onChange',
   });
 
-  const watchAll = watch();
+  const watchValues = watch();
+  const watchValuesString = JSON.stringify(watchValues);
   const currentAddressId = watch('addressId');
 
   const fetchAddresses = async () => {
@@ -71,7 +72,7 @@ export function ShippingForm({ onFormUpdate }: ShippingFormProps) {
     } else {
       onFormUpdate(false, null);
     }
-  }, [isValid, watchAll, onFormUpdate, getValues]);
+  }, [isValid, watchValuesString, onFormUpdate, getValues]);
 
   const applyAddressToForm = (addr: Address) => {
     setValue('fullName', addr.receiver_name || '', { shouldValidate: true, shouldDirty: false });

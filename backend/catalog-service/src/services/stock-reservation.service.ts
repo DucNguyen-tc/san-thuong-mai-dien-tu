@@ -186,16 +186,27 @@ export class StockReservationService {
         return reservation;
       }
 
-      if (reservation.status !== 'RESERVED') {
+      if (reservation.status !== 'RESERVED' && reservation.status !== 'COMMITTED') {
         throw new BadRequestError(`Không thể nhả kho khi bản ghi đang ở trạng thái ${reservation.status}`);
       }
 
-      await tx.productVariant.update({
-        where: { id: reservation.variant_id },
-        data: {
-          stock_reserved: { decrement: reservation.quantity }
-        }
-      });
+      if (reservation.status === 'RESERVED') {
+        await tx.productVariant.update({
+          where: { id: reservation.variant_id },
+          data: {
+            stock_reserved: { decrement: reservation.quantity }
+          }
+        });
+      } else if (reservation.status === 'COMMITTED') {
+        // Nếu đã COMMITTED, có nghĩa là đã trừ cả stock_quantity và stock_reserved.
+        // Khi hủy, ta cần cộng lại stock_quantity (stock_reserved không thay đổi vì đã decrement lúc commit).
+        await tx.productVariant.update({
+          where: { id: reservation.variant_id },
+          data: {
+            stock_quantity: { increment: reservation.quantity }
+          }
+        });
+      }
 
       return tx.stockReservation.update({
         where: { reservation_id },
@@ -222,7 +233,7 @@ export class StockReservationService {
         results.push(res);
         continue;
       }
-      if (res.status === 'RESERVED') {
+      if (res.status === 'RESERVED' || res.status === 'COMMITTED') {
         const released = await this.release(res.reservation_id);
         results.push(released);
       }

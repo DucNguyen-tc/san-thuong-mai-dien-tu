@@ -6,6 +6,7 @@ export interface OrderItem {
   product_id: string;
   variant_id: string;
   product_name_snapshot: string;
+  product_image_snapshot?: string | null;
   variant_attributes_snapshot: Record<string, string>;
   original_unit_price: number | string;
   unit_price_snapshot: number | string;
@@ -63,5 +64,10 @@ export async function getOrderById(id: string): Promise<Order> {
 
 export async function cancelOrder(id: string): Promise<Order> {
   const { data } = await apiClient.post<ApiEnvelope<Order>>(`/orders/${id}/cancel`);
+  return data.data;
+}
+
+export async function updateOrderStatus(id: string, status: Order['status']): Promise<Order> {
+  const { data } = await apiClient.put<ApiEnvelope<Order>>(`/orders/${id}/status`, { status });
   return data.data;
 }

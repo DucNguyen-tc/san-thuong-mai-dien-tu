@@ -33,3 +33,13 @@ export async function getPaymentByOrderId(orderId: string): Promise<PaymentRecor
   const { data } = await apiClient.get<ApiEnvelope<PaymentRecord>>(`/payments/order/${orderId}`);
   return data.data;
 }
+
+export async function getPayments(): Promise<PaymentRecord[]> {
+  const { data } = await apiClient.get<ApiEnvelope<PaymentRecord[]>>('/payments');
+  return data.data;
+}
+
+export async function refundPayment(paymentId: string): Promise<PaymentRecord> {
+  const { data } = await apiClient.post<ApiEnvelope<PaymentRecord>>(`/payments/${paymentId}/refund`);
+  return data.data;
+}

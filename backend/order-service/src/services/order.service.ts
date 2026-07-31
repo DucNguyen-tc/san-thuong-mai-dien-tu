@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { NotFoundError, BadRequestError } from '../exceptions/AppError';
 import { CreateOrderInput } from '../schemas/order.schema';
 import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { rabbitMQPublisher } from '../rabbitmq/publisher';
 
 const CATALOG_URL = process.env.CATALOG_SERVICE_URL || 'http://localhost:3002';
 const CART_URL = process.env.CART_SERVICE_URL || 'http://localhost:3003';
@@ -86,10 +87,18 @@ export class OrderService {
       const lineTotal = price * item.quantity;
       subtotal += lineTotal;
 
+      let imageUrl = null;
+      if (liveVariant.images && liveVariant.images.length > 0) {
+         imageUrl = liveVariant.images[0].url;
+      } else if (liveVariant.product && liveVariant.product.images && liveVariant.product.images.length > 0) {
+         imageUrl = liveVariant.product.images[0].url;
+      }
+
       orderItemsToCreate.push({
         product_id: item.product_id,
         variant_id: item.variant_id,
         product_name_snapshot: liveVariant.product.name,
+        product_image_snapshot: imageUrl,
         variant_attributes_snapshot: liveVariant.attributes,
         original_unit_price: price,
         unit_price_snapshot: price,
@@ -128,12 +137,12 @@ export class OrderService {
     // 4. SAGA: Reserve Stock (Giữ kho)
     try {
       const reserveItems = orderItemsInput.map(item => ({
-        variantId: item.variant_id,
+        variant_id: item.variant_id,
         quantity: item.quantity,
       }));
       
       await axios.post(`${CATALOG_URL}/api/catalog/stock-reservations/batch`, {
-        orderId: createdOrder.id,
+        order_id: createdOrder.id,
         items: reserveItems
       });
     } catch (error: any) {
@@ -179,6 +188,8 @@ export class OrderService {
       // Đối với CASH: Order là CONFIRMED -> Tiến hành Commit Stock ngay lập tức
       if (input.payment_method === 'CASH') {
         await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${createdOrder.id}/commit`);
+        // Publish notification event
+        this.publishOrderNotification(createdOrder, 'COMPLETED').catch(e => console.error(e));
       }
       
     } catch (error: any) {
@@ -280,17 +291,29 @@ export class OrderService {
     if (status === OrderStatus.CONFIRMED && oldStatus !== OrderStatus.CONFIRMED) {
       try {
         await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${orderId}/commit`);
+        // Publish notification event
+        this.publishOrderNotification(order, 'COMPLETED').catch(e => console.error(e));
       } catch (error: any) {
         console.error('Failed to commit stock in catalog:', error.message);
         throw new BadRequestError('Không thể chốt kho. Không thể cập nhật trạng thái đơn hàng.');
       }
     }
 
-    return prisma.order.update({
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: { status },
       include: { items: true },
     });
+
+    if (status === OrderStatus.SHIPPING && oldStatus !== OrderStatus.SHIPPING) {
+      this.publishOrderNotification(updatedOrder, 'SHIPPING').catch(e => console.error(e));
+    } else if (status === OrderStatus.COMPLETED && oldStatus !== OrderStatus.COMPLETED) {
+      this.publishOrderNotification(updatedOrder, 'DELIVERED').catch(e => console.error(e));
+    } else if (status === OrderStatus.CANCELLED && oldStatus !== OrderStatus.CANCELLED) {
+      this.publishOrderNotification(updatedOrder, 'CANCELLED').catch(e => console.error(e));
+    }
+
+    return updatedOrder;
   }
 
   public async cancelOrder(customerId: string, role: string, orderId: string) {
@@ -321,10 +344,80 @@ export class OrderService {
       throw new BadRequestError('Lỗi hệ thống khi hoàn kho. Vui lòng thử lại sau.');
     }
 
-    return prisma.order.update({
+    // Bù trừ: Cập nhật trạng thái thanh toán thành FAILED nếu đang PENDING
+    try {
+      const paymentRes = await axios.get(`${PAYMENT_URL}/api/payments/order/${orderId}`);
+      if (paymentRes.data?.success && paymentRes.data?.data?.id) {
+        const paymentId = paymentRes.data.data.id;
+        const currentPaymentStatus = paymentRes.data.data.status;
+        if (currentPaymentStatus === 'PENDING') {
+          await axios.put(`${PAYMENT_URL}/api/payments/${paymentId}/status`, {
+            status: 'FAILED',
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to update payment status during cancellation:', error.message);
+      // Không ném lỗi ra ngoài để tránh block việc hủy đơn, chỉ log lại
+    }
+
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: { status: OrderStatus.CANCELLED },
       include: { items: true },
     });
+
+    this.publishOrderNotification(updatedOrder, 'CANCELLED').catch(e => console.error(e));
+
+    return updatedOrder;
+  }
+
+  /**
+   * Helper method to publish order events to RabbitMQ
+   */
+  private async publishOrderNotification(order: any, eventType: 'COMPLETED' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED') {
+    try {
+      const IDENTITY_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+      const userRes = await axios.get(`${IDENTITY_URL}/api/users/profile`, {
+        headers: { 'x-user-id': order.customer_id, 'x-user-role': 'USER' }
+      });
+
+      let customerName = 'Khách hàng';
+      let email = '';
+
+      if (userRes.data?.success && userRes.data?.data) {
+        customerName = userRes.data.data.full_name || 'Khách hàng';
+        email = userRes.data.data.email || '';
+      }
+
+      if (!email) {
+        console.warn(`[OrderService] No email found for user ${order.customer_id}. Skip publishing ${eventType} event.`);
+        return;
+      }
+
+      const payload = {
+        orderId: order.id,
+        customerName,
+        email,
+        totalAmount: order.total_amount.toString()
+      };
+
+      switch (eventType) {
+        case 'COMPLETED':
+          await rabbitMQPublisher.publishOrderCompletedEvent(payload);
+          break;
+        case 'SHIPPING':
+          await rabbitMQPublisher.publishOrderShippingEvent(payload);
+          break;
+        case 'DELIVERED':
+          await rabbitMQPublisher.publishOrderDeliveredEvent(payload);
+          break;
+        case 'CANCELLED':
+          await rabbitMQPublisher.publishOrderCancelledEvent(payload);
+          break;
+      }
+    } catch (error: any) {
+      console.error(`[OrderService] Failed to publish ${eventType} for order ${order.id}:`, error.message);
+    }
   }
 }

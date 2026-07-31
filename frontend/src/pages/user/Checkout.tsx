@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
@@ -10,7 +10,7 @@ import { createPayment } from '@/services/paymentService';
 import type { CheckoutFormData, PaymentMethodType } from '@/types/cart';
 
 export default function Checkout() {
-  const { items: allItems, clearCart } = useCartStore();
+  const { items: allItems, removeItem } = useCartStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,15 +24,16 @@ export default function Checkout() {
   const [formData, setFormData] = useState<CheckoutFormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isOrderCompleted, setIsOrderCompleted] = useState(false);
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shippingFee = subtotal > 500000 ? 0 : (subtotal > 0 ? 30000 : 0);
   const discount = 0;
 
-  const handleFormUpdate = (isValid: boolean, data: CheckoutFormData | null) => {
+  const handleFormUpdate = useCallback((isValid: boolean, data: CheckoutFormData | null) => {
     setIsFormValid(isValid);
     setFormData(data);
-  };
+  }, []);
 
   const handleSubmitOrder = async () => {
     if (!isFormValid || !formData || items.length === 0 || isSubmitting) return;
@@ -67,8 +68,15 @@ export default function Checkout() {
         method: backendPaymentMethod,
       });
 
-      // 4. Xóa các món đã thanh toán khỏi giỏ hàng
-      clearCart();
+      // 4. Chỉ xóa các món đã đặt hàng khỏi giỏ hàng
+      setIsOrderCompleted(true);
+      for (const item of items) {
+        try {
+          await removeItem(item.id);
+        } catch (err) {
+          console.error(`Không thể xóa item ${item.id} khỏi giỏ hàng:`, err);
+        }
+      }
 
       // 5. Điều hướng theo phương thức thanh toán
       if (backendPaymentMethod === 'CASH') {
@@ -86,6 +94,16 @@ export default function Checkout() {
       setIsSubmitting(false);
     }
   };
+
+  if (isOrderCompleted) {
+    return (
+      <main className="max-w-container-max mx-auto px-lg py-xl text-center flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <h2 className="text-2xl font-bold mb-2">Đang chuyển hướng...</h2>
+        <p className="text-gray-500 text-sm">Vui lòng chờ trong giây lát để kết nối an toàn tới cổng thanh toán.</p>
+      </main>
+    );
+  }
 
   if (items.length === 0) {
     return (
