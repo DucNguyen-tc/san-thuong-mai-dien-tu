@@ -2,6 +2,7 @@ import { PrismaClient, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import jwt from 'jsonwebtoken';
+import { publishUserEvent } from '../rabbitmq/publisher';
 
 const prisma = new PrismaClient();
 
@@ -22,6 +23,13 @@ export class AuthService {
         full_name: fullName,
         auth_provider: 'LOCAL',
       },
+    });
+
+    publishUserEvent('user.registered', {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role
     });
 
     return user;

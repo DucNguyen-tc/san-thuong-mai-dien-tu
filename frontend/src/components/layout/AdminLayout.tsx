@@ -1,23 +1,27 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
   ShoppingBag,
+  CreditCard,
   Users,
   BarChart3,
   Settings,
   LogOut,
-} from "lucide-react";
-import { useAuthStore } from "@/store/useAuthStore";
+  FolderTree
+} from 'lucide-react';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const navItems = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Sản phẩm", href: "/admin/products", icon: Package },
-  { label: "Khuyến mãi", href: "/admin/promotions", icon: Package }, // Used Package or Tag if imported
-  { label: "Đơn hàng", href: "/admin/orders", icon: ShoppingBag },
-  { label: "Khách hàng", href: "/admin/customers", icon: Users },
-  { label: "Báo cáo", href: "/admin/reports", icon: BarChart3 },
-  { label: "Cài đặt", href: "/admin/settings", icon: Settings },
+  { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Danh mục', href: '/admin/categories', icon: FolderTree },
+  { label: 'Sản phẩm', href: '/admin/products', icon: Package },
+  { label: 'Khuyến mãi', href: '/admin/promotions', icon: Package }, // Used Package or Tag if imported
+  { label: 'Đơn hàng', href: '/admin/orders', icon: ShoppingBag },
+  { label: 'Thanh toán', href: '/admin/payments', icon: CreditCard },
+  { label: 'Khách hàng', href: '/admin/customers', icon: Users },
+  { label: 'Báo cáo', href: '/admin/reports', icon: BarChart3 },
+  { label: 'Cài đặt', href: '/admin/settings', icon: Settings },
 ];
 
 /**
@@ -34,21 +38,10 @@ export default function AdminLayout() {
       {/* TopNavBar */}
       <header className="bg-surface-container-lowest text-primary font-body-md text-body-md border-b border-outline-variant flex justify-between items-center h-16 px-6 w-full sticky top-0 z-40">
         <div className="flex items-center gap-4">
-          <Link
-            to="/"
-            className="font-headline-lg text-[24px] text-primary font-bold"
-          >
-            V-Shop Admin
-          </Link>
+          <Link to="/" className="font-headline-lg text-[24px] text-primary font-bold">V-Shop Admin</Link>
           <div className="hidden md:flex ml-8 items-center bg-surface-container-low px-3 py-1.5 rounded-lg border border-outline-variant">
-            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
-              search
-            </span>
-            <input
-              className="bg-transparent border-none focus:ring-0 text-body-md ml-2 w-64 outline-none"
-              placeholder="Tìm kiếm toàn hệ thống..."
-              type="text"
-            />
+            <span className="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
+            <input className="bg-transparent border-none focus:ring-0 text-body-md ml-2 w-64 outline-none" placeholder="Tìm kiếm toàn hệ thống..." type="text" />
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -63,15 +56,9 @@ export default function AdminLayout() {
           </button>
           <div className="h-8 w-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container-low flex items-center justify-center">
             {user?.avatar_url ? (
-              <img
-                alt="Avatar"
-                className="w-full h-full object-cover"
-                src={user.avatar_url}
-              />
+              <img alt="Avatar" className="w-full h-full object-cover" src={user.avatar_url} />
             ) : (
-              <span className="material-symbols-outlined text-outline">
-                account_circle
-              </span>
+              <span className="material-symbols-outlined text-outline">account_circle</span>
             )}
           </div>
         </div>
@@ -81,12 +68,8 @@ export default function AdminLayout() {
         {/* SideNavBar */}
         <aside className="bg-surface-container-lowest w-[260px] h-[calc(100vh-64px)] fixed left-0 top-16 border-r border-outline-variant flex flex-col z-30">
           <div className="p-6">
-            <h2 className="font-headline-md text-[18px] font-bold text-primary">
-              V-Shop
-            </h2>
-            <p className="font-label-sm text-[12px] text-on-surface-variant">
-              Bộ quản trị hệ thống
-            </p>
+            <h2 className="font-headline-md text-[18px] font-bold text-primary">V-Shop</h2>
+            <p className="font-label-sm text-[12px] text-on-surface-variant">Bộ quản trị hệ thống</p>
           </div>
           <nav className="flex-1 px-2 space-y-1 overflow-y-auto custom-scrollbar">
             {navItems.map(({ label, href, icon: Icon }) => {
@@ -97,17 +80,12 @@ export default function AdminLayout() {
                   to={href}
                   className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-all font-label-sm text-[12px] rounded-lg ${
                     isActive
-                      ? "bg-primary/10 text-primary border-l-2 border-primary"
-                      : "hover:bg-surface-container-low text-on-surface-variant"
+                      ? 'bg-primary/10 text-primary border-l-2 border-primary'
+                      : 'hover:bg-surface-container-low text-on-surface-variant'
                   }`}
                 >
-                  <Icon
-                    size={18}
-                    className={
-                      isActive ? "text-primary" : "text-on-surface-variant"
-                    }
-                  />
-                  <span className={isActive ? "font-bold" : ""}>{label}</span>
+                  <Icon size={18} className={isActive ? 'text-primary' : 'text-on-surface-variant'} />
+                  <span className={isActive ? 'font-bold' : ''}>{label}</span>
                 </Link>
               );
             })}

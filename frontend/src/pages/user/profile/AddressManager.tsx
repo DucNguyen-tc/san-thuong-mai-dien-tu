@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '@/lib/axios';
+import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 interface Address {
   id: string;
@@ -35,15 +37,17 @@ const AddressManager: React.FC = () => {
     try {
       if (editingId) {
         await api.put(`/addresses/${editingId}`, formData);
+        toast.success('Cập nhật địa chỉ thành công');
       } else {
         await api.post('/addresses', formData);
+        toast.success('Thêm địa chỉ thành công');
       }
       setShowModal(false);
       setEditingId(null);
       setFormData({ address_line: '', phone: '', receiver_name: '' });
       fetchAddresses();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Có lỗi xảy ra khi lưu địa chỉ');
+      toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi lưu địa chỉ');
     } finally {
       setLoading(false);
     }
@@ -62,19 +66,33 @@ const AddressManager: React.FC = () => {
   const handleSetDefault = async (id: string) => {
     try {
       await api.patch(`/addresses/${id}/default`);
+      toast.success('Đã đặt làm mặc định');
       fetchAddresses();
-    } catch {
-      alert('Không thể đặt mặc định');
+    } catch (err) {
+      toast.error('Không thể đặt mặc định');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) return;
+    const result = await Swal.fire({
+      title: 'Xóa địa chỉ?',
+      text: "Bạn không thể hoàn tác hành động này!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#d1d5db',
+      confirmButtonText: 'Xóa',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       await api.delete(`/addresses/${id}`);
+      toast.success('Đã xóa địa chỉ');
       fetchAddresses();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Không thể xóa địa chỉ');
+      toast.error(err.response?.data?.message || 'Không thể xóa địa chỉ');
     }
   };
 

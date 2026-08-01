@@ -5,6 +5,7 @@ import {
   updateVariantSchema,
   CreateVariantInput,
   UpdateVariantInput,
+  imageInputSchema
 } from './variant.schema';
 
 export {
@@ -13,13 +14,8 @@ export {
   updateVariantSchema,
   CreateVariantInput,
   UpdateVariantInput,
+  imageInputSchema
 };
-
-export const imageInputSchema = z.object({
-  url: z.string().url('URL ảnh không hợp lệ'),
-  is_primary: z.boolean().default(false),
-  sort_order: z.number().int().nonnegative().default(0),
-});
 
 export const createProductSchema = z.object({
   category_id: z.string().uuid('category_id phải là UUID hợp lệ'),

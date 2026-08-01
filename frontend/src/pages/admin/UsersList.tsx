@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 import api from '@/lib/axios';
 
 interface User {
@@ -47,14 +49,26 @@ const UsersList: React.FC = () => {
     fetchUsers();
   }, [page]);
 
-  const handleToggleActive = async (userId: string, currentStatus: boolean, role: string) => {
-    if (role === 'ADMIN') return;
-    if (!window.confirm(`Bạn có chắc chắn muốn ${currentStatus ? 'chặn' : 'mở khóa'} người dùng này?`)) return;
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    const result = await Swal.fire({
+      title: 'Xác nhận thay đổi',
+      text: `Bạn có chắc chắn muốn ${currentStatus ? 'chặn' : 'mở khóa'} người dùng này?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#d1d5db',
+      confirmButtonText: 'Đồng ý',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       await api.patch(`/admin/users/${userId}/toggle-active`);
-      setUsers(users.map(u => u.id === userId ? { ...u, is_active: !u.is_active } : u));
+      toast.success('Cập nhật trạng thái thành công');
+      fetchUsers();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Có lỗi xảy ra');
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
     }
   };
 
@@ -80,9 +94,10 @@ const UsersList: React.FC = () => {
         await api.post('/admin/users', formData);
       }
       setShowModal(false);
+      toast.success('Lưu người dùng thành công');
       fetchUsers();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Có lỗi xảy ra khi lưu người dùng');
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lưu người dùng');
     } finally {
       setModalLoading(false);
     }
@@ -220,7 +235,7 @@ const UsersList: React.FC = () => {
                         </button>
                         {user.role !== 'ADMIN' && (
                           <button
-                            onClick={() => handleToggleActive(user.id, user.is_active, user.role)}
+                            onClick={() => handleToggleStatus(user.id, user.is_active)}
                             className="p-1.5 rounded-lg hover:bg-surface-container transition-colors"
                             title={user.is_active ? 'Chặn tài khoản' : 'Mở khóa'}
                           >
