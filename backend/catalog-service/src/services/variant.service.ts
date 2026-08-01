@@ -60,18 +60,34 @@ export class VariantService {
     if (!product) throw new NotFoundError('Sản phẩm không tồn tại');
 
     return prisma.productVariant.create({
-      data: input,
+      data: {
+        attributes: input.attributes ?? {},
+        price: input.price,
+        stock_quantity: input.stock_quantity ?? 0,
+        is_active: input.is_active ?? true,
+        product_id: input.product_id,
+        images: input.images && input.images.length > 0 ? { create: input.images.map(img => ({ ...img, product: { connect: { id: input.product_id } } })) } : undefined
+      },
       include: variantInclude,
     });
   }
 
   async update(id: string, input: UpdateVariantInput) {
     // Kiểm tra sự tồn tại của variant
-    await this.getById(id);
+    const variant = await this.getById(id);
 
     return prisma.productVariant.update({
       where: { id },
-      data: input,
+      data: {
+        attributes: input.attributes ?? undefined,
+        price: input.price ?? undefined,
+        stock_quantity: input.stock_quantity ?? undefined,
+        is_active: input.is_active ?? undefined,
+        images: input.images && input.images.length > 0 ? {
+          deleteMany: {},
+          create: input.images.map(img => ({ ...img, product: { connect: { id: variant.product_id } } }))
+        } : undefined
+      },
       include: variantInclude,
     });
   }

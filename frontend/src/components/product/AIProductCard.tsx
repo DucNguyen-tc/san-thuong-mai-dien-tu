@@ -1,10 +1,10 @@
-import type { Product } from '@/types/product';
-import Badge from '@/components/ui/Badge';
+import type { CatalogProduct } from '@/types/catalog';
+import { getPrimaryImageUrl, getDisplayPrice, getDiscountedPrice, getMaxDiscountTag } from '@/types/catalog';
 import StarRating from '@/components/ui/StarRating';
 import { formatPrice } from '@/utils/formatters';
 
 interface AIProductCardProps {
-  product: Product;
+  product: CatalogProduct;
 }
 
 export default function AIProductCard({ product }: AIProductCardProps) {
@@ -13,7 +13,7 @@ export default function AIProductCard({ product }: AIProductCardProps) {
       {/* Product Image */}
       <div className="w-32 h-32 rounded-xl overflow-hidden shrink-0 bg-surface-container-low">
         <img
-          src={product.imageUrl}
+          src={getPrimaryImageUrl(product) || 'https://via.placeholder.com/150'}
           alt={product.name}
           className="w-full h-full object-cover"
           loading="lazy"
@@ -23,20 +23,33 @@ export default function AIProductCard({ product }: AIProductCardProps) {
       {/* Product Info */}
       <div className="flex flex-col justify-between py-1 min-w-0">
         <div>
-          {product.badge && product.badgeLabel && (
+          {getMaxDiscountTag(product) && (
             <div className="mb-1">
-              <Badge variant={product.badge} label={product.badgeLabel} />
+              <span className="bg-error text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                {getMaxDiscountTag(product)}
+              </span>
             </div>
           )}
           <h3 className="font-semibold text-base line-clamp-2 mt-1">{product.name}</h3>
-          <p className="text-primary font-bold text-base mt-2">{formatPrice(product.price)}</p>
+          
+          <div className="mt-2 flex items-end gap-2">
+            <span className="text-primary font-bold text-base block">
+              {formatPrice(getDiscountedPrice(product))}
+            </span>
+            {getDiscountedPrice(product) < getDisplayPrice(product) && (
+              <span className="text-on-surface-variant text-xs line-through mb-0.5">
+                {formatPrice(getDisplayPrice(product))}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4 text-on-surface-variant">
-          <StarRating rating={product.rating} count={product.reviewCount} />
-          {product.aiReason && (
+          <StarRating rating={product.rating || 0} count={product.reviews_count || 0} />
+          {/* TODO: Add AI reason if available from recommendation API */}
+          {/* {product.aiReason && (
             <span className="text-xs truncate">{product.aiReason}</span>
-          )}
+          )} */}
         </div>
       </div>
     </div>

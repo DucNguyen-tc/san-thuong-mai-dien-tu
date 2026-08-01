@@ -18,10 +18,12 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const category_id = typeof req.query.category_id === 'string' ? req.query.category_id : undefined;
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const has_discount = req.query.has_discount === 'true';
     // includeInactive chỉ dùng cho màn Admin — FE truyền ?includeInactive=true
     const includeInactive = req.query.includeInactive === 'true';
+    const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
 
-    const result = await productService.getAll({ page, limit, category_id, search, includeInactive });
+    const result = await productService.getAll({ page, limit, category_id, search, includeInactive, has_discount, sort });
     return sendResponse(res, 200, true, 'Lấy danh sách sản phẩm thành công', serializeBigInt(result));
   } catch (error) {
     next(error);

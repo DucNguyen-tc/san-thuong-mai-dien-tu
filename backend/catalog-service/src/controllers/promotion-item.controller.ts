@@ -37,3 +37,31 @@ export const deleteItem = async (req: Request, res: Response, next: NextFunction
     next(error);
   }
 };
+
+import { prisma } from '../config/prisma';
+export const addCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { promotionId } = req.params;
+    const { category_id } = req.body;
+    
+    // Tìm tất cả sản phẩm của danh mục
+    const products = await prisma.product.findMany({ where: { category_id } });
+    
+    // Thêm vào promotion_items
+    const data = products.map(p => ({
+      promotion_id: promotionId,
+      product_id: p.id,
+    }));
+    
+    if (data.length > 0) {
+      await prisma.promotionItem.createMany({
+        data,
+        skipDuplicates: true
+      });
+    }
+    
+    return sendResponse(res, 201, true, `Đã thêm ${data.length} sản phẩm của danh mục vào khuyến mãi`);
+  } catch(err) {
+     next(err);
+  }
+};

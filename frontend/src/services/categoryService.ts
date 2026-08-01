@@ -20,3 +20,17 @@ export async function getCategoryTree(): Promise<Category[]> {
   const { data } = await apiClient.get<ApiEnvelope<Category[]>>('/catalog/categories/tree');
   return data.data;
 }
+
+export async function createCategory(input: any): Promise<Category> {
+  const { data } = await apiClient.post<ApiEnvelope<Category>>('/catalog/categories', input);
+  return data.data;
+}
+
+export async function updateCategory(id: string, input: any): Promise<Category> {
+  const { data } = await apiClient.put<ApiEnvelope<Category>>(`/catalog/categories/${id}`, input);
+  return data.data;
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  await apiClient.delete(`/catalog/categories/${id}`);
+}

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Star, ChevronRight, ChevronLeft, Truck, ShieldCheck, RefreshCcw, CreditCard, Loader2 } from 'lucide-react';
 import { getProductById } from '@/services/productService';
 import type { CatalogProduct } from '@/types/catalog';
-import { getDisplayPrice, getPrimaryImageUrl } from '@/types/catalog';
+import { getDisplayPrice, getMaxDiscountTag, getPrimaryImageUrl } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
 
 export default function ProductDetail() {
@@ -56,7 +56,23 @@ export default function ProductDetail() {
   const primaryImage = getPrimaryImageUrl(product) || 'https://via.placeholder.com/600';
   
   const selectedVariant = product.variants?.find(v => v.id === selectedVariantId);
-  const currentPrice = selectedVariant ? Number(selectedVariant.price) : getDisplayPrice(product);
+  const basePrice = selectedVariant ? Number(selectedVariant.price) : getDisplayPrice(product);
+  
+  let currentPrice = basePrice;
+  if (product.promotions && product.promotions.length > 0) {
+    let bestPrice = basePrice;
+    for (const item of product.promotions) {
+      const promo = item.promotion;
+      if (promo.discount_type === 'PERCENT') {
+        const p = basePrice * (1 - Number(promo.discount_value) / 100);
+        if (p < bestPrice) bestPrice = p;
+      } else {
+        const p = basePrice - Number(promo.discount_value);
+        if (p < bestPrice) bestPrice = p;
+      }
+    }
+    currentPrice = Math.max(0, bestPrice);
+  }
   const availableStock = selectedVariant ? selectedVariant.stock_quantity - selectedVariant.stock_reserved : 0;
   const isOutOfStock = availableStock <= 0;
 
@@ -101,7 +117,11 @@ export default function ProductDetail() {
           <div className="w-full md:w-[45%] flex-shrink-0">
             <div className="relative aspect-square bg-gray-50 rounded-xl overflow-hidden mb-4 border border-gray-100">
               <img src={primaryImage} alt={product.name} className="w-full h-full object-contain p-4" />
-              <div className="absolute top-4 left-4 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full">-20%</div>
+              {getMaxDiscountTag(product) && (
+                <div className="absolute top-4 left-4 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full">
+                  {getMaxDiscountTag(product)}
+                </div>
+              )}
               <button className="absolute top-4 right-4 w-10 h-10 bg-white shadow rounded-full flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                 <Heart size={20} />
               </button>
@@ -140,7 +160,9 @@ export default function ProductDetail() {
 
             <div className="flex items-end gap-3 mb-6">
               <span className="text-3xl font-bold text-blue-600">{formatPrice(currentPrice)}</span>
-              <span className="text-lg text-gray-400 line-through mb-1">{formatPrice(currentPrice * 1.25)}</span>
+              {currentPrice < basePrice && (
+                <span className="text-lg text-gray-400 line-through mb-1">{formatPrice(basePrice)}</span>
+              )}
             </div>
 
             {/* Variants */}

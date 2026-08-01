@@ -13,6 +13,13 @@ app.use(cors());
 // Rate Limiting
 app.use(globalLimiter);
 
+// Strip potentially forged headers from external requests
+app.use((req, res, next) => {
+  delete req.headers['x-user-id'];
+  delete req.headers['x-user-role'];
+  next();
+});
+
 // Logging
 app.use(morgan('dev'));
 

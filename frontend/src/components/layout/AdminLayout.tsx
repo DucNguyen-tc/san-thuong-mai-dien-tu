@@ -8,11 +8,13 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  FolderTree
 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { label: 'Danh mục', href: '/admin/categories', icon: FolderTree },
   { label: 'Sản phẩm', href: '/admin/products', icon: Package },
   { label: 'Khuyến mãi', href: '/admin/promotions', icon: Package }, // Used Package or Tag if imported
   { label: 'Đơn hàng', href: '/admin/orders', icon: ShoppingBag },

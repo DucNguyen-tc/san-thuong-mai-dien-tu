@@ -6,6 +6,8 @@ import { ShippingForm } from '@/components/checkout/ShippingForm';
 import { PaymentMethodSelector } from '@/components/checkout/PaymentMethodSelector';
 import { OrderSummary } from '@/components/checkout/OrderSummary';
 import type { CheckoutFormData, PaymentMethodType } from '@/types/cart';
+import toast from 'react-hot-toast';
+
 
 export default function Checkout() {
   const { items, clearCart } = useCartStore();
@@ -35,9 +37,11 @@ export default function Checkout() {
     };
 
     console.log('--- ĐẶT HÀNG THÀNH CÔNG ---', orderData);
-    alert('Đặt hàng thành công! Đang chuyển về trang chủ.');
+    toast.success('Đặt hàng thành công! Đang chuyển về trang chủ.');
     clearCart();
-    navigate('/');
+    setTimeout(() => {
+      navigate('/');
+    }, 1500);
   };
 
   if (items.length === 0) {

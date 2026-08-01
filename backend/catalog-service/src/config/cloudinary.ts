@@ -12,10 +12,12 @@ cloudinary.config({
 // Nếu không có API KEY thật, chúng ta dùng diskStorage hoặc một dummy URL
 const isDemo = !process.env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY === 'demo';
 
+import os from 'os';
+
 const storage = isDemo 
   ? multer.diskStorage({
-      destination: (req, file, cb) => cb(null, './'), // Không quan trọng, ta sẽ chèn dummy URL
-      filename: (req, file, cb) => cb(null, file.originalname)
+      destination: (req, file, cb) => cb(null, os.tmpdir()), // Lưu vào temp để không bị nodemon restart
+      filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
     })
   : new CloudinaryStorage({
       cloudinary: cloudinary,

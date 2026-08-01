@@ -3,6 +3,8 @@ import { Loader2, Plus, Pencil, Trash2, Tag, Percent, DollarSign, Eye } from 'lu
 import { getPromotions, createPromotion, updatePromotion, deletePromotion, addPromotionItem } from '@/services/promotionService';
 import type { Promotion } from '@/services/promotionService';
 import { formatPrice } from '@/utils/formatters';
+import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 export default function PromotionManagement() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -22,7 +24,10 @@ export default function PromotionManagement() {
     valid_from: '',
     valid_to: '',
     applicable_product_id: '',
+    applicable_category_id: '',
   });
+
+  const [categories, setCategories] = useState<any[]>([]);
 
   const fetchPromotions = () => {
     setIsLoading(true);
@@ -34,6 +39,7 @@ export default function PromotionManagement() {
 
   useEffect(() => {
     fetchPromotions();
+    import('@/services/categoryService').then(m => m.getCategoryTree().then(setCategories));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,12 +47,12 @@ export default function PromotionManagement() {
     setIsSubmitting(true);
     try {
       const payload = {
-        code: formData.code,
+        code: formData.code || `SALE-${Date.now()}`,
         name: formData.name,
         discount_type: formData.discount_type,
         discount_value: formData.discount_value,
-        min_order_value: formData.min_order_value ? formData.min_order_value : undefined,
-        usage_limit: formData.usage_limit ? formData.usage_limit : undefined,
+        min_order_value: 0,
+        usage_limit: undefined,
         valid_from: new Date(formData.valid_from).toISOString(),
         valid_to: new Date(formData.valid_to).toISOString(),
       };
@@ -67,23 +73,47 @@ export default function PromotionManagement() {
         }
       }
 
+      if (formData.applicable_category_id) {
+        try {
+          await import('@/lib/axios').then(m => m.default.post(`/catalog/promotions/${savedPromo.id}/items/category`, {
+            category_id: formData.applicable_category_id
+          }));
+        } catch (e) {
+          console.warn('Failed to add category to promotion');
+        }
+      }
+
+      toast.success(editingId ? 'Cập nhật thành công!' : 'Thêm mới thành công!');
       setIsModalOpen(false);
       fetchPromotions();
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Lỗi hệ thống. Vui lòng kiểm tra lại thông tin.';
-      alert(`Thất bại: ${errorMsg}`);
+      toast.error(`Thất bại: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xóa mã khuyến mãi này?')) return;
+    const result = await Swal.fire({
+      title: 'Bạn có chắc chắn?',
+      text: "Mã khuyến mãi này sẽ bị xóa và không thể khôi phục!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#d1d5db',
+      confirmButtonText: 'Có, xóa nó!',
+      cancelButtonText: 'Hủy'
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       await deletePromotion(id);
+      toast.success('Xóa mã khuyến mãi thành công');
       fetchPromotions();
     } catch (err) {
-      alert('Lỗi khi xóa mã khuyến mãi');
+      toast.error('Lỗi khi xóa mã khuyến mãi');
     }
   };
 
@@ -99,6 +129,7 @@ export default function PromotionManagement() {
       valid_from: new Date(promo.valid_from).toISOString().slice(0, 16),
       valid_to: new Date(promo.valid_to).toISOString().slice(0, 16),
       applicable_product_id: '',
+      applicable_category_id: '',
     });
     setIsModalOpen(true);
   };
@@ -110,24 +141,24 @@ export default function PromotionManagement() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Tag className="text-blue-600" />
-            Quản lý Khuyến mãi
+            Chương trình Giảm giá / Sale
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Tạo và theo dõi các chương trình giảm giá, mã coupon cho khách hàng.
+            Quản lý các chương trình Flash Sale, giảm giá trực tiếp trên sản phẩm.
           </p>
         </div>
         <button
           onClick={() => {
             setEditingId(null);
             setFormData({
-              code: '', name: '', discount_type: 'PERCENT', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: '', applicable_product_id: ''
+              code: '', name: '', discount_type: 'PERCENT', discount_value: 0, min_order_value: 0, usage_limit: 0, valid_from: '', valid_to: '', applicable_product_id: '', applicable_category_id: ''
             });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-5 py-2.5 bg-[#0052cc] hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
         >
           <Plus size={18} />
-          Thêm mã khuyến mãi
+          Tạo chương trình Sale
         </button>
       </div>
 
@@ -137,10 +168,8 @@ export default function PromotionManagement() {
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 font-semibold">Mã / Tên</th>
+                <th className="px-6 py-4 font-semibold">Tên chương trình</th>
                 <th className="px-6 py-4 font-semibold">Mức giảm</th>
-                <th className="px-6 py-4 font-semibold">Đơn tối thiểu</th>
-                <th className="px-6 py-4 font-semibold text-center">Đã dùng / Giới hạn</th>
                 <th className="px-6 py-4 font-semibold">Thời hạn</th>
                 <th className="px-6 py-4 font-semibold text-center">Trạng thái</th>
                 <th className="px-6 py-4 font-semibold text-right">Hành động</th>
@@ -159,8 +188,8 @@ export default function PromotionManagement() {
                   return (
                     <tr key={promo.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-gray-900 mb-1">{promo.code}</div>
-                        <div className="text-xs text-gray-500">{promo.name}</div>
+                        <div className="font-bold text-gray-900 mb-1">{promo.name}</div>
+                        {promo.code && <div className="text-xs text-gray-500">Mã: {promo.code}</div>}
                       </td>
                       <td className="px-6 py-4 font-medium text-blue-600 flex items-center gap-1">
                         {promo.discount_type === 'PERCENT' ? (
@@ -168,12 +197,6 @@ export default function PromotionManagement() {
                         ) : (
                           <><DollarSign size={14} /> {formatPrice(promo.discount_value)}</>
                         )}
-                      </td>
-                      <td className="px-6 py-4 text-gray-600">
-                        {promo.min_order_value ? formatPrice(promo.min_order_value) : 'Không'}
-                      </td>
-                      <td className="px-6 py-4 text-center font-medium">
-                        {promo.used_count} / {promo.usage_limit || '∞'}
                       </td>
                       <td className="px-6 py-4 text-xs text-gray-600">
                         <div>Từ: {new Date(promo.valid_from).toLocaleDateString('vi-VN')}</div>
@@ -215,14 +238,10 @@ export default function PromotionManagement() {
             
             <div className="p-6 overflow-y-auto flex-1">
               <form id="promoForm" onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mã (Code)</label>
-                    <input required type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 uppercase" placeholder="VD: SUMMER2026" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên chương trình</label>
-                    <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên chương trình Sale</label>
+                    <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="VD: Siêu Sale Giữa Năm" />
                   </div>
                 </div>
 
@@ -240,16 +259,7 @@ export default function PromotionManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Đơn tối thiểu (VNĐ)</label>
-                    <input type="number" min={0} value={formData.min_order_value} onChange={e => setFormData({...formData, min_order_value: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Giới hạn số lượng (0 = vô hạn)</label>
-                    <input type="number" min={0} value={formData.usage_limit} onChange={e => setFormData({...formData, usage_limit: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                </div>
+
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -262,10 +272,31 @@ export default function PromotionManagement() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID Sản phẩm áp dụng (Tùy chọn)</label>
-                  <input type="text" value={formData.applicable_product_id} onChange={e => setFormData({...formData, applicable_product_id: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="VD: 550e8400-e29b-41d4-a716-446655440000" />
-                  <p className="text-xs text-gray-500 mt-1">Chỉ nhập 1 ID sản phẩm để test. Bỏ trống nếu áp dụng toàn shop.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Áp dụng THÊM cho Danh mục (Tuỳ chọn)</label>
+                    <select 
+                      value={formData.applicable_category_id}
+                      onChange={e => setFormData({...formData, applicable_category_id: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- Bỏ qua (không chọn) --</option>
+                      {categories.map(cat => (
+                        <optgroup key={cat.id} label={cat.name}>
+                          <option value={cat.id}>{cat.name}</option>
+                          {cat.children?.map((child: any) => (
+                            <option key={child.id} value={child.id}>-- {child.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Sẽ tự động thêm các SP trong danh mục vào đợt Sale này. Do đây là thao tác thêm hàng loạt (Bulk Add), tuỳ chọn này sẽ không lưu trạng thái sau khi đóng.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hoặc thêm ID Sản phẩm (Tùy chọn)</label>
+                    <input type="text" value={formData.applicable_product_id} onChange={e => setFormData({...formData, applicable_product_id: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="VD: 550e8400..." />
+                    <p className="text-xs text-gray-500 mt-1">Bỏ trống nếu không thêm SP cụ thể.</p>
+                  </div>
                 </div>
               </form>
             </div>
@@ -308,14 +339,6 @@ export default function PromotionManagement() {
                 <span className="font-bold text-blue-600">
                   {viewingPromo.discount_type === 'PERCENT' ? `${viewingPromo.discount_value}%` : formatPrice(viewingPromo.discount_value)}
                 </span>
-              </div>
-              <div className="flex justify-between border-b pb-2">
-                <span className="font-semibold text-gray-500">Đơn tối thiểu:</span>
-                <span>{viewingPromo.min_order_value ? formatPrice(viewingPromo.min_order_value) : 'Không giới hạn'}</span>
-              </div>
-              <div className="flex justify-between border-b pb-2">
-                <span className="font-semibold text-gray-500">Đã dùng / Giới hạn:</span>
-                <span>{viewingPromo.used_count} / {viewingPromo.usage_limit || 'Vô hạn'}</span>
               </div>
               <div className="flex justify-between border-b pb-2">
                 <span className="font-semibold text-gray-500">Thời gian hiệu lực:</span>

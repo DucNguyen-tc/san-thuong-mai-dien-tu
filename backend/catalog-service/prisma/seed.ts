@@ -1,4 +1,6 @@
 import { PrismaClient, DiscountType } from "@prisma/client";
+import fs from 'fs';
+import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -10,122 +12,170 @@ async function main() {
   await prisma.category.deleteMany();
   await prisma.promotion.deleteMany();
 
-  console.log("Seeding Categories...");
+  console.log("Loading dummy data...");
+  const dummyFilePath = path.join(__dirname, '../../../dummyjson.json');
+  const dummyData = JSON.parse(fs.readFileSync(dummyFilePath, 'utf8'));
 
-  const electronics = await prisma.category.create({
-    data: {
-      name: "Điện tử",
-      slug: "dien-tu",
-    },
+  console.log("Seeding Categories with Hierarchy...");
+  
+  const categoryGroups: Record<string, string[]> = {
+    'Điện tử': ['smartphones', 'laptops', 'mobile-accessories', 'tablets'],
+    'Thời trang': ['mens-shirts', 'mens-shoes', 'mens-watches', 'womens-bags', 'womens-dresses', 'womens-jewellery', 'womens-shoes', 'womens-watches', 'sunglasses', 'tops'],
+    'Sức khỏe & Làm đẹp': ['beauty', 'fragrances', 'skin-care'],
+    'Nhà cửa & Đời sống': ['furniture', 'groceries', 'home-decoration', 'kitchen-accessories'],
+    'Thể thao & Xe': ['sports-accessories', 'motorcycle', 'vehicle']
+  };
+
+  const parentMap = new Map();
+
+  for (const [parentName, children] of Object.entries(categoryGroups)) {
+    const parentSlug = parentName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const parentCategory = await prisma.category.create({
+      data: {
+        name: parentName,
+        slug: parentSlug,
+      }
+    });
+    parentMap.set(parentName, parentCategory.id);
+  }
+
+  // Khác thì cho vào mục Khác
+  const otherCategory = await prisma.category.create({
+    data: { name: 'Khác', slug: 'khac' }
   });
 
-  const phones = await prisma.category.create({
-    data: {
-      name: "Điện thoại",
-      slug: "dien-thoai",
-      parent_id: electronics.id,
-    },
-  });
+  const categories = [...new Set(dummyData.map((p: any) => p.category))];
+  const categoryMap = new Map();
+  
+  for (const cat of categories) {
+    const slug = String(cat).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const vietnameseMap: Record<string, string> = {
+      'smartphones': 'Điện thoại',
+      'laptops': 'Laptop',
+      'mobile-accessories': 'Phụ kiện điện thoại',
+      'tablets': 'Máy tính bảng',
+      'mens-shirts': 'Áo nam',
+      'mens-shoes': 'Giày nam',
+      'mens-watches': 'Đồng hồ nam',
+      'womens-bags': 'Túi xách nữ',
+      'womens-dresses': 'Váy nữ',
+      'womens-jewellery': 'Trang sức nữ',
+      'womens-shoes': 'Giày nữ',
+      'womens-watches': 'Đồng hồ nữ',
+      'sunglasses': 'Kính râm',
+      'tops': 'Áo nữ',
+      'beauty': 'Mỹ phẩm',
+      'fragrances': 'Nước hoa',
+      'skin-care': 'Chăm sóc da',
+      'furniture': 'Nội thất',
+      'groceries': 'Tạp hóa',
+      'home-decoration': 'Đồ trang trí',
+      'kitchen-accessories': 'Phụ kiện bếp',
+      'sports-accessories': 'Phụ kiện thể thao',
+      'motorcycle': 'Xe máy',
+      'vehicle': 'Phương tiện'
+    };
+    let name = vietnameseMap[String(cat)] || String(cat).replace(/-/g, ' ');
+    if (!vietnameseMap[String(cat)]) {
+      name = name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    
+    // Tìm parent
+    let parentId = otherCategory.id;
+    for (const [parentName, children] of Object.entries(categoryGroups)) {
+      if (children.includes(String(cat))) {
+        parentId = parentMap.get(parentName);
+        break;
+      }
+    }
 
-  const laptops = await prisma.category.create({
-    data: {
-      name: "Laptop",
-      slug: "laptop",
-      parent_id: electronics.id,
-    },
-  });
+    const category = await prisma.category.create({
+      data: {
+        name: name,
+        slug: slug,
+        parent_id: parentId
+      }
+    });
+    categoryMap.set(cat, category.id);
+  }
 
   console.log("Seeding Products...");
+  const createdProducts = [];
+  for (const p of dummyData) {
+    const priceVnd = Math.round(p.price * 25000);
+    const slug = String(p.title).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + p.id;
+    const imagesData = (p.images || []).map((url: string, index: number) => ({
+      url,
+      is_primary: index === 0,
+      sort_order: index + 1
+    }));
+    
+    if (imagesData.length === 0 && p.thumbnail) {
+      imagesData.push({ url: p.thumbnail, is_primary: true, sort_order: 1 });
+    }
 
-  const iphone = await prisma.product.create({
-    data: {
-      name: "iPhone 15 Pro Max",
-      slug: "iphone-15-pro-max",
-      description: "Điện thoại cao cấp của Apple năm 2023.",
-      category_id: phones.id,
-      is_active: true,
-      variants: {
-        create: [
-          {
-            attributes: { color: "Titan Tự Nhiên", storage: "256GB" },
-            price: 28990000,
-            stock_quantity: 50,
+    try {
+      const product = await prisma.product.create({
+        data: {
+          name: p.title,
+          slug: slug,
+          description: p.description,
+          category_id: categoryMap.get(p.category),
+          is_active: true,
+          variants: {
+            create: [
+              { attributes: { default: true }, price: priceVnd, stock_quantity: p.stock || 100 }
+            ]
           },
-          {
-            attributes: { color: "Titan Đen", storage: "256GB" },
-            price: 28590000,
-            stock_quantity: 20,
-          },
-        ],
-      },
-      images: {
-        create: [
-          {
-            url: "https://shopdunk.com/images/thumbs/0022265_iphone-15-pro-max-256gb_550.png",
-            is_primary: true,
-            sort_order: 1,
-          },
-        ],
-      },
-    },
-  });
+          images: {
+            create: imagesData
+          }
+        }
+      });
+      createdProducts.push(product);
+    } catch (e) {
+      console.log('Skipped duplicate or error product:', p.title);
+    }
+  }
 
-  const macbook = await prisma.product.create({
-    data: {
-      name: "MacBook Pro 14 M3",
-      slug: "macbook-pro-14-m3",
-      description: "Laptop chuyên nghiệp cho dân thiết kế, lập trình.",
-      category_id: laptops.id,
-      is_active: true,
-      variants: {
-        create: [
-          {
-            attributes: { color: "Silver", ram: "18GB", storage: "512GB" },
-            price: 39990000,
-            stock_quantity: 15,
-          },
-        ],
-      },
-      images: {
-        create: [
-          {
-            url: "https://shopdunk.com/images/thumbs/0022421_macbook-pro-14-inch-m3-2023_550.png",
-            is_primary: true,
-            sort_order: 1,
-          },
-        ],
-      },
-    },
-  });
+  console.log(`Created ${createdProducts.length} products.`);
 
   console.log("Seeding Promotions...");
-
-  await prisma.promotion.create({
+  const promo1 = await prisma.promotion.create({
     data: {
       code: "WELCOME2024",
-      name: "Chào bạn mới",
+      name: "Sale Chào Bạn Mới (Giảm 10%)",
       discount_type: DiscountType.PERCENT,
       discount_value: 10,
-      min_order_value: 500000,
-      usage_limit: 1000,
-      valid_from: new Date(),
+      min_order_value: 0,
+      usage_limit: null,
+      valid_from: new Date(Date.now() - 86400000),
       valid_to: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
       is_active: true,
     },
   });
 
-  await prisma.promotion.create({
+  const promo2 = await prisma.promotion.create({
     data: {
-      code: "GIAM500K",
-      name: "Giảm 500K cho đơn từ 20 triệu",
+      code: "FLASH_SALE",
+      name: "Flash Sale Giảm 50k",
       discount_type: DiscountType.FIXED,
-      discount_value: 500000,
-      min_order_value: 20000000,
-      usage_limit: 500,
-      valid_from: new Date(),
+      discount_value: 50000,
+      min_order_value: 0,
+      usage_limit: null,
+      valid_from: new Date(Date.now() - 86400000),
       valid_to: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
       is_active: true,
     },
+  });
+
+  console.log("Linking Promotions to Items...");
+  await prisma.promotionItem.createMany({
+    data: createdProducts.slice(0, 20).map(p => ({ promotion_id: promo1.id, product_id: p.id }))
+  });
+
+  await prisma.promotionItem.createMany({
+    data: createdProducts.slice(20, 40).map(p => ({ promotion_id: promo2.id, product_id: p.id }))
   });
 
   console.log("Seed completed successfully!");

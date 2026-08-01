@@ -30,6 +30,28 @@ export interface ProductImage {
   sort_order: number;
 }
 
+export interface Promotion {
+  id: string;
+  code: string;
+  name: string;
+  discount_type: 'PERCENT' | 'FIXED';
+  discount_value: number;
+  min_order_value?: number;
+  usage_limit?: number;
+  used_count: number;
+  valid_from: string;
+  valid_to: string;
+  is_active: boolean;
+}
+
+export interface PromotionItem {
+  id: string;
+  promotion_id: string;
+  product_id?: string;
+  variant_id?: string;
+  promotion: Promotion;
+}
+
 export interface CatalogProduct {
   id: string;
   category_id: string;
@@ -42,6 +64,7 @@ export interface CatalogProduct {
   category: Category;
   variants: ProductVariant[];
   images: ProductImage[];
+  promotions?: PromotionItem[];
 }
 
 export interface Pagination {
@@ -62,6 +85,8 @@ export interface ListProductsQuery {
   category_id?: string;
   search?: string;
   includeInactive?: boolean;
+  has_discount?: boolean;
+  sort?: string;
 }
 
 /** Lấy giá thấp nhất trong các biến thể còn bán, dùng hiển thị ở ProductCard */
@@ -70,6 +95,42 @@ export function getDisplayPrice(product: CatalogProduct): number {
   const activePrices = product.variants.filter((v) => v?.is_active).map((v) => Number(v?.price) || 0);
   if (activePrices.length === 0) return 0;
   return Math.min(...activePrices);
+}
+
+/** Lấy giá thấp nhất SAU KHI áp dụng khuyến mãi tốt nhất */
+export function getDiscountedPrice(product: CatalogProduct): number {
+  const basePrice = getDisplayPrice(product);
+  if (basePrice === 0) return 0;
+  
+  if (!product.promotions || product.promotions.length === 0) return basePrice;
+  
+  let bestPrice = basePrice;
+  for (const item of product.promotions) {
+    const promo = item.promotion;
+    if (promo.discount_type === 'PERCENT') {
+      const p = basePrice * (1 - Number(promo.discount_value) / 100);
+      if (p < bestPrice) bestPrice = p;
+    } else {
+      const p = basePrice - Number(promo.discount_value);
+      if (p < bestPrice) bestPrice = p;
+    }
+  }
+  
+  return Math.max(0, bestPrice);
+}
+
+/** Lấy % giảm giá lớn nhất để hiển thị tag giảm giá */
+export function getMaxDiscountTag(product: CatalogProduct): string | null {
+  if (!product.promotions || product.promotions.length === 0) return null;
+  
+  const basePrice = getDisplayPrice(product);
+  if (basePrice === 0) return null;
+
+  const discounted = getDiscountedPrice(product);
+  if (discounted >= basePrice) return null;
+  
+  const percent = Math.round(((basePrice - discounted) / basePrice) * 100);
+  return `-${percent}%`;
 }
 
 /** Lấy ảnh đại diện: ưu tiên ảnh is_primary, fallback ảnh đầu tiên, fallback placeholder */
