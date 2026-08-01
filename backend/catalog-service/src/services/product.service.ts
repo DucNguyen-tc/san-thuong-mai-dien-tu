@@ -138,7 +138,7 @@ export class ProductService {
 
     const slug = await generateUniqueSlug(input.name);
 
-    return prisma.product.create({
+    const newProduct = await prisma.product.create({
       data: {
         category_id: input.category_id,
         name: input.name,
@@ -157,8 +157,6 @@ export class ProductService {
       },
       include: productInclude,
     });
-<<<<<<< Updated upstream
-=======
 
     const variantImagesData: any[] = [];
     input.variants.forEach((v, index) => {
@@ -182,14 +180,13 @@ export class ProductService {
       await prisma.productImage.createMany({ data: variantImagesData });
       const reloadedProduct = await prisma.product.findUnique({ where: { id: newProduct.id }, include: productInclude });
       if (reloadedProduct) {
-        publishProductEvent('product.created', reloadedProduct);
+        // publishProductEvent('product.created', reloadedProduct);
         return reloadedProduct;
       }
     }
 
-    publishProductEvent('product.created', newProduct);
+    // publishProductEvent('product.created', newProduct);
     return newProduct;
->>>>>>> Stashed changes
   }
 
   async update(id: string, input: UpdateProductInput) {
@@ -242,13 +239,11 @@ export class ProductService {
       }
     }
 
-    return prisma.product.update({
+    const updatedProduct = await prisma.product.update({
       where: { id },
       data: updateData,
       include: productInclude,
     });
-<<<<<<< Updated upstream
-=======
 
     if (input.variants && input.variants.length > 0 && product.variants.length > 0) {
        const vInput = input.variants[0];
@@ -268,9 +263,8 @@ export class ProductService {
        }
     }
 
-    publishProductEvent('product.updated', updatedProduct);
+    // publishProductEvent('product.updated', updatedProduct);
     return updatedProduct;
->>>>>>> Stashed changes
   }
 
   /** Soft delete — theo đúng nguyên tắc thiết kế DB (tránh ID mồ côi ở Cart/Order) */
