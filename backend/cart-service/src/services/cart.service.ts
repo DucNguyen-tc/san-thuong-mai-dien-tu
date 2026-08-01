@@ -56,6 +56,12 @@ export class CartService {
               item.unit_price_snapshot = livePrice as any;
               isPriceUpdated = true;
             }
+
+            // Attach dynamic image
+            const primaryImage = liveVariant.images?.[0]?.url 
+              || liveVariant.product?.images?.find((img: any) => img.is_primary)?.url 
+              || liveVariant.product?.images?.[0]?.url;
+            (item as any).image_url = primaryImage;
           }
         }
       }

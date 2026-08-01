@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
@@ -18,7 +18,14 @@ export default function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const { isAuthenticated, user, logout } = useAuthStore();
-  const cartCount = useCartStore((state) => state.getCartCount());
+  const { getCartCount, fetchCart } = useCartStore();
+  const cartCount = getCartCount();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchCart();
+    }
+  }, [isAuthenticated, fetchCart]);
 
   return (
     <header className="bg-surface sticky top-0 z-50 shadow-sm border-b border-outline-variant/30">

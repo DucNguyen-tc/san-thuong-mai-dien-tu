@@ -95,9 +95,6 @@ const Home: React.FC = () => {
                   <p className="text-lg font-bold text-red-600">
                     {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price)}
                   </p>
-                  <button className="rounded bg-primary-50 px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-100 transition">
-                    Thêm vào giỏ
-                  </button>
                 </div>
               </div>
             </div>
