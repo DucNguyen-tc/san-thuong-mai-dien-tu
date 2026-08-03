@@ -51,3 +51,29 @@ export const deletePromotion = async (req: Request, res: Response, next: NextFun
     next(error);
   }
 };
+
+export const addItemToPromotion = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { product_id } = req.body;
+    if (!product_id) {
+      return sendResponse(res, 400, false, 'Thiếu product_id');
+    }
+    const item = await promotionService.addItemToPromotion(req.params.id, product_id);
+    return sendResponse(res, 201, true, 'Đã thêm sản phẩm vào khuyến mãi', item);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addItemsByCategory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { category_id } = req.body;
+    if (!category_id) {
+      return sendResponse(res, 400, false, 'Thiếu category_id');
+    }
+    const result = await promotionService.addItemsByCategory(req.params.id, category_id);
+    return sendResponse(res, 201, true, `Đã thêm ${result.count} sản phẩm vào khuyến mãi`, result);
+  } catch (error) {
+    next(error);
+  }
+};

@@ -15,10 +15,13 @@ export default function ProductList() {
   const categoryId = searchParams.get('category_id') || '';
   const hasDiscount = searchParams.get('has_discount') === 'true';
   const sortBy = searchParams.get('sort') || 'popular';
+  const pageParam = parseInt(searchParams.get('page') || '1', 10);
+  const page = isNaN(pageParam) ? 1 : pageParam;
 
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     // Lấy danh mục
@@ -32,15 +35,22 @@ export default function ProductList() {
     setIsLoading(true);
 
     getProducts({ 
-      page: 1, 
+      page: page, 
       limit: 12, 
       search: search || undefined, 
       category_id: categoryId || undefined,
       has_discount: hasDiscount || undefined,
       sort: sortBy !== 'popular' ? sortBy : undefined
     })
-      .then((result) => {
-        if (!isCancelled) setProducts(result.items);
+      .then((result: any) => {
+        if (!isCancelled) {
+          setProducts(result.items);
+          if (result.pagination && result.pagination.totalPages) {
+            setTotalPages(result.pagination.totalPages);
+          } else {
+            setTotalPages(1);
+          }
+        }
       })
       .catch(() => {
         // Silent error for UI demo
@@ -52,7 +62,7 @@ export default function ProductList() {
     return () => {
       isCancelled = true;
     };
-  }, [search, categoryId, hasDiscount, sortBy]);
+  }, [search, categoryId, hasDiscount, sortBy, page]);
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen pb-16">
@@ -142,55 +152,7 @@ export default function ProductList() {
               </label>
             </div>
 
-            {/* Khoảng giá */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Khoảng giá</h3>
-              <div className="relative w-full h-1 bg-gray-200 rounded-full mb-4">
-                <div className="absolute left-[20%] right-[30%] h-full bg-blue-600 rounded-full"></div>
-                <div className="absolute left-[20%] top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-600 rounded-full shadow cursor-pointer border-2 border-white"></div>
-                <div className="absolute right-[30%] top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-600 rounded-full shadow cursor-pointer border-2 border-white"></div>
-              </div>
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                <span>0đ</span>
-                <span>100tr+</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="text" placeholder="Từ" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                <span className="text-gray-400">-</span>
-                <input type="text" placeholder="Đến" className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" />
-              </div>
-            </div>
 
-            {/* Thương hiệu */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Thương hiệu</h3>
-              <div className="space-y-2.5">
-                {['Apple', 'Samsung', 'ASUS'].map((brand, idx) => (
-                  <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <span className="text-sm text-gray-600 group-hover:text-gray-900">{brand}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Đánh giá */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Đánh giá</h3>
-              <div className="flex items-center gap-1 cursor-pointer group">
-                {[1,2,3,4,5].map(star => (
-                  <Star key={star} size={16} className={star <= 4 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"} />
-                ))}
-                <span className="text-sm text-gray-600 ml-1 group-hover:text-gray-900">(Từ 4 sao)</span>
-              </div>
-            </div>
-
-            <button className="w-full bg-[#0052cc] hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
-              Áp dụng bộ lọc
-            </button>
           </div>
         </div>
 
@@ -291,20 +253,12 @@ export default function ProductList() {
                     </h3>
                     
                     <div className="mt-auto">
-                      <div className="flex items-end gap-2 mb-3">
+                      <div className="flex items-end gap-2">
                         <span className="text-[#0052cc] font-bold">{formatPrice(getDiscountedPrice(product))}</span>
                         {getDiscountedPrice(product) < getDisplayPrice(product) && (
                           <span className="text-gray-400 text-xs line-through">{formatPrice(getDisplayPrice(product))}</span>
                         )}
                       </div>
-                      
-                      <button 
-                        onClick={(e) => { e.preventDefault(); toast.success('Đã thêm vào giỏ hàng!'); }}
-                        className="w-full py-2 bg-[#f39c12] hover:bg-[#e67e22] text-white font-medium rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
-                      >
-                        <ShoppingCart size={16} />
-                        Thêm vào giỏ
-                      </button>
                     </div>
                   </div>
                 </Link>
@@ -319,15 +273,51 @@ export default function ProductList() {
           </div>
 
           {/* Pagination */}
-          <div className="mt-8 flex justify-center items-center gap-2">
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><ChevronRight size={18} className="rotate-180" /></button>
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#0052cc] text-white font-medium">1</button>
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50">2</button>
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50">3</button>
-             <span className="text-gray-400">...</span>
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50">10</button>
-             <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"><ChevronRight size={18} /></button>
-          </div>
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center items-center gap-2">
+               <button 
+                 disabled={page <= 1}
+                 onClick={() => { searchParams.set('page', (page - 1).toString()); setSearchParams(searchParams); }}
+                 className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+               >
+                 <ChevronRight size={18} className="rotate-180" />
+               </button>
+               
+               {Array.from({ length: totalPages }).map((_, i) => {
+                 const p = i + 1;
+                 // Hiển thị một số trang giới hạn (đơn giản hóa)
+                 if (
+                   p === 1 || 
+                   p === totalPages || 
+                   (p >= page - 1 && p <= page + 1)
+                 ) {
+                   return (
+                     <button 
+                       key={p}
+                       onClick={() => { searchParams.set('page', p.toString()); setSearchParams(searchParams); }}
+                       className={`w-9 h-9 flex items-center justify-center rounded-lg ${page === p ? 'bg-[#0052cc] text-white font-medium' : 'border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50'}`}
+                     >
+                       {p}
+                     </button>
+                   );
+                 }
+                 
+                 if (p === page - 2 || p === page + 2) {
+                   return <span key={p} className="text-gray-400">...</span>;
+                 }
+                 
+                 return null;
+               })}
+
+               <button 
+                 disabled={page >= totalPages}
+                 onClick={() => { searchParams.set('page', (page + 1).toString()); setSearchParams(searchParams); }}
+                 className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+               >
+                 <ChevronRight size={18} />
+               </button>
+            </div>
+          )}
 
         </div>
       </div>

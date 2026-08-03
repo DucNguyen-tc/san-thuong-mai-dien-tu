@@ -68,8 +68,8 @@ export default function PromotionManagement() {
       if (formData.applicable_product_id) {
         try {
           await addPromotionItem(savedPromo.id, formData.applicable_product_id);
-        } catch (e) {
-          console.warn('Failed to add applicable product, ID might be invalid');
+        } catch (e: any) {
+          toast.error(`Không thể thêm SP ${formData.applicable_product_id}: ${e.response?.data?.message || 'ID không hợp lệ'}`);
         }
       }
 
@@ -78,8 +78,8 @@ export default function PromotionManagement() {
           await import('@/lib/axios').then(m => m.default.post(`/catalog/promotions/${savedPromo.id}/items/category`, {
             category_id: formData.applicable_category_id
           }));
-        } catch (e) {
-          console.warn('Failed to add category to promotion');
+        } catch (e: any) {
+          toast.error(`Không thể thêm danh mục: ${e.response?.data?.message || 'Lỗi hệ thống'}`);
         }
       }
 

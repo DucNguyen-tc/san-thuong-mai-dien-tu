@@ -1,7 +1,7 @@
 import HeroBanner from '@/components/home/HeroBanner';
 import CategoryGrid from '@/components/home/CategoryGrid';
 import AIRecommendations from '@/components/home/AIRecommendations';
-import BestSellers from '@/components/home/BestSellers';
+import CategoryProductGroups from '@/components/home/CategoryProductGroups';
 
 /**
  * Trang Chủ — dành cho khách hàng
@@ -14,7 +14,7 @@ export default function Home() {
       <HeroBanner />
       <CategoryGrid />
       <AIRecommendations />
-      <BestSellers />
+      <CategoryProductGroups />
     </div>
   );
 }
