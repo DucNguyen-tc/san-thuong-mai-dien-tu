@@ -21,6 +21,7 @@ export default function ProductManagement() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -36,8 +37,8 @@ export default function ProductManagement() {
     setIsLoading(true);
 
     getProducts({ 
-      page: 1, 
-      limit: 50, 
+      page: currentPage, 
+      limit: 10, 
       includeInactive: true,
       search: debouncedSearch || undefined,
       category_id: selectedCategory || undefined
@@ -63,8 +64,12 @@ export default function ProductManagement() {
   }, []);
 
   useEffect(() => {
-    return fetchProducts();
+    setCurrentPage(1);
   }, [debouncedSearch, selectedCategory]);
+
+  useEffect(() => {
+    return fetchProducts();
+  }, [debouncedSearch, selectedCategory, currentPage]);
 
   const filteredProducts = products.filter(product => {
     if (selectedStatus) {
@@ -242,15 +247,41 @@ export default function ProductManagement() {
         {/* Pagination */}
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-white">
            <span className="text-sm text-gray-500">Hiển thị {filteredProducts.length} trên tổng số {totalProducts} sản phẩm</span>
-           <div className="flex gap-1">
-              <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 text-sm">&lt;</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded bg-[#0052cc] text-white font-medium text-sm">1</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm">2</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm">3</button>
-              <span className="w-8 h-8 flex items-center justify-center text-gray-500 text-sm">...</span>
-              <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm">30</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 text-sm">&gt;</button>
-           </div>
+           {totalProducts > 0 && (
+             <div className="flex gap-1">
+                <button 
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 text-sm disabled:opacity-50"
+                >&lt;</button>
+                
+                {Array.from({ length: Math.ceil(totalProducts / 10) }).map((_, i) => {
+                  const p = i + 1;
+                  const totalPages = Math.ceil(totalProducts / 10);
+                  if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+                    return (
+                      <button 
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-8 h-8 flex items-center justify-center rounded text-sm ${currentPage === p ? 'bg-[#0052cc] text-white font-medium' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  }
+                  if (p === currentPage - 2 || p === currentPage + 2) {
+                    return <span key={p} className="w-8 h-8 flex items-center justify-center text-gray-500 text-sm">...</span>;
+                  }
+                  return null;
+                })}
+                
+                <button 
+                  disabled={currentPage >= Math.ceil(totalProducts / 10)}
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalProducts / 10), p + 1))}
+                  className="w-8 h-8 flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 text-sm disabled:opacity-50"
+                >&gt;</button>
+             </div>
+           )}
         </div>
       </div>
 

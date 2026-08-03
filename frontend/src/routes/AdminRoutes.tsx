@@ -1,11 +1,12 @@
-import { Route } from 'react-router-dom';
-import ProtectedRoute from '@/routes/ProtectedRoute';
-import AdminLayout from '@/components/layout/AdminLayout';
-import Dashboard from '@/pages/admin/Dashboard';
-import UsersList from '@/pages/admin/UsersList';
-import ProductManagement from '@/pages/admin/ProductManagement';
-import PromotionManagement from '@/pages/admin/PromotionManagement';
-import CategoryManagement from '@/pages/admin/CategoryManagement';
+import { Route } from "react-router-dom";
+import ProtectedRoute from "@/routes/ProtectedRoute";
+import AdminLayout from "@/components/layout/AdminLayout";
+import Dashboard from "@/pages/admin/Dashboard";
+import UsersList from "@/pages/admin/UsersList";
+import ProductManagement from "@/pages/admin/ProductManagement";
+import PromotionManagement from "@/pages/admin/PromotionManagement";
+import CategoryManagement from "@/pages/admin/CategoryManagement";
+import AdminOrderManagement from "@/pages/admin/AdminOrderManagement";
 
 /**
  * AdminRoutes — Tập hợp tất cả routes dành cho khu vực admin
@@ -23,14 +24,11 @@ export const AdminRoutes = (
       <Route path="/admin/products" element={<ProductManagement />} />
       <Route path="/admin/categories" element={<CategoryManagement />} />
       <Route path="/admin/promotions" element={<PromotionManagement />} />
-      {/* Thêm routes admin tại đây khi phát triển thêm:
-      <Route path="/admin/orders" element={<OrderManagement />} />
-      <Route path="/admin/payments" element={<PaymentManagement />} />
+      <Route path="/admin/orders" element={<AdminOrderManagement />} />
+      {/* <Route path="/admin/payments" element={<PaymentManagement />} />
       <Route path="/admin/reports" element={<Reports />} />
-      <Route path="/admin/settings" element={<Settings />} />
-      */}
+      <Route path="/admin/settings" element={<Settings />} /> */}
     </Route>
   </Route>
 );
 export default AdminRoutes;
-

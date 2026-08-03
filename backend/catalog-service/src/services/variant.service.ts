@@ -101,11 +101,10 @@ export class VariantService {
     });
   }
 
-  /** Lấy thông tin nhiều variants cùng lúc (dùng cho Cart Service) */
   async getBulk(variantIds: string[]) {
     if (!variantIds || variantIds.length === 0) return [];
     
-    return prisma.productVariant.findMany({
+    const variants = await prisma.productVariant.findMany({
       where: {
         id: { in: variantIds },
       },
@@ -114,9 +113,44 @@ export class VariantService {
         product: {
           include: {
             images: true,
+            promotions: {
+              where: {
+                promotion: {
+                  is_active: true,
+                  valid_from: { lte: new Date() },
+                  valid_to: { gt: new Date() }
+                }
+              },
+              include: {
+                promotion: true
+              }
+            }
           }
         },
       },
+    });
+
+    // Tính toán giá sau khuyến mãi cho từng biến thể để trả về cho cart-service
+    return variants.map(v => {
+      let currentPrice = Number(v.price);
+      if (v.product?.promotions && v.product.promotions.length > 0) {
+        let bestPrice = currentPrice;
+        for (const item of v.product.promotions) {
+          const promo = item.promotion;
+          if (promo.discount_type === 'PERCENT') {
+            const p = currentPrice * (1 - Number(promo.discount_value) / 100);
+            if (p < bestPrice) bestPrice = p;
+          } else {
+            const p = currentPrice - Number(promo.discount_value);
+            if (p < bestPrice) bestPrice = p;
+          }
+        }
+        currentPrice = Math.max(0, bestPrice);
+      }
+      return {
+        ...v,
+        price: currentPrice // Override giá bằng giá đã giảm
+      };
     });
   }
 
