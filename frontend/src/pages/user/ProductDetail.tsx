@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getProductById } from "@/services/productService";
+import { getSimilarProductIds } from "@/services/recommendationService";
 import { recordProductView } from "@/services/userBehaviorService";
 import type { CatalogProduct } from "@/types/catalog";
 import {
@@ -23,6 +24,7 @@ import {
 import { formatPrice } from "@/utils/formatters";
 import { useCartStore } from "@/store/useCartStore";
 import toast from "react-hot-toast";
+import CatalogProductCard from "@/components/product/CatalogProductCard";
 
 
 export default function ProductDetail() {
@@ -30,7 +32,9 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const { addItem } = useCartStore();
   const [product, setProduct] = useState<CatalogProduct | null>(null);
+  const [similarProducts, setSimilarProducts] = useState<CatalogProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSimilarLoading, setIsSimilarLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("desc");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null,
@@ -63,6 +67,26 @@ export default function ProductDetail() {
       .catch(() => {})
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
+      });
+
+    // Lấy sản phẩm tương tự bằng AI recommendation
+    setIsSimilarLoading(true);
+    getSimilarProductIds(id, 6)
+      .then(async (similarIds) => {
+        if (isCancelled) return;
+        const promises = similarIds
+          .filter((sId) => sId !== id)
+          .slice(0, 4)
+          .map((sId) => getProductById(sId).catch(() => null));
+        const results = await Promise.all(promises);
+        const valid = results.filter((p): p is CatalogProduct => p !== null);
+        if (!isCancelled) {
+          setSimilarProducts(valid);
+        }
+      })
+      .catch((err) => console.error('[ProductDetail] Failed to load similar products:', err))
+      .finally(() => {
+        if (!isCancelled) setIsSimilarLoading(false);
       });
 
     return () => {
@@ -538,31 +562,19 @@ export default function ProductDetail() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-5">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="bg-white rounded-xl border border-gray-200 p-4 relative group hover:shadow-lg transition-shadow"
-              >
-                <button className="absolute top-3 right-3 text-gray-400 hover:text-red-500 z-10">
-                  <Heart size={18} />
-                </button>
-                <div className="aspect-square bg-gray-50 rounded-lg mb-4 overflow-hidden">
-                  <img
-                    src={`https://via.placeholder.com/200?text=Tuong+tu+${i}`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  />
-                </div>
-                <h4 className="text-sm font-medium text-gray-900 mb-1">
-                  Tai nghe V-Audio Pro X
-                </h4>
-                <div className="text-blue-600 font-bold mb-3">4.250.000đ</div>
-                <button className="w-full py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded text-sm font-medium flex justify-center items-center gap-2">
-                  <ShoppingCart size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+          {isSimilarLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-blue-600" size={28} />
+            </div>
+          ) : similarProducts.length > 0 ? (
+            <div className="grid grid-cols-4 gap-5">
+              {similarProducts.map((sp) => (
+                <CatalogProductCard key={sp.id} product={sp} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm italic">Chưa có sản phẩm tương tự.</p>
+          )}
         </div>
       </div>
     </div>
