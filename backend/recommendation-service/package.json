@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
+    "@types/pg": "^8.20.3",
     "amqplib": "^2.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "natural": "^8.1.1"
+    "natural": "^8.1.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.8",

@@ -28,7 +28,7 @@ function hashString(str: string): number {
  * mà không cần phải load toàn bộ dữ liệu trong DB ra mỗi lần tính toán.
  */
 export function generateFeatureVector(name: string, description: string, categoryName: string = ''): number[] {
-  const DIMENSIONS = 500;
+  const DIMENSIONS = 384;
   const vector = new Array(DIMENSIONS).fill(0);
   
   // Trọng số cho các trường dữ liệu
