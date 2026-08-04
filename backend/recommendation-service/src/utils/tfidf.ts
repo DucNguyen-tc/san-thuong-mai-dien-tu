@@ -1,22 +1,14 @@
-import natural from 'natural';
-
-// Tạo tokenizer để tách từ
-const tokenizer = new natural.WordTokenizer();
-
 // Hàm loại bỏ stop words tiếng Việt (cơ bản) và các ký tự không cần thiết
 const stopWords = new Set(['là', 'và', 'của', 'có', 'trong', 'để', 'được', 'với', 'cho', 'không', 'các', 'một', 'những']);
 
 function preprocessText(text: string): string[] {
   if (!text) return [];
-  // Chuyển thành chữ thường
-  text = text.toLowerCase();
-  
-  // Tách từ
-  const tokens = tokenizer.tokenize(text) || [];
-  
+  // Chuyển thành chữ thường và tách từ bằng regex (không cần thư viện external)
+  const tokens = text.toLowerCase().split(/[\s,.\-_!?()[\]{}:;/\\|"']+/).filter(Boolean);
   // Lọc stop words và từ quá ngắn
-  return tokens.filter(token => token.length > 1 && !stopWords.has(token));
+  return tokens.filter((token: string) => token.length > 1 && !stopWords.has(token));
 }
+
 
 // Simple hash function for string (djb2 algorithm)
 function hashString(str: string): number {

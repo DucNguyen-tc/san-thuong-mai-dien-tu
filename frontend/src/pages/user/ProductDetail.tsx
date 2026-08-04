@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getProductById } from "@/services/productService";
+import { recordProductView } from "@/services/userBehaviorService";
 import type { CatalogProduct } from "@/types/catalog";
 import {
   getDisplayPrice,
@@ -51,6 +52,12 @@ export default function ProductDetail() {
               setSelectedVariantId(activeVariants[0].id);
             else setSelectedVariantId(data.variants[0].id);
           }
+          // Ghi lại hành vi xem sản phẩm vào localStorage để cá nhân hóa trang chủ
+          recordProductView(
+            data.id,
+            data.category_id,
+            data.category?.name ?? ''
+          );
         }
       })
       .catch(() => {})
