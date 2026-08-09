@@ -132,4 +132,64 @@ export class AuthService {
       }
     }
   }
+
+  async googleLogin(profile: any) {
+    let user = await prisma.user.findUnique({
+      where: { google_id: profile.id },
+    });
+
+    if (!user) {
+      const email = profile.emails?.[0]?.value || '';
+      const existingEmail = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingEmail) {
+        user = await prisma.user.update({
+          where: { email },
+          data: {
+            google_id: profile.id,
+            auth_provider: 'GOOGLE',
+            avatar_url: profile.photos?.[0]?.value,
+          },
+        });
+      } else {
+        user = await prisma.user.create({
+          data: {
+            email: email,
+            full_name: profile.displayName,
+            google_id: profile.id,
+            auth_provider: 'GOOGLE',
+            avatar_url: profile.photos?.[0]?.value,
+          },
+        });
+      }
+    }
+
+    const accessToken = generateAccessToken({ userId: user.id, role: user.role });
+    const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
+
+    const tokenHash = await bcrypt.hash(refreshToken, 10);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.refreshToken.create({
+      data: {
+        user_id: user.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        avatar_url: user.avatar_url,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
 }
