@@ -43,3 +43,7 @@ Thumbs.db
 # Tài liệu tham khảo không đẩy lên Git
 doc_reader/
 giao diện mẫu/
+coverage/
+**/coverage/
+*.zip
+
