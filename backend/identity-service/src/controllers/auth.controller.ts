@@ -2,12 +2,8 @@ import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { sendResponse } from '../utils/response';
 import { z } from 'zod';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
-import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
 
 const authService = new AuthService();
-const prisma = new PrismaClient();
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -70,27 +66,15 @@ export const logout = async (req: Request, res: Response) => {
 
 export const googleCallback = async (req: Request, res: Response) => {
   try {
-    const user = req.user as any;
-    if (!user) {
+    const profile = req.user as any;
+    if (!profile) {
       return sendResponse(res, 401, false, 'Google authentication failed');
     }
 
-    const accessToken = generateAccessToken({ userId: user.id, role: user.role });
-    const refreshToken = generateRefreshToken({ userId: user.id, role: user.role });
-
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await prisma.refreshToken.create({
-      data: {
-        user_id: user.id,
-        token_hash: tokenHash,
-        expires_at: expiresAt,
-      },
-    });
+    const result = await authService.googleLogin(profile);
 
     // In a real frontend app, we would redirect to the frontend with tokens in URL or Set-Cookie
-    res.redirect(`http://localhost:5173/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+    res.redirect(`http://localhost:5173/auth/callback?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`);
   } catch (error: any) {
     res.redirect('http://localhost:5173/login?error=auth_failed');
   }
