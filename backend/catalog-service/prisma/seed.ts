@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("Clearing database...");
+  await prisma.stockReservation.deleteMany();
   await prisma.productImage.deleteMany();
   await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
