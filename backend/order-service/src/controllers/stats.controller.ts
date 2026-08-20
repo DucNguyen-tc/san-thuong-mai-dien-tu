@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import { prisma } from '../config/prisma';
+import { Request, Response } from "express";
+import { prisma } from "../config/prisma";
 
 export class StatsController {
   public async getDashboardStats(req: Request, res: Response) {
@@ -14,11 +14,13 @@ export class StatsController {
         },
         where: {
           status: {
-            not: 'CANCELLED',
+            not: "CANCELLED",
           },
         },
       });
-      const totalRevenue = revenueResult._sum.total_amount ? Number(revenueResult._sum.total_amount) : 0;
+      const totalRevenue = revenueResult._sum.total_amount
+        ? Number(revenueResult._sum.total_amount)
+        : 0;
 
       // 3. Orders and Revenue over the last 7 days
       const sevenDaysAgo = new Date();
@@ -31,7 +33,7 @@ export class StatsController {
             gte: sevenDaysAgo,
           },
           status: {
-            not: 'CANCELLED',
+            not: "CANCELLED",
           },
         },
         select: {
@@ -40,6 +42,14 @@ export class StatsController {
         },
       });
 
+      // Helper to format date as YYYY-MM-DD in local time
+      const toLocalDateString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+
       // Group by day
       const revenueByDate: Record<string, number> = {};
       const ordersByDate: Record<string, number> = {};
@@ -47,45 +57,47 @@ export class StatsController {
       for (let i = 0; i < 7; i++) {
         const d = new Date(sevenDaysAgo);
         d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = toLocalDateString(d);
         revenueByDate[dateStr] = 0;
         ordersByDate[dateStr] = 0;
       }
 
-      recentOrders.forEach(order => {
-        const dateStr = order.created_at.toISOString().split('T')[0];
+      recentOrders.forEach((order) => {
+        const dateStr = toLocalDateString(order.created_at);
         if (revenueByDate[dateStr] !== undefined) {
           revenueByDate[dateStr] += Number(order.total_amount);
           ordersByDate[dateStr] += 1;
         }
       });
 
-      const recentStats = Object.keys(revenueByDate).sort().map(date => ({
-        date,
-        revenue: revenueByDate[date],
-        orders: ordersByDate[date],
-      }));
+      const recentStats = Object.keys(revenueByDate)
+        .sort()
+        .map((date) => ({
+          date,
+          revenue: revenueByDate[date],
+          orders: ordersByDate[date],
+        }));
 
       // 4. Top Selling Products
       const topProductsData = await prisma.orderItem.groupBy({
-        by: ['product_id', 'product_name_snapshot'],
+        by: ["product_id", "product_name_snapshot"],
         _sum: {
           quantity: true,
-          line_total: true
+          line_total: true,
         },
         orderBy: {
           _sum: {
-            quantity: 'desc'
-          }
+            quantity: "desc",
+          },
         },
-        take: 5
+        take: 10,
       });
 
-      let topSellingProducts = topProductsData.map(item => ({
+      let topSellingProducts = topProductsData.map((item) => ({
         id: item.product_id,
         name: item.product_name_snapshot,
         soldCount: item._sum.quantity || 0,
-        revenue: Number(item._sum.line_total || 0)
+        revenue: Number(item._sum.line_total || 0),
       }));
 
       // 5. Top Recommended Products (Person B handles the real data in recommendation-service)
@@ -94,20 +106,20 @@ export class StatsController {
 
       return res.status(200).json({
         success: true,
-        message: 'Lấy thống kê thành công',
+        message: "Lấy thống kê thành công",
         data: {
           totalOrders,
           totalRevenue: Number(totalRevenue),
           recentStats,
           topSellingProducts,
-          topRecommendedProducts
+          topRecommendedProducts,
         },
       });
     } catch (error: any) {
-      console.error('Lỗi khi lấy thống kê:', error.message);
+      console.error("Lỗi khi lấy thống kê:", error.message);
       return res.status(500).json({
         success: false,
-        message: 'Lỗi khi lấy thống kê đơn hàng',
+        message: "Lỗi khi lấy thống kê đơn hàng",
       });
     }
   }

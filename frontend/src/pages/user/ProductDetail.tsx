@@ -23,18 +23,19 @@ import {
 } from "@/types/catalog";
 import { formatPrice } from "@/utils/formatters";
 import { useCartStore } from "@/store/useCartStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import toast from "react-hot-toast";
 import CatalogProductCard from "@/components/product/CatalogProductCard";
+import SimilarProducts from "@/components/SimilarProducts";
 
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
   const [product, setProduct] = useState<CatalogProduct | null>(null);
-  const [similarProducts, setSimilarProducts] = useState<CatalogProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSimilarLoading, setIsSimilarLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("desc");
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null,
@@ -67,26 +68,6 @@ export default function ProductDetail() {
       .catch(() => {})
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
-      });
-
-    // Lấy sản phẩm tương tự bằng AI recommendation
-    setIsSimilarLoading(true);
-    getSimilarProductIds(id, 6)
-      .then(async (similarIds) => {
-        if (isCancelled) return;
-        const promises = similarIds
-          .filter((sId) => sId !== id)
-          .slice(0, 4)
-          .map((sId) => getProductById(sId).catch(() => null));
-        const results = await Promise.all(promises);
-        const valid = results.filter((p): p is CatalogProduct => p !== null);
-        if (!isCancelled) {
-          setSimilarProducts(valid);
-        }
-      })
-      .catch((err) => console.error('[ProductDetail] Failed to load similar products:', err))
-      .finally(() => {
-        if (!isCancelled) setIsSimilarLoading(false);
       });
 
     return () => {
@@ -173,6 +154,11 @@ export default function ProductDetail() {
   };
 
   const handleAddToCart = async (showToastMessage = true) => {
+    if (!isAuthenticated) {
+      toast.error("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng");
+      navigate("/login");
+      return false;
+    }
     if (!product) return false;
     if (product.variants && product.variants.length > 0 && !selectedVariantId) {
       toast.error("Vui lòng chọn phân loại sản phẩm");
@@ -198,6 +184,11 @@ export default function ProductDetail() {
   };
 
   const handleBuyNow = async () => {
+    if (!isAuthenticated) {
+      toast.error("Vui lòng đăng nhập để mua ngay");
+      navigate("/login");
+      return;
+    }
     if (!product) return;
     if (product.variants && product.variants.length > 0 && !selectedVariantId) {
       toast.error("Vui lòng chọn phân loại sản phẩm");
@@ -545,37 +536,7 @@ export default function ProductDetail() {
         </div>
 
         {/* Similar Products */}
-        <div className="mt-12 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
-              Sản phẩm tương tự{" "}
-              <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-2 relative -top-1">
-                GỢI Ý
-              </span>
-            </h2>
-            <div className="flex gap-2">
-              <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50">
-                <ChevronLeft size={20} />
-              </button>
-              <button className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-500 hover:bg-gray-50">
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
-          {isSimilarLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-blue-600" size={28} />
-            </div>
-          ) : similarProducts.length > 0 ? (
-            <div className="grid grid-cols-4 gap-5">
-              {similarProducts.map((sp) => (
-                <CatalogProductCard key={sp.id} product={sp} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm italic">Chưa có sản phẩm tương tự.</p>
-          )}
-        </div>
+        <SimilarProducts productId={product.id} />
       </div>
     </div>
   );

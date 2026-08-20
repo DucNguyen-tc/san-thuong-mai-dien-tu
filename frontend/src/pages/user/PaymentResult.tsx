@@ -84,17 +84,10 @@ export default function PaymentResult() {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                to="/checkout"
-                className="flex-1 py-3 px-4 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-xl text-sm transition flex items-center justify-center gap-2"
-              >
-                Thử lại thanh toán
-                <ArrowRight size={18} />
-              </Link>
+            <div className="flex justify-center">
               <Link
                 to="/"
-                className="flex-1 py-3 px-4 bg-surface-container hover:bg-surface-container-high text-on-surface font-semibold rounded-xl text-sm transition border border-outline-variant"
+                className="w-full py-3 px-4 bg-primary hover:opacity-90 text-on-primary font-semibold rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-md shadow-primary/20"
               >
                 Về trang chủ
               </Link>

@@ -7,7 +7,22 @@ interface AIProductCardProps {
   product: CatalogProduct;
 }
 
+function getDeterministicMockRating(productId: string) {
+  let hash = 0;
+  for (let i = 0; i < productId.length; i++) {
+    hash = productId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const absHash = Math.abs(hash);
+  const rating = 4.0 + (absHash % 11) / 10;
+  const reviewsCount = 10 + (absHash % 111);
+  return { rating, reviewsCount };
+}
+
 export default function AIProductCard({ product }: AIProductCardProps) {
+  const mock = getDeterministicMockRating(product.id || product.name);
+  const displayRating = product.rating || mock.rating;
+  const displayReviewsCount = product.reviews_count || mock.reviewsCount;
+
   return (
     <div className="product-card min-w-[380px] bg-white rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex gap-4 cursor-pointer">
       {/* Product Image */}
@@ -45,7 +60,7 @@ export default function AIProductCard({ product }: AIProductCardProps) {
         </div>
 
         <div className="flex items-center gap-4 text-on-surface-variant">
-          <StarRating rating={product.rating || 0} count={product.reviews_count || 0} />
+          <StarRating rating={displayRating} count={displayReviewsCount} />
           {/* TODO: Add AI reason if available from recommendation API */}
           {/* {product.aiReason && (
             <span className="text-xs truncate">{product.aiReason}</span>

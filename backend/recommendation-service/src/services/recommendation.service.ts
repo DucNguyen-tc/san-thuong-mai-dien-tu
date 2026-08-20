@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { generateFeatureVector } from '../utils/tfidf';
+import { PrismaClient } from "@prisma/client";
+import { generateFeatureVector } from "../utils/tfidf";
 
 const prisma = new PrismaClient();
 
@@ -12,24 +12,33 @@ export class RecommendationService {
     productId: string,
     name: string,
     description: string,
-    categoryName: string = ''
+    categoryName: string = "",
   ): Promise<void> {
     try {
       const vector = generateFeatureVector(name, description, categoryName);
-      const vectorString = `[${vector.join(',')}]`;
+      const vectorString = `[${vector.join(",")}]`;
 
-      await prisma.$executeRawUnsafe(`
+      await prisma.$executeRawUnsafe(
+        `
         INSERT INTO product_vectors (product_id, embedding, computed_at)
         VALUES ($1::uuid, $2::vector, NOW())
         ON CONFLICT (product_id) 
         DO UPDATE SET 
           embedding = EXCLUDED.embedding,
           computed_at = NOW();
-      `, productId, vectorString);
+      `,
+        productId,
+        vectorString,
+      );
 
-      console.log(`[RecommendationService] Updated vector for product: ${productId}`);
+      console.log(
+        `[RecommendationService] Updated vector for product: ${productId}`,
+      );
     } catch (error) {
-      console.error(`[RecommendationService] Failed to update vector for ${productId}`, error);
+      console.error(
+        `[RecommendationService] Failed to update vector for ${productId}`,
+        error,
+      );
       throw error;
     }
   }
@@ -39,9 +48,13 @@ export class RecommendationService {
    * Tìm Top N sản phẩm tương tự dựa trên Cosine Similarity của vector.
    * Sử dụng toán tử <=> của pgvector để tính khoảng cách cosine trực tiếp trong DB.
    */
-  async getContentBasedProducts(productId: string, limit: number = 8): Promise<Array<{ id: string; score: number }>> {
+  async getContentBasedProducts(
+    productId: string,
+    limit: number = 8,
+  ): Promise<Array<{ id: string; score: number }>> {
     try {
-      const rows: any[] = await prisma.$queryRawUnsafe(`
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `
         SELECT 
           product_id,
           1 - (embedding <=> (SELECT embedding FROM product_vectors WHERE product_id = $1::uuid)) AS similarity_score
@@ -50,11 +63,14 @@ export class RecommendationService {
           AND (SELECT embedding FROM product_vectors WHERE product_id = $1::uuid) IS NOT NULL
         ORDER BY embedding <=> (SELECT embedding FROM product_vectors WHERE product_id = $1::uuid)
         LIMIT $2;
-      `, productId, limit);
+      `,
+        productId,
+        limit,
+      );
 
-      return rows.map(row => ({
+      return rows.map((row) => ({
         id: row.product_id,
-        score: parseFloat(row.similarity_score) || 0
+        score: parseFloat(row.similarity_score) || 0,
       }));
     } catch (error) {
       console.error(`[Content-Based] Failed for product: ${productId}`, error);
@@ -66,9 +82,13 @@ export class RecommendationService {
    * [Collaborative Filtering - Item-based]
    * Tìm sản phẩm được xem/click cùng nhau bởi nhiều người dùng.
    */
-  async getCollaborativeProducts(productId: string, limit: number = 6): Promise<Array<{ id: string; score: number }>> {
+  async getCollaborativeProducts(
+    productId: string,
+    limit: number = 6,
+  ): Promise<Array<{ id: string; score: number }>> {
     try {
-      const rows: any[] = await prisma.$queryRawUnsafe(`
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `
         SELECT 
           recommended_product_id AS product_id,
           COUNT(*) AS click_count,
@@ -83,10 +103,14 @@ export class RecommendationService {
         GROUP BY recommended_product_id
         ORDER BY click_count DESC
         LIMIT $2;
-      `, productId, limit);
+      `,
+        productId,
+        limit,
+      );
 
       if (rows.length === 0) {
-        const indirectRows: any[] = await prisma.$queryRawUnsafe(`
+        const indirectRows: any[] = await prisma.$queryRawUnsafe(
+          `
           SELECT 
             rl2.recommended_product_id AS product_id,
             COUNT(*) AS co_click_count,
@@ -101,17 +125,20 @@ export class RecommendationService {
           GROUP BY rl2.recommended_product_id
           ORDER BY co_click_count DESC
           LIMIT $2;
-        `, productId, limit);
+        `,
+          productId,
+          limit,
+        );
 
-        return indirectRows.map(row => ({
+        return indirectRows.map((row) => ({
           id: row.product_id,
-          score: parseFloat(row.score) || 0.1
+          score: parseFloat(row.score) || 0.1,
         }));
       }
 
-      return rows.map(row => ({
+      return rows.map((row) => ({
         id: row.product_id,
-        score: parseFloat(row.score) || 0.1
+        score: parseFloat(row.score) || 0.1,
       }));
     } catch (error) {
       console.error(`[Collaborative] Failed for product: ${productId}`, error);
@@ -124,11 +151,14 @@ export class RecommendationService {
    * Kết hợp Content-based (60%) + Collaborative Filtering (40%).
    * Sản phẩm xuất hiện ở cả 2 nguồn sẽ có score cao nhất.
    */
-  async getHybridRecommendations(productId: string, limit: number = 8): Promise<string[]> {
+  async getHybridRecommendations(
+    productId: string,
+    limit: number = 8,
+  ): Promise<string[]> {
     try {
       const [contentBased, collaborative] = await Promise.all([
         this.getContentBasedProducts(productId, limit + 3),
-        this.getCollaborativeProducts(productId, limit)
+        this.getCollaborativeProducts(productId, limit),
       ]);
 
       const scoreMap = new Map<string, number>();
@@ -148,7 +178,9 @@ export class RecommendationService {
         .slice(0, limit)
         .map(([id]) => id);
 
-      console.log(`[Hybrid] Product ${productId}: Content=${contentBased.length}, CF=${collaborative.length}, Merged=${sorted.length}`);
+      console.log(
+        `[Hybrid] Product ${productId}: Content=${contentBased.length}, CF=${collaborative.length}, Merged=${sorted.length}`,
+      );
       return sorted;
     } catch (error) {
       console.error(`[Hybrid] Failed for product: ${productId}`, error);
@@ -157,12 +189,38 @@ export class RecommendationService {
   }
 
   /**
-   * Lấy top sản phẩm phổ biến nhất (được click nhiều nhất) để hiển thị ở trang chủ.
-   * Dùng cho section "Sản phẩm bán chạy" khi user chưa có lịch sử.
+   * Lấy top sản phẩm phổ biến nhất để hiển thị ở trang chủ.
+   * Ưu tiên gọi sang Order Service để lấy các sản phẩm bán chạy thực tế như ở admin dashboard.
    */
   async getPopularProducts(limit: number = 8): Promise<string[]> {
     try {
-      const rows: any[] = await prisma.$queryRawUnsafe(`
+      // 1. Lấy sản phẩm bán chạy nhất từ Order Service (giống admin dashboard)
+      const ORDER_URL =
+        process.env.ORDER_SERVICE_URL || "http://localhost:3004";
+      let bestSellingIds: string[] = [];
+      try {
+        const response = await fetch(`${ORDER_URL}/api/orders/internal/stats`);
+        const resData: any = await response.json();
+        if (
+          resData &&
+          resData.success &&
+          resData.data &&
+          resData.data.topSellingProducts
+        ) {
+          bestSellingIds = resData.data.topSellingProducts.map(
+            (p: any) => p.id,
+          );
+        }
+      } catch (err: any) {
+        console.error(
+          "[Popular] Failed to fetch stats from order-service:",
+          err.message,
+        );
+      }
+
+      // 2. Lấy dữ liệu từ logs tương tác làm dự phòng thứ 2
+      const rows: any[] = await prisma.$queryRawUnsafe(
+        `
         SELECT 
           recommended_product_id AS product_id,
           COUNT(*) AS total_interactions
@@ -171,29 +229,34 @@ export class RecommendationService {
         GROUP BY recommended_product_id
         ORDER BY total_interactions DESC
         LIMIT $1;
-      `, limit);
+      `,
+        limit,
+      );
 
-      // Nếu chưa có dữ liệu hành vi, fallback về sản phẩm có vector mới nhất
-      if (rows.length < limit) {
-        const vectorRows: any[] = await prisma.$queryRawUnsafe(`
+      const interactionIds = rows.map((row) => row.product_id);
+
+      // Gộp kết quả của 2 cách
+      const allMergedIds = [...bestSellingIds, ...interactionIds];
+      const uniqueIds = new Set(allMergedIds);
+
+      // 3. Nếu chưa đủ limit, fallback về sản phẩm có vector mới nhất
+      if (uniqueIds.size < limit) {
+        const vectorRows: any[] = await prisma.$queryRawUnsafe(
+          `
           SELECT product_id 
           FROM product_vectors
           ORDER BY computed_at DESC
           LIMIT $1;
-        `, limit);
+        `,
+          limit,
+        );
 
-        const existingIds = new Set(rows.map((r: any) => r.product_id));
-        const fallbackIds = vectorRows
-          .map((r: any) => r.product_id)
-          .filter(id => !existingIds.has(id));
-
-        const allIds = [...rows.map((r: any) => r.product_id), ...fallbackIds];
-        return allIds.slice(0, limit);
+        vectorRows.forEach((r: any) => uniqueIds.add(r.product_id));
       }
 
-      return rows.map(row => row.product_id);
+      return Array.from(uniqueIds).slice(0, limit);
     } catch (error) {
-      console.error('[Popular] Failed to fetch popular products', error);
+      console.error("[Popular] Failed to fetch popular products", error);
       return [];
     }
   }
@@ -204,13 +267,18 @@ export class RecommendationService {
    * Dùng cho trường hợp hành vi đa dạng: merge kết quả từ top-N sp gần nhất.
    * Mỗi nguồn đóng góp ngang nhau theo rank, loại bỏ trùng lặp và sp nguồn chính.
    */
-  async getBatchRecommendations(productIds: string[], limit: number = 8): Promise<string[]> {
+  async getBatchRecommendations(
+    productIds: string[],
+    limit: number = 8,
+  ): Promise<string[]> {
     try {
       const uniqueSourceIds = [...new Set(productIds)].slice(0, 5); // Tối đa 5 nguồn
 
       // Chạy song song recommendations cho từng sp nguồn
       const results = await Promise.all(
-        uniqueSourceIds.map(id => this.getHybridRecommendations(id, limit).catch(() => [] as string[]))
+        uniqueSourceIds.map((id) =>
+          this.getHybridRecommendations(id, limit).catch(() => [] as string[]),
+        ),
       );
 
       // Score map: id xuất hiện sớm hơn trong kết quả có score cao hơn (rank-based scoring)
@@ -231,10 +299,12 @@ export class RecommendationService {
         .slice(0, limit)
         .map(([id]) => id);
 
-      console.log(`[BatchRec] Sources=${uniqueSourceIds.length}, Merged=${sorted.length} results`);
+      console.log(
+        `[BatchRec] Sources=${uniqueSourceIds.length}, Merged=${sorted.length} results`,
+      );
       return sorted;
     } catch (error) {
-      console.error('[BatchRec] Failed', error);
+      console.error("[BatchRec] Failed", error);
       return [];
     }
   }
@@ -246,9 +316,9 @@ export class RecommendationService {
   async logInteraction(
     sourceProductId: string,
     recommendedProductId: string,
-    eventType: 'IMPRESSION' | 'CLICK' | 'PURCHASE',
+    eventType: "IMPRESSION" | "CLICK" | "PURCHASE",
     customerId?: string,
-    similarityScore?: number
+    similarityScore?: number,
   ) {
     try {
       await prisma.recommendationLog.create({
@@ -257,11 +327,11 @@ export class RecommendationService {
           recommended_product_id: recommendedProductId,
           event_type: eventType,
           customer_id: customerId || null,
-          similarity_score: similarityScore || null
-        }
+          similarity_score: similarityScore || null,
+        },
       });
     } catch (error) {
-      console.error('[RecommendationService] Failed to log interaction', error);
+      console.error("[RecommendationService] Failed to log interaction", error);
     }
   }
 }

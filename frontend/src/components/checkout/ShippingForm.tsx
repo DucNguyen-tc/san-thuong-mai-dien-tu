@@ -8,7 +8,7 @@ import type { CheckoutFormData } from '@/types/cart';
 
 const shippingSchema = z.object({
   fullName: z.string().min(2, 'Vui lòng nhập họ và tên hợp lệ'),
-  phone: z.string(),
+  phone: z.string().min(10, 'Vui lòng nhập số điện thoại hợp lệ'),
   detailAddress: z.string().min(5, 'Vui lòng nhập địa chỉ chi tiết'),
   addressId: z.string().optional(),
 });
@@ -150,9 +150,8 @@ export function ShippingForm({ onFormUpdate }: ShippingFormProps) {
           <input
             {...register('phone')}
             type="tel"
-            readOnly
-            className="w-full p-md border border-outline-variant rounded-lg bg-surface-container focus:outline-none text-on-surface-variant cursor-not-allowed"
-            placeholder="Số điện thoại"
+            className="w-full p-md border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary focus:outline-none bg-surface-bright"
+            placeholder="Nhập số điện thoại"
           />
           {errors.phone && <p className="text-error text-sm">{errors.phone.message}</p>}
         </div>

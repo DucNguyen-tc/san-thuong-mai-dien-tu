@@ -1,15 +1,38 @@
-import { Heart } from 'lucide-react';
-import type { CatalogProduct } from '@/types/catalog';
-import { getPrimaryImageUrl, getDisplayPrice, getDiscountedPrice, getMaxDiscountTag } from '@/types/catalog';
-import StarRating from '@/components/ui/StarRating';
-import { formatPrice } from '@/utils/formatters';
+import { Heart } from "lucide-react";
+import type { CatalogProduct } from "@/types/catalog";
+import {
+  getPrimaryImageUrl,
+  getDisplayPrice,
+  getDiscountedPrice,
+  getMaxDiscountTag,
+} from "@/types/catalog";
+import StarRating from "@/components/ui/StarRating";
+import { formatPrice } from "@/utils/formatters";
 
 interface ProductCardProps {
   product: CatalogProduct;
   onAddToCart?: (product: CatalogProduct) => void;
 }
 
-export default function ProductCard({ product, onAddToCart }: ProductCardProps) {
+function getDeterministicMockRating(productId: string) {
+  let hash = 0;
+  for (let i = 0; i < productId.length; i++) {
+    hash = productId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const absHash = Math.abs(hash);
+  const rating = 4.0 + (absHash % 11) / 10;
+  const reviewsCount = 10 + (absHash % 111);
+  return { rating, reviewsCount };
+}
+
+export default function ProductCard({
+  product,
+  onAddToCart,
+}: ProductCardProps) {
+  const mock = getDeterministicMockRating(product.id || product.name);
+  const displayRating = product.rating || mock.rating;
+  const displayReviewsCount = product.reviews_count || mock.reviewsCount;
+
   return (
     <div className="product-card bg-white rounded-xl overflow-hidden shadow-sm border border-outline-variant/50 relative group cursor-pointer flex flex-col">
       {/* Badge */}
@@ -22,7 +45,7 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
       {/* Product Image */}
       <div className="h-48 w-full overflow-hidden bg-surface-container-low">
         <img
-          src={getPrimaryImageUrl(product) || 'https://via.placeholder.com/300'}
+          src={getPrimaryImageUrl(product) || "https://via.placeholder.com/300"}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           loading="lazy"
@@ -31,7 +54,9 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
 
       {/* Product Info */}
       <div className="p-4 flex flex-col flex-1">
-        <p className="text-xs text-on-surface-variant">{product.category?.name}</p>
+        <p className="text-xs text-on-surface-variant">
+          {product.category?.name}
+        </p>
         <h3 className="font-semibold text-sm line-clamp-2 mt-1 flex-1 min-h-[2.5rem]">
           {product.name}
         </h3>
@@ -48,15 +73,11 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
         </div>
 
         <div className="mt-2">
-          <StarRating rating={product.rating || 0} count={product.reviews_count || 0} />
+          <StarRating
+            rating={displayRating}
+            count={displayReviewsCount}
+          />
         </div>
-
-        <button
-          onClick={() => onAddToCart?.(product)}
-          className="w-full mt-4 py-2 bg-secondary text-white rounded-lg font-bold text-sm hover:bg-secondary-container transition-colors"
-        >
-          Mua Ngay
-        </button>
       </div>
     </div>
   );
