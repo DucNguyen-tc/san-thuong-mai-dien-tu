@@ -7,6 +7,18 @@ import { getCategoryTree } from '@/services/categoryService';
 import type { CatalogProduct, Category } from '@/types/catalog';
 import { getDisplayPrice, getDiscountedPrice, getMaxDiscountTag, getPrimaryImageUrl } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
+import StarRating from '@/components/ui/StarRating';
+
+function getDeterministicMockRating(productId: string) {
+  let hash = 0;
+  for (let i = 0; i < productId.length; i++) {
+    hash = productId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const absHash = Math.abs(hash);
+  const rating = 4.0 + (absHash % 11) / 10;
+  const reviewsCount = 10 + (absHash % 111);
+  return { rating, reviewsCount };
+}
 
 export default function ProductList() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -251,6 +263,13 @@ export default function ProductList() {
                     <h3 className="font-medium text-gray-900 text-sm line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
                       {product.name}
                     </h3>
+                    
+                    <div className="mb-2">
+                      <StarRating 
+                        rating={product.rating || getDeterministicMockRating(product.id).rating} 
+                        count={product.reviews_count || getDeterministicMockRating(product.id).reviewsCount} 
+                      />
+                    </div>
                     
                     <div className="mt-auto">
                       <div className="flex items-end gap-2">

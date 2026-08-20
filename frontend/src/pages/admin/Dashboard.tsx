@@ -127,14 +127,14 @@ export default function Dashboard() {
       </div>
 
       {/* Top Products Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className="mt-6">
         {/* Top Selling */}
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl border border-white/50 p-6 shadow-sm hover:shadow-md transition-shadow">
           <h2 className="text-lg font-bold text-on-surface mb-4 flex items-center gap-2">
             <span className="w-2 h-6 bg-primary rounded-full"></span>
-            Top 5 Sản Phẩm Bán Chạy
+            Top 10 Sản Phẩm Bán Chạy
           </h2>
-          <div className="overflow-x-auto">
+          <div className="max-h-[350px] overflow-y-auto overflow-x-auto pr-1">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-outline-variant text-sm text-on-surface-variant">
@@ -147,43 +147,9 @@ export default function Dashboard() {
                 {stats?.topSellingProducts?.length ? (
                   stats.topSellingProducts.map((product) => (
                     <tr key={product.id} className="border-b border-outline-variant/50 last:border-0 hover:bg-surface/50 transition-colors">
-                      <td className="py-3 text-sm text-on-surface font-medium truncate max-w-[200px]" title={product.name}>{product.name}</td>
+                      <td className="py-3 text-sm text-on-surface font-medium truncate max-w-[400px]" title={product.name}>{product.name}</td>
                       <td className="py-3 text-sm text-on-surface text-right">{product.soldCount}</td>
                       <td className="py-3 text-sm text-primary font-semibold text-right">{formatPrice(product.revenue)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-sm text-on-surface-variant">Chưa có dữ liệu</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Top Recommended */}
-        <div className="bg-white/80 backdrop-blur-lg rounded-2xl border border-white/50 p-6 shadow-sm hover:shadow-md transition-shadow">
-          <h2 className="text-lg font-bold text-on-surface mb-4 flex items-center gap-2">
-            <span className="w-2 h-6 bg-secondary rounded-full"></span>
-            Hiệu Quả AI Gợi Ý (Top 3)
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-outline-variant text-sm text-on-surface-variant">
-                  <th className="pb-3 font-medium">Sản phẩm</th>
-                  <th className="pb-3 font-medium text-right">Lượt click (AI)</th>
-                  <th className="pb-3 font-medium text-right">Tỷ lệ chuyển đổi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats?.topRecommendedProducts?.length ? (
-                  stats.topRecommendedProducts.map((product) => (
-                    <tr key={product.id} className="border-b border-outline-variant/50 last:border-0 hover:bg-surface/50 transition-colors">
-                      <td className="py-3 text-sm text-on-surface font-medium truncate max-w-[200px]" title={product.name}>{product.name}</td>
-                      <td className="py-3 text-sm text-on-surface text-right">{product.clicks}</td>
-                      <td className="py-3 text-sm text-secondary font-semibold text-right">{product.conversionRate}%</td>
                     </tr>
                   ))
                 ) : (

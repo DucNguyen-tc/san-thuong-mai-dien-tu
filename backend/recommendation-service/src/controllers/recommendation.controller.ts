@@ -1,10 +1,9 @@
-import { Request, Response } from 'express';
-import { RecommendationService } from '../services/recommendation.service';
+import { Request, Response } from "express";
+import { RecommendationService } from "../services/recommendation.service";
 
 const recommendationService = new RecommendationService();
 
 export class RecommendationController {
-
   /**
    * GET /api/recommendations/popular?limit=8
    * Lấy danh sách sản phẩm phổ biến nhất để hiển thị ở trang chủ (cho guest user).
@@ -19,13 +18,13 @@ export class RecommendationController {
         success: true,
         data: productIds,
         meta: {
-          algorithm: 'popular',
-          count: productIds.length
-        }
+          algorithm: "popular",
+          count: productIds.length,
+        },
       });
     } catch (error) {
-      console.error('[RecommendationController] Error getting popular', error);
-      res.status(500).json({ success: false, message: 'Lỗi server' });
+      console.error("[RecommendationController] Error getting popular", error);
+      res.status(500).json({ success: false, message: "Lỗi server" });
     }
   }
 
@@ -39,23 +38,24 @@ export class RecommendationController {
       const { id } = req.params;
       const limit = parseInt(req.query.limit as string) || 8;
 
-      const similarProductIds = await recommendationService.getHybridRecommendations(id, limit);
+      const similarProductIds =
+        await recommendationService.getHybridRecommendations(id, limit);
 
       res.json({
         success: true,
         data: similarProductIds,
         meta: {
-          algorithm: 'hybrid',
-          description: 'Content-based (60%) + Collaborative Filtering (40%)',
+          algorithm: "hybrid",
+          description: "Content-based (60%) + Collaborative Filtering (40%)",
           source_product_id: id,
-          count: similarProductIds.length
-        }
+          count: similarProductIds.length,
+        },
       });
     } catch (error) {
-      console.error('[RecommendationController] Error', error);
+      console.error("[RecommendationController] Error", error);
       res.status(500).json({
         success: false,
-        message: 'Lỗi server khi tìm kiếm sản phẩm gợi ý'
+        message: "Lỗi server khi tìm kiếm sản phẩm gợi ý",
       });
     }
   }
@@ -70,25 +70,33 @@ export class RecommendationController {
       const { productIds, limit } = req.body;
 
       if (!Array.isArray(productIds) || productIds.length === 0) {
-        return res.status(400).json({ success: false, message: 'productIds là mảng bắt buộc' });
+        return res
+          .status(400)
+          .json({ success: false, message: "productIds là mảng bắt buộc" });
       }
 
       const parsedLimit = parseInt(limit) || 8;
-      const result = await recommendationService.getBatchRecommendations(productIds, parsedLimit);
+      const result = await recommendationService.getBatchRecommendations(
+        productIds,
+        parsedLimit,
+      );
 
       res.json({
         success: true,
         data: result,
         meta: {
-          algorithm: 'batch-hybrid',
-          description: 'Merged recommendations from multiple source products',
+          algorithm: "batch-hybrid",
+          description: "Merged recommendations from multiple source products",
           source_count: productIds.length,
-          count: result.length
-        }
+          count: result.length,
+        },
       });
     } catch (error) {
-      console.error('[RecommendationController] Error batch recommendations', error);
-      res.status(500).json({ success: false, message: 'Lỗi server' });
+      console.error(
+        "[RecommendationController] Error batch recommendations",
+        error,
+      );
+      res.status(500).json({ success: false, message: "Lỗi server" });
     }
   }
 
@@ -98,10 +106,18 @@ export class RecommendationController {
    */
   async logInteraction(req: Request, res: Response) {
     try {
-      const { sourceProductId, recommendedProductId, eventType, customerId, similarityScore } = req.body;
+      const {
+        sourceProductId,
+        recommendedProductId,
+        eventType,
+        customerId,
+        similarityScore,
+      } = req.body;
 
       if (!sourceProductId || !recommendedProductId || !eventType) {
-        return res.status(400).json({ success: false, message: 'Thiếu dữ liệu bắt buộc' });
+        return res
+          .status(400)
+          .json({ success: false, message: "Thiếu dữ liệu bắt buộc" });
       }
 
       await recommendationService.logInteraction(
@@ -109,12 +125,12 @@ export class RecommendationController {
         recommendedProductId,
         eventType,
         customerId,
-        similarityScore
+        similarityScore,
       );
 
       res.json({ success: true });
     } catch (error) {
-      console.error('[RecommendationController] Error logging', error);
+      console.error("[RecommendationController] Error logging", error);
       res.status(500).json({ success: false });
     }
   }

@@ -16,9 +16,9 @@
  *      → Gọi API /recommendations/batch với top-3 sp gần nhất
  *      → Tiêu đề: "Gợi ý cho bạn" + badge AI
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowRight, TrendingUp } from 'lucide-react';
+import { Sparkles, ArrowRight, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getPopularProductIds, getSimilarProductIds, getBatchRecommendationIds } from '@/services/recommendationService';
 import { getProductById } from '@/services/productService';
 import { analyzeViewPattern } from '@/services/userBehaviorService';
@@ -32,6 +32,17 @@ export default function AIRecommendations() {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<SectionMode>('popular');
   const [dominantCategory, setDominantCategory] = useState<string>('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (containerRef.current) {
+      const scrollAmount = 400;
+      containerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -49,30 +60,30 @@ export default function AIRecommendations() {
         if (analysis.pattern === 'empty') {
           // ─── Trường hợp 1: Guest / không có lịch sử → Popular ───
           resolvedMode = 'popular';
-          productIds = await getPopularProductIds(8);
+          productIds = await getPopularProductIds(15);
 
         } else if (analysis.pattern === 'focused') {
           // ─── Trường hợp 2: Tập trung 1 nhóm → Hybrid từ sp mới nhất ───
           resolvedMode = 'focused';
           const sourceProductId = analysis.topProductIds[0];
-          productIds = await getSimilarProductIds(sourceProductId, 8);
+          productIds = await getSimilarProductIds(sourceProductId, 15);
 
           // Fallback về popular nếu không có kết quả
           if (productIds.length === 0) {
             resolvedMode = 'popular';
-            productIds = await getPopularProductIds(8);
+            productIds = await getPopularProductIds(15);
           }
 
         } else {
           // ─── Trường hợp 3: Đa dạng → Batch từ top-3 sp gần nhất ───
           resolvedMode = 'diverse';
           const topIds = analysis.topProductIds.slice(0, 3);
-          productIds = await getBatchRecommendationIds(topIds, 8);
+          productIds = await getBatchRecommendationIds(topIds, 15);
 
           // Fallback về popular nếu không có kết quả
           if (productIds.length === 0) {
             resolvedMode = 'popular';
-            productIds = await getPopularProductIds(8);
+            productIds = await getPopularProductIds(15);
           }
         }
 
@@ -154,12 +165,24 @@ export default function AIRecommendations() {
             <p className="text-sm text-on-surface-variant pl-6">{config.subtitle}</p>
           )}
         </div>
-        <Link
-          to="/products"
-          className="text-primary font-semibold hover:underline flex items-center gap-1 text-sm shrink-0"
-        >
-          Xem tất cả <ArrowRight size={14} />
-        </Link>
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => scroll('left')}
+              className="p-1.5 rounded-full border border-outline-variant hover:bg-surface-container transition-colors text-on-surface"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => scroll('right')}
+              className="p-1.5 rounded-full border border-outline-variant hover:bg-surface-container transition-colors text-on-surface"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Loading Skeleton */}
@@ -183,7 +206,7 @@ export default function AIRecommendations() {
 
       {/* Horizontal Scroll Container */}
       {!isLoading && products.length > 0 && (
-        <div className="flex gap-6 overflow-x-auto hide-scrollbar pb-4 -mx-2 px-2">
+        <div ref={containerRef} className="flex gap-6 overflow-x-auto hide-scrollbar pb-4 -mx-2 px-2">
           {products.map((product) => (
             <Link to={`/products/${product.id}`} key={product.id}>
               <AIProductCard product={product} />
