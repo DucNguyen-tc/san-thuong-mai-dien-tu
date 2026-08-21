@@ -26,6 +26,155 @@ services:
       - "5672:5672" # Port giao tiếp AMQP cho các service
       - "15672:15672" # Port cho giao diện UI quản lý RabbitMQ
 
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+    container_name: san_thuong_mai_api_gateway
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/api-gateway/.env
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:3001
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      CART_SERVICE_URL: http://cart-service:3003
+      ORDER_SERVICE_URL: http://order-service:3004
+      PAYMENT_SERVICE_URL: http://payment-service:3005
+      NOTIFICATION_SERVICE_URL: http://notification-service:3006
+      RECOMMENDATION_SERVICE_URL: http://recommendation-service:3007
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - identity-service
+      - catalog-service
+      - cart-service
+      - order-service
+      - payment-service
+      - notification-service
+      - recommendation-service
+
+  identity-service:
+    build:
+      context: ./backend/identity-service
+    container_name: san_thuong_mai_identity_service
+    restart: always
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend/identity-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/identity_db"
+      ORDER_SERVICE_URL: http://order-service:3004
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  catalog-service:
+    build:
+      context: ./backend/catalog-service
+    container_name: san_thuong_mai_catalog_service
+    restart: always
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./backend/catalog-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/catalog_db"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  cart-service:
+    build:
+      context: ./backend/cart-service
+    container_name: san_thuong_mai_cart_service
+    restart: always
+    ports:
+      - "3003:3003"
+    env_file:
+      - ./backend/cart-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/cart_db?schema=public"
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - catalog-service
+      - rabbitmq
+
+  order-service:
+    build:
+      context: ./backend/order-service
+    container_name: san_thuong_mai_order_service
+    restart: always
+    ports:
+      - "3004:3004"
+    env_file:
+      - ./backend/order-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/order_db?schema=public"
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      CART_SERVICE_URL: http://cart-service:3003
+      PAYMENT_SERVICE_URL: http://payment-service:3005
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - catalog-service
+      - cart-service
+      - rabbitmq
+
+  payment-service:
+    build:
+      context: ./backend/payment-service
+    container_name: san_thuong_mai_payment_service
+    restart: always
+    ports:
+      - "3005:3005"
+    env_file:
+      - ./backend/payment-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/payment_db"
+      ORDER_SERVICE_URL: http://order-service:3004
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  notification-service:
+    build:
+      context: ./backend/notification-service
+    container_name: san_thuong_mai_notification_service
+    restart: always
+    ports:
+      - "3006:3006"
+    env_file:
+      - ./backend/notification-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/notification_db"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  recommendation-service:
+    build:
+      context: ./backend/recommendation-service
+    container_name: san_thuong_mai_recommendation_service
+    restart: always
+    ports:
+      - "3007:3007"
+    env_file:
+      - ./backend/recommendation-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/recommendation_db"
+      ORDER_SERVICE_URL: http://order-service:3004
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
 volumes:
   pgdata:
   rabbitmq_data:
