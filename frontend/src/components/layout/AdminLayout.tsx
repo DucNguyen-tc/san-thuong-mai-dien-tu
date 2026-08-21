@@ -19,8 +19,6 @@ const navItems = [
   { label: "Khuyến mãi", href: "/admin/promotions", icon: Package }, // Used Package or Tag if imported
   { label: "Đơn hàng", href: "/admin/orders", icon: ShoppingBag },
   { label: "Khách hàng", href: "/admin/customers", icon: Users },
-  { label: "Báo cáo", href: "/admin/reports", icon: BarChart3 },
-  { label: "Cài đặt", href: "/admin/settings", icon: Settings },
 ];
 
 /**
