@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, ShoppingBag, Users, DollarSign } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BarChart3, ShoppingBag, Users, DollarSign, Send } from 'lucide-react';
 import { getDashboardStats } from '../../services/dashboardService';
 import type { DashboardStats } from '../../services/dashboardService';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -40,11 +41,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6 flex justify-between items-end">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-on-surface tracking-tight">Tổng Quan Hệ Thống</h1>
           <p className="text-sm text-on-surface-variant mt-2 opacity-80">Theo dõi hiệu suất và tăng trưởng kinh doanh</p>
         </div>
+        <Link
+          to="/admin/telegram"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-semibold text-xs shadow-md shadow-sky-500/20 hover:from-sky-400 hover:to-indigo-500 transition-all cursor-pointer w-fit transform hover:-translate-y-0.5"
+        >
+          <Send size={14} className="transform -rotate-12" />
+          <span>Telegram Bot & Báo Cáo</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse ml-0.5"></span>
+        </Link>
       </div>
 
       {/* Stats Grid */}
