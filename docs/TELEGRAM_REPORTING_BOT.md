@@ -14,7 +14,7 @@
    - **Tối ưu chi phí vận hành:** Tận dụng 100% Telegram Bot API chính thức miễn phí, độc lập hoàn toàn, không phụ thuộc vào các nền tảng kéo thả trả phí như Zapier hay Make.com.
 2. **Ý nghĩa Kỹ thuật trong Đồ án Microservices (Engineering Rigor):**
    - **Giám sát giao dịch phân tán (Saga Watchdog):** Tự động phát hiện và gửi cảnh báo khẩn cấp (Critical Alert) khi các bước bù trừ (Compensating Transactions) bị lỗi hoặc hệ thống thanh toán gặp sự cố.
-   - **Tương tác 2 chiều (Bidirectional Operations):** Không chỉ là luồng đẩy 1 chiều (Server-Push), hệ thống hỗ trợ cơ chế **Long-Polling** nhận lệnh và tương tác tức thời từ Admin (`/report`, `/order`, `/health`).
+   - **Tương tác 2 chiều (Bidirectional Operations):** Không chỉ là luồng đẩy 1 chiều (Server-Push), hệ thống hỗ trợ cơ chế **Long-Polling** nhận lệnh và tương tác tức thời từ Admin (`/report`, `/order`).
    - **Chuẩn công nghiệp (Enterprise Reliability):** Tích hợp thuật toán thử lại theo hàm mũ (**Exponential Backoff Retry**) tự động khắc phục hiện tượng nghẽn mạng và xử lý Rate Limiting (HTTP 429).
 
 ---
@@ -133,9 +133,8 @@ Sau khi cấu hình, Quản trị viên chỉ cần mở ứng dụng Telegram v
 | `/start` hoặc `/help` | Menu trợ giúp | Hiển thị thông tin chào mừng và danh mục câu lệnh điều hành. |
 | `/report` | Báo cáo hôm nay | Trích xuất doanh thu, số lượng đơn và top sản phẩm tính tới thời điểm hiện tại. |
 | `/report yesterday` | Báo cáo hôm qua | Xem lại toàn bộ số liệu tổng kết của ngày hôm trước để so sánh tăng trưởng. |
-| `/order <mã_UUID>` | Tra cứu đơn hàng | Xem trạng thái chi tiết, địa chỉ giao hàng, phương thức thanh toán & danh sách món hàng. |
-| `/health` | Kiểm tra hạ tầng | Kiểm tra độ trễ Database PostgreSQL, dung lượng RAM (RSS), Heap memory và thời gian Uptime. |
-| `/test_alert` | Thử nghiệm cảnh báo | Bắn thử tin nhắn cảnh báo sự cố khẩn cấp để kiểm tra kênh liên lạc. |
+| `/report <ngày-tháng-năm>` | Báo cáo theo ngày | Xem báo cáo 1 ngày cụ thể (VD: `/report 17-10-2026` hoặc `/report 17/10/2026`). |
+| `/order <mã_đơn>` | Tra cứu đơn hàng | Xem trạng thái chi tiết, địa chỉ giao hàng, phương thức thanh toán & danh sách món hàng. |
 
 ---
 

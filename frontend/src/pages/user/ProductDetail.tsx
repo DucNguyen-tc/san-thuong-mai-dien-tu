@@ -392,8 +392,9 @@ export default function ProductDetail() {
                       Tùy chọn:{" "}
                       <span className="font-normal text-gray-600">
                         {selectedVariant?.attributes?.name ||
-                          selectedVariant?.attributes?.default ||
-                          "Mặc định"}
+                          (typeof selectedVariant?.attributes?.default === "string"
+                            ? selectedVariant?.attributes?.default
+                            : "Mặc định")}
                       </span>
                     </h3>
                     <div className="flex flex-wrap items-center gap-3">
@@ -410,8 +411,9 @@ export default function ProductDetail() {
                             }`}
                           >
                             {v.attributes?.name ||
-                              v.attributes?.default ||
-                              "Mặc định"}
+                              (typeof v.attributes?.default === "string"
+                                ? v.attributes?.default
+                                : "Mặc định")}
                           </button>
                         ))}
                     </div>

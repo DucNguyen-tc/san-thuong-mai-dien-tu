@@ -547,9 +547,8 @@ export default function TelegramMonitoring() {
             { cmd: '/start', desc: 'Menu chào mừng & danh mục trợ giúp' },
             { cmd: '/report', desc: 'Báo cáo doanh thu & đơn hàng hôm nay' },
             { cmd: '/report yesterday', desc: 'Xem lại toàn bộ số liệu ngày hôm qua' },
-            { cmd: '/health', desc: 'Kiểm tra RAM (RSS), Heap, Uptime & PostgreSQL' },
-            { cmd: '/order <mã_UUID>', desc: 'Tra cứu trạng thái & chi tiết đơn hàng' },
-            { cmd: '/test_alert', desc: 'Thử nghiệm bắn tín hiệu cảnh báo sự cố' },
+            { cmd: '/report <ngày-tháng-năm>', desc: 'Báo cáo 1 ngày cụ thể (VD: /report 17-10-2026)' },
+            { cmd: '/order <mã_đơn>', desc: 'Tra cứu trạng thái & chi tiết đơn hàng (VD: /order 6ff9b54b)' },
           ].map((item) => (
             <div
               key={item.cmd}
