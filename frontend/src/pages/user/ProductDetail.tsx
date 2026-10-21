@@ -67,7 +67,7 @@ export default function ProductDetail() {
           logUserEvent({ productId: data.id, eventType: 'VIEW', customerId: user?.id });
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
       });
@@ -207,7 +207,7 @@ export default function ProductDetail() {
         image_url: primaryImage,
       };
       await addItem(product.id, variantId, quantity, localMeta);
-      
+
       const currentCartItems = useCartStore.getState().items;
       const addedItem = currentCartItems.find(
         (item) => item.product_id === product.id && item.variant_id === variantId
@@ -352,11 +352,10 @@ export default function ProductDetail() {
                         <button
                           key={color}
                           onClick={() => handleSelectColor(color)}
-                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
-                            selectedVariant?.attributes?.color === color
-                              ? "border-blue-600 bg-blue-50 text-blue-700"
-                              : "border-gray-300 hover:border-gray-400 text-gray-700"
-                          }`}
+                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${selectedVariant?.attributes?.color === color
+                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            : "border-gray-300 hover:border-gray-400 text-gray-700"
+                            }`}
                         >
                           {color}
                         </button>
@@ -377,11 +376,10 @@ export default function ProductDetail() {
                         <button
                           key={size}
                           onClick={() => handleSelectSize(size)}
-                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
-                            selectedVariant?.attributes?.size === size
-                              ? "border-blue-600 bg-blue-50 text-blue-700"
-                              : "border-gray-300 hover:border-gray-400 text-gray-700"
-                          }`}
+                          className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${selectedVariant?.attributes?.size === size
+                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            : "border-gray-300 hover:border-gray-400 text-gray-700"
+                            }`}
                         >
                           {size}
                         </button>
@@ -407,11 +405,10 @@ export default function ProductDetail() {
                           <button
                             key={v.id}
                             onClick={() => setSelectedVariantId(v.id)}
-                            className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${
-                              selectedVariantId === v.id
-                                ? "border-blue-600 bg-blue-50 text-blue-700"
-                                : "border-gray-300 hover:border-gray-400 text-gray-700"
-                            }`}
+                            className={`px-6 py-2 rounded border font-medium text-sm transition-colors ${selectedVariantId === v.id
+                              ? "border-blue-600 bg-blue-50 text-blue-700"
+                              : "border-gray-300 hover:border-gray-400 text-gray-700"
+                              }`}
                           >
                             {v.attributes?.name ||
                               v.attributes?.default ||

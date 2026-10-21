@@ -24,7 +24,7 @@ Nâng cấp cơ chế gợi ý hiện tại từ mức cơ bản thành hệ th�
 
 ### 2.3. Gợi ý sản phẩm thịnh hành (Trending & Popular Items)
 - **Đối tượng:** Khách hàng chưa đăng nhập (Guest) hoặc User mới tinh (Cold Start).
-- **Cơ chế hoạt động:** 
+- **Cơ chế hoạt động:**
   - Tính điểm Popularity dựa trên số lượng VIEW và PURCHASE trong **7 ngày gần nhất**.
   - **Category Context:** Nếu user là Guest nhưng vừa click vào danh mục "Điện thoại", trang chủ tự động đẩy các sản phẩm Trending thuộc danh mục "Điện thoại" lên ưu tiên.
 
