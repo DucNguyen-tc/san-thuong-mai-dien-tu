@@ -14,6 +14,9 @@ import {
   Info,
   Terminal,
   ShieldCheck,
+  Edit3,
+  X,
+  Calendar,
 } from 'lucide-react';
 import {
   telegramService,
@@ -21,6 +24,40 @@ import {
   type PreviewReportResponse,
 } from '@/services/telegramService';
 import { formatPrice } from '@/utils/formatters';
+
+function formatCronSchedule(cronStr?: string): string {
+  if (!cronStr) return '23:00 mỗi đêm';
+  const parts = cronStr.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const minute = parts[0].padStart(2, '0');
+    const hour = parts[1].padStart(2, '0');
+    if (!isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+      return `${hour}:${minute} mỗi ngày`;
+    }
+  }
+  return cronStr;
+}
+
+function parseCronToTime(cronStr?: string): string {
+  if (!cronStr) return '23:00';
+  const parts = cronStr.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const minute = parts[0].padStart(2, '0');
+    const hour = parts[1].padStart(2, '0');
+    if (!isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+      return `${hour}:${minute}`;
+    }
+  }
+  return '23:00';
+}
+
+const CRON_PRESETS = [
+  { label: '07:00 (Sáng sớm)', time: '07:00', cron: '0 7 * * *' },
+  { label: '12:00 (Nghỉ trưa)', time: '12:00', cron: '0 12 * * *' },
+  { label: '18:00 (Cuối chiều)', time: '18:00', cron: '0 18 * * *' },
+  { label: '21:00 (Buổi tối)', time: '21:00', cron: '0 21 * * *' },
+  { label: '23:00 (Đêm chốt ca)', time: '23:00', cron: '0 23 * * *' },
+];
 
 export default function TelegramMonitoring() {
   const [status, setStatus] = useState<TelegramStatusData | null>(null);
@@ -36,11 +73,17 @@ export default function TelegramMonitoring() {
 
   // Actions state
   const [sendingReport, setSendingReport] = useState<boolean>(false);
-  const [testingAlert, setTestingAlert] = useState<boolean>(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+
+  // Cron schedule edit state
+  const [isEditingCron, setIsEditingCron] = useState<boolean>(false);
+  const [cronTimeInput, setCronTimeInput] = useState<string>('23:00');
+  const [customCronInput, setCustomCronInput] = useState<string>('0 23 * * *');
+  const [useAdvancedCron, setUseAdvancedCron] = useState<boolean>(false);
+  const [savingCron, setSavingCron] = useState<boolean>(false);
 
   // Active view tab for report preview
   const [previewTab, setPreviewTab] = useState<'visual' | 'telegram'>('visual');
@@ -51,6 +94,10 @@ export default function TelegramMonitoring() {
       setRefreshing(true);
       const data = await telegramService.getStatus();
       setStatus(data);
+      if (data?.cronExpression) {
+        setCronTimeInput(parseCronToTime(data.cronExpression));
+        setCustomCronInput(data.cronExpression);
+      }
     } catch (err: any) {
       console.error('Lỗi khi lấy trạng thái Telegram:', err);
     } finally {
@@ -58,6 +105,32 @@ export default function TelegramMonitoring() {
       setRefreshing(false);
     }
   }, []);
+
+  // Handle Save Cron Schedule
+  const handleSaveCron = async () => {
+    setSavingCron(true);
+    setNotification(null);
+    try {
+      const payload = useAdvancedCron
+        ? { cronExpression: customCronInput.trim() }
+        : { time: cronTimeInput.trim() };
+
+      const res = await telegramService.updateCronSchedule(payload);
+      setStatus((prev) => (prev ? { ...prev, cronExpression: res.cronExpression } : null));
+      setIsEditingCron(false);
+      setNotification({
+        type: 'success',
+        message: `Đã cập nhật lịch phát báo cáo thành công: ${formatCronSchedule(res.cronExpression)} (${res.cronExpression})`,
+      });
+    } catch (err: any) {
+      setNotification({
+        type: 'error',
+        message: `Lỗi cập nhật lịch trình: ${err.response?.data?.message || err.message}`,
+      });
+    } finally {
+      setSavingCron(false);
+    }
+  };
 
   // Load Preview Report
   const fetchPreview = useCallback(async (date: string) => {
@@ -98,30 +171,6 @@ export default function TelegramMonitoring() {
       });
     } finally {
       setSendingReport(false);
-    }
-  };
-
-  // Handle Test Alert
-  const handleTestAlert = async () => {
-    if (testingAlert) return;
-    setTestingAlert(true);
-    setNotification(null);
-    try {
-      const res = await telegramService.testAlert(
-        'SAGA_COMPENSATION_FAILURE',
-        'Thử nghiệm bắn tín hiệu cảnh báo sự cố khẩn cấp từ Web Admin Dashboard'
-      );
-      setNotification({
-        type: 'success',
-        message: `Đã gửi tin nhắn cảnh báo đỏ tức thì đến Telegram! (Message ID: #${res.messageId || 'OK'})`,
-      });
-    } catch (err: any) {
-      setNotification({
-        type: 'error',
-        message: `Gửi cảnh báo thất bại: ${err.response?.data?.message || err.message}`,
-      });
-    } finally {
-      setTestingAlert(false);
     }
   };
 
@@ -218,32 +267,58 @@ export default function TelegramMonitoring() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60">
-                  <p className="text-[11.5px] text-on-surface-variant font-medium">Tên Bot & Username</p>
-                  <p className="text-sm font-bold text-on-surface mt-1 flex items-center gap-2">
-                    {status?.botInfo?.first_name || 'Chưa nhận diện'}
-                    {status?.botInfo?.username && (
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-normal">
-                        @{status.botInfo.username}
+                <div className="p-4 rounded-2xl bg-neutral-50/80 dark:bg-neutral-800/50 border border-neutral-200/70 dark:border-neutral-700/60 flex flex-col justify-between transition-all hover:border-neutral-300 dark:hover:border-neutral-600">
+                  <div>
+                    <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                      Tên Bot & Username
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="text-sm sm:text-base font-bold text-on-surface">
+                        {status?.botInfo?.first_name || 'Chưa nhận diện'}
                       </span>
-                    )}
-                  </p>
-                  <p className="text-[10.5px] text-on-surface-variant mt-1.5 opacity-75">
-                    Bot ID: {status?.botInfo?.id || 'N/A'} • Long-Polling 2 chiều
+                      {status?.botInfo?.username && (
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-sky-100/80 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/60 font-medium">
+                          @{status.botInfo.username}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-on-surface-variant/80 mt-2.5 pt-2 border-t border-neutral-200/40 dark:border-neutral-700/40 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>ID: {status?.botInfo?.id || 'N/A'} • Long-Polling 2 chiều</span>
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60">
-                  <p className="text-[11.5px] text-on-surface-variant font-medium">Lập Lịch Báo Cáo Tự Động (Cron)</p>
-                  <p className="text-sm font-bold text-on-surface mt-1 flex items-center gap-2">
-                    <Clock size={15} className="text-indigo-500" />
-                    23:00 mỗi đêm
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-normal">
-                      {status?.cronExpression || '0 23 * * *'}
-                    </span>
-                  </p>
-                  <p className="text-[10.5px] text-on-surface-variant mt-1.5 opacity-75">
-                    Admin Chat ID: {status?.defaultChatId || 'Chưa thiết lập'}
+                <div className="p-4 rounded-2xl bg-neutral-50/80 dark:bg-neutral-800/50 border border-neutral-200/70 dark:border-neutral-700/60 flex flex-col justify-between transition-all hover:border-indigo-300/60 dark:hover:border-indigo-700/60 group">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                        Lập Lịch Báo Cáo
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCron(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900/80 border border-indigo-200/80 dark:border-indigo-800/80 transition-all cursor-pointer shadow-xs hover:shadow-sm hover:scale-[1.02] active:scale-95 whitespace-nowrap shrink-0"
+                      >
+                        <Edit3 size={11} className="text-indigo-600 dark:text-indigo-400" />
+                        <span>Đổi giờ</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <div className="flex items-center gap-1.5 text-sm sm:text-base font-bold text-on-surface">
+                        <Clock size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span>{formatCronSchedule(status?.cronExpression)}</span>
+                      </div>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-indigo-100/80 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 font-medium">
+                        {status?.cronExpression || '0 23 * * *'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-on-surface-variant/80 mt-2.5 pt-2 border-t border-neutral-200/40 dark:border-neutral-700/40 flex items-center justify-between">
+                    <span>Admin Chat ID: {status?.defaultChatId || 'Đã cấu hình'}</span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Tự động hàng ngày</span>
                   </p>
                 </div>
               </div>
@@ -277,7 +352,7 @@ export default function TelegramMonitoring() {
               <h2 className="text-sm font-bold tracking-tight">Kích Hoạt Tác Vụ Tức Thì</h2>
             </div>
             <p className="text-[11.5px] text-neutral-400 leading-relaxed mb-4">
-              Phát thông báo định kỳ hoặc kích hoạt thử nghiệm cảnh báo khẩn cấp tức thời tới quản trị viên.
+              Kích hoạt phát báo cáo kinh doanh tổng hợp tức thời tới quản trị viên qua Telegram.
             </p>
 
             <div className="space-y-2.5">
@@ -295,24 +370,6 @@ export default function TelegramMonitoring() {
                   <>
                     <Send size={14} />
                     <span>Gửi Báo Cáo Doanh Thu Ngay</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleTestAlert}
-                disabled={testingAlert || !status?.isConfigured}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-medium text-xs transition-all transform active:scale-98 cursor-pointer disabled:opacity-50 whitespace-nowrap"
-              >
-                {testingAlert ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    <span>Đang kích hoạt...</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={14} className="text-rose-400" />
-                    <span>Bắn Test Cảnh Báo (Saga Failure)</span>
                   </>
                 )}
               </button>
@@ -562,6 +619,153 @@ export default function TelegramMonitoring() {
           ))}
         </div>
       </div>
+
+      {/* Modal: Đổi Giờ Lập Lịch Báo Cáo */}
+      {isEditingCron && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface">Cài Đặt Giờ Báo Cáo Tự Động</h3>
+                  <p className="text-[11px] text-on-surface-variant">Lập lịch gửi tin nhắn tổng hợp lên Telegram</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditingCron(false)}
+                className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Presets */}
+            <div className="space-y-2">
+              <label className="text-[11.5px] font-semibold text-on-surface-variant">
+                Khung giờ gợi ý nhanh:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {CRON_PRESETS.map((preset) => {
+                  const isSelected = !useAdvancedCron && cronTimeInput === preset.time;
+                  return (
+                    <button
+                      key={preset.time}
+                      type="button"
+                      onClick={() => {
+                        setCronTimeInput(preset.time);
+                        setCustomCronInput(preset.cron);
+                        setUseAdvancedCron(false);
+                      }}
+                      className={`text-[11px] px-2.5 py-1.5 rounded-xl font-medium transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-neutral-100 dark:bg-neutral-800 text-on-surface hover:bg-neutral-200 dark:hover:bg-neutral-700 border-transparent'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time Picker Mode */}
+            {!useAdvancedCron ? (
+              <div className="space-y-2">
+                <label className="text-[11.5px] font-semibold text-on-surface-variant">
+                  Chọn giờ chính xác (HH:mm):
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="time"
+                    value={cronTimeInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCronTimeInput(val);
+                      if (val) {
+                        const [h, m] = val.split(':');
+                        setCustomCronInput(`${parseInt(m, 10)} ${parseInt(h, 10)} * * *`);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-2xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <div className="text-xs text-on-surface-variant font-medium px-3 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700">
+                    Cron: <code className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{customCronInput}</code>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Advanced Cron Expression Mode */
+              <div className="space-y-2">
+                <label className="text-[11.5px] font-semibold text-on-surface-variant flex items-center justify-between">
+                  <span>Cú pháp Cron (phút giờ ngày tháng thứ):</span>
+                  <span className="text-[10px] text-neutral-400 font-normal">Chuẩn 5 trường</span>
+                </label>
+                <input
+                  type="text"
+                  value={customCronInput}
+                  onChange={(e) => setCustomCronInput(e.target.value)}
+                  placeholder="0 23 * * *"
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            )}
+
+            {/* Toggle Mode */}
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useAdvancedCron}
+                  onChange={(e) => setUseAdvancedCron(e.target.checked)}
+                  className="rounded border-neutral-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Nhập biểu thức Cron nâng cao</span>
+              </label>
+            </div>
+
+            {/* Helper Info */}
+            <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-[11.5px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+              <Info size={14} className="text-indigo-500 mt-0.5 shrink-0" />
+              <span>
+                Báo cáo doanh thu sẽ được tự động trích xuất và phát qua Telegram vào lúc{' '}
+                <strong className="underline">{useAdvancedCron ? customCronInput : `${cronTimeInput} mỗi ngày`}</strong>.
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditingCron(false)}
+                disabled={savingCron}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCron}
+                disabled={savingCron}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/25 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {savingCron ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <span>Lưu Lịch Trình</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

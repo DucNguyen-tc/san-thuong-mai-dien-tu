@@ -162,6 +162,55 @@ export class TelegramController {
       });
     }
   }
+
+  /**
+   * PUT/POST /api/telegram/cron-schedule
+   * Cập nhật thời gian gửi báo cáo định kỳ tự động từ Web
+   */
+  public async updateCronSchedule(req: Request, res: Response): Promise<void> {
+    try {
+      const { cronExpression, time } = req.body || {};
+      let targetCron = cronExpression;
+
+      if (!targetCron && time) {
+        const match = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(String(time).trim());
+        if (!match) {
+          res.status(400).json({
+            success: false,
+            message: 'Định dạng giờ không hợp lệ. Vui lòng nhập định dạng HH:mm (ví dụ 22:30 hoặc 08:00)',
+          });
+          return;
+        }
+        const hour = parseInt(match[1], 10);
+        const minute = parseInt(match[2], 10);
+        targetCron = `${minute} ${hour} * * *`;
+      }
+
+      if (!targetCron) {
+        res.status(400).json({
+          success: false,
+          message: 'Thiếu thông tin lịch trình (cronExpression hoặc time)',
+        });
+        return;
+      }
+
+      const result = dailyReportCron.reschedule(targetCron);
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: {
+          cronExpression: result.cronExpression,
+          isRunning: dailyReportCron.getStatus().isRunning,
+        },
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Lỗi khi cập nhật lịch trình cron',
+      });
+    }
+  }
 }
 
 export const telegramController = new TelegramController();

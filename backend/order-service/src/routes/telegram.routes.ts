@@ -15,4 +15,8 @@ router.post('/send-report', telegramController.sendReport.bind(telegramControlle
 // POST /api/telegram/test-alert - Bắn thử cảnh báo sự cố khẩn cấp
 router.post('/test-alert', telegramController.testAlert.bind(telegramController));
 
+// PUT /api/telegram/cron-schedule - Cập nhật lịch trình gửi báo cáo tự động
+router.put('/cron-schedule', telegramController.updateCronSchedule.bind(telegramController));
+router.post('/cron-schedule', telegramController.updateCronSchedule.bind(telegramController));
+
 export default router;

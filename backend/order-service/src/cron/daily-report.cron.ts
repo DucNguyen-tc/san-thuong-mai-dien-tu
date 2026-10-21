@@ -1,5 +1,35 @@
+import fs from 'fs';
+import path from 'path';
 import cron, { ScheduledTask } from 'node-cron';
 import { reportService } from '../services/report.service';
+
+const CONFIG_FILE = path.resolve(__dirname, '../../cron-config.json');
+
+function loadPersistedCron(): string | null {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      if (data && typeof data.cronExpression === 'string' && cron.validate(data.cronExpression)) {
+        return data.cronExpression.trim();
+      }
+    }
+  } catch (err) {
+    console.error('[DailyReportCron] Không thể đọc cron-config.json:', err);
+  }
+  return null;
+}
+
+function savePersistedCron(cronExpression: string): void {
+  try {
+    fs.writeFileSync(
+      CONFIG_FILE,
+      JSON.stringify({ cronExpression, updatedAt: new Date().toISOString() }, null, 2),
+      'utf-8'
+    );
+  } catch (err) {
+    console.error('[DailyReportCron] Không thể ghi cron-config.json:', err);
+  }
+}
 
 export class DailyReportCron {
   private static instance: DailyReportCron;
@@ -7,7 +37,7 @@ export class DailyReportCron {
   private cronExpression: string;
 
   private constructor() {
-    this.cronExpression = process.env.TELEGRAM_REPORT_CRON || '0 23 * * *';
+    this.cronExpression = loadPersistedCron() || process.env.TELEGRAM_REPORT_CRON || '0 23 * * *';
   }
 
   public static getInstance(): DailyReportCron {
@@ -40,7 +70,33 @@ export class DailyReportCron {
       }
     });
 
-    console.log(`[DailyReportCron] 📅 Đã lập lịch gửi báo cáo tự động qua Telegram với biểu thức: "${this.cronExpression}" (Mặc định 23:00 đêm hàng ngày)`);
+    console.log(`[DailyReportCron] 📅 Đã lập lịch gửi báo cáo tự động qua Telegram với biểu thức: "${this.cronExpression}"`);
+  }
+
+  /**
+   * Cập nhật và lập lại lịch trình mới tại thời gian thực
+   */
+  public reschedule(newCronExpression: string): { success: boolean; message: string; cronExpression: string } {
+    const trimmed = (newCronExpression || '').trim();
+    if (!cron.validate(trimmed)) {
+      throw new Error(`Cú pháp cron không hợp lệ: "${newCronExpression}". Ví dụ cú pháp đúng: "0 23 * * *" hoặc "30 8 * * *"`);
+    }
+
+    if (this.task) {
+      this.task.stop();
+      this.task = null;
+    }
+
+    this.cronExpression = trimmed;
+    process.env.TELEGRAM_REPORT_CRON = trimmed;
+    savePersistedCron(trimmed);
+    this.start();
+
+    return {
+      success: true,
+      message: `Đã cập nhật lịch phát báo cáo tự động thành công: "${this.cronExpression}"`,
+      cronExpression: this.cronExpression,
+    };
   }
 
   /**

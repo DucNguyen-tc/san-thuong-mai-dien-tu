@@ -94,4 +94,12 @@ export const telegramService = {
     });
     return res.data.data;
   },
+
+  /**
+   * Cập nhật thời gian gửi báo cáo tự động (Cron Job)
+   */
+  async updateCronSchedule(payload: { time?: string; cronExpression?: string }): Promise<{ cronExpression: string; isRunning: boolean }> {
+    const res = await apiClient.put<ApiEnvelope<{ cronExpression: string; isRunning: boolean }>>('/telegram/cron-schedule', payload);
+    return res.data.data;
+  },
 };
