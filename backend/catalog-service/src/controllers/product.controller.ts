@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../config/prisma';
 import { ProductService } from '../services/product.service';
 import { sendResponse } from '../utils/response';
 import { serializeBigInt } from '../utils/serializeBigInt';
@@ -70,4 +71,46 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+/**
+ * POST /api/catalog/products/internal/prices
+ * Internal endpoint dùng cho recommendation-service để lấy giá tối thiểu của nhiều sản phẩm theo lô.
+ * Body: { productIds: string[] }
+ * Response: { success: true, data: { [productId]: number } }
+ */
+export const getProductPricesBatch = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { productIds } = req.body;
 
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return sendResponse(res, 400, false, 'productIds là mảng bắt buộc');
+    }
+
+    // Giới hạn kích thước lô để tránh quá tải
+    const limitedIds: string[] = productIds.slice(0, 50);
+
+    // Lấy giá variant thấp nhất cho mỗi product_id
+    const variants = await prisma.productVariant.findMany({
+      where: {
+        product_id: { in: limitedIds },
+        is_active: true,
+      },
+      select: {
+        product_id: true,
+        price: true,
+      },
+    });
+
+    // Tổng hợp: lấy giá thấp nhất theo product_id
+    const priceMap: Record<string, number> = {};
+    for (const v of variants) {
+      const price = Number(v.price);
+      if (!priceMap[v.product_id] || price < priceMap[v.product_id]) {
+        priceMap[v.product_id] = price;
+      }
+    }
+
+    return sendResponse(res, 200, true, 'Lấy giá theo lô thành công', priceMap);
+  } catch (error) {
+    next(error);
+  }
+};

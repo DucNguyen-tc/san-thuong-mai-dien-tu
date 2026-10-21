@@ -5,6 +5,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getProductPricesBatch,
 } from "../controllers/product.controller";
 import { validateBody } from "../middlewares/validate";
 import {
@@ -20,6 +21,8 @@ import {
 const router = Router();
 
 router.get("/", getProducts);
+// QUAN TRỌNG: route tĩnh /internal/prices phải đặt TRƯỚC /:id
+router.post("/internal/prices", getProductPricesBatch);
 router.get("/:id", getProductById);
 router.post("/", validateBody(createProductSchema), createProduct);
 router.put("/:id", validateBody(updateProductSchema), updateProduct);
