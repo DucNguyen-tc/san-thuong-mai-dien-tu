@@ -64,3 +64,36 @@ export async function logRecommendationInteraction(params: {
     console.warn('[Recommendation] Failed to log interaction');
   }
 }
+
+/**
+ * Ghi hành vi người dùng (VIEW, ADD_TO_CART) vào user_product_events.
+ * Bỏ qua nếu không có customerId (guest user) — server cũng xử lý trường hợp này.
+ */
+export async function logUserEvent(params: {
+  productId: string;
+  eventType: 'VIEW' | 'ADD_TO_CART';
+  customerId?: string;
+}): Promise<void> {
+  try {
+    await apiClient.post('/recommendations/events', params);
+  } catch {
+    // Lỗi không được làm hỏng UX
+    console.warn('[Recommendation] Failed to log user event');
+  }
+}
+
+/**
+ * Lấy gợi ý cá nhân hóa cho user đã đăng nhập.
+ * Fallback về popular nếu backend không đủ dữ liệu.
+ */
+export async function getPersonalizedProductIds(
+  customerId: string,
+  limit: number = 8,
+  cartProductIds: string[] = [],
+): Promise<string[]> {
+  const cartIds = cartProductIds.join(',');
+  const { data } = await apiClient.get<RecommendationResponse>(
+    `/recommendations/personalized?limit=${limit}${cartIds ? `&cartIds=${cartIds}` : ''}&customerId=${customerId}`,
+  );
+  return data.data || [];
+}

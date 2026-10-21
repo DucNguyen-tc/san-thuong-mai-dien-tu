@@ -2,7 +2,12 @@
  * AIRecommendations.tsx
  * Khối "Sản phẩm dành riêng cho bạn" ở trang chủ.
  *
- * Logic hiển thị 3 trường hợp:
+ * Logic hiển thị 4 trường hợp:
+ *
+ *  [0] LOGGED-IN:
+ *      → Gọi API /recommendations/personalized (User Vector: VIEW×1, ADD_TO_CART×2, PURCHASE×3)
+ *      → Truyền cart product IDs để exclude
+ *      → Tiêu đề: "Dành riêng cho bạn" + badge AI
  *
  *  [1] GUEST / Không có lịch sử:
  *      → Gọi API /recommendations/popular
@@ -18,14 +23,21 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowRight, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getPopularProductIds, getSimilarProductIds, getBatchRecommendationIds } from '@/services/recommendationService';
+import { Sparkles, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  getPopularProductIds,
+  getSimilarProductIds,
+  getBatchRecommendationIds,
+  getPersonalizedProductIds,
+} from '@/services/recommendationService';
 import { getProductById } from '@/services/productService';
 import { analyzeViewPattern } from '@/services/userBehaviorService';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useCartStore } from '@/store/useCartStore';
 import type { CatalogProduct } from '@/types/catalog';
 import AIProductCard from '@/components/product/AIProductCard';
 
-type SectionMode = 'popular' | 'focused' | 'diverse';
+type SectionMode = 'popular' | 'focused' | 'diverse' | 'personalized';
 
 export default function AIRecommendations() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
@@ -33,6 +45,9 @@ export default function AIRecommendations() {
   const [mode, setMode] = useState<SectionMode>('popular');
   const [dominantCategory, setDominantCategory] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { isAuthenticated, user } = useAuthStore();
+  const { items: cartItems } = useCartStore();
 
   const scroll = (direction: 'left' | 'right') => {
     if (containerRef.current) {
@@ -51,55 +66,73 @@ export default function AIRecommendations() {
       try {
         setIsLoading(true);
 
-        // ── Phân tích hành vi người dùng từ localStorage ──
-        const analysis = analyzeViewPattern();
-
         let productIds: string[] = [];
         let resolvedMode: SectionMode = 'popular';
 
-        if (analysis.pattern === 'empty') {
-          // ─── Trường hợp 1: Guest / không có lịch sử → Popular ───
-          resolvedMode = 'popular';
-          productIds = await getPopularProductIds(15);
+        // ── Trường hợp 0: Đã đăng nhập → Personalized Feed ──────────────────
+        if (isAuthenticated && user?.id) {
+          resolvedMode = 'personalized';
+          const cartProductIds = cartItems.map((item) => item.product_id);
+          try {
+            productIds = await getPersonalizedProductIds(user.id, 15, cartProductIds);
+          } catch {
+            // Fallback về popular nếu lỗi
+            productIds = [];
+          }
 
-        } else if (analysis.pattern === 'focused') {
-          // ─── Trường hợp 2: Tập trung 1 nhóm → Hybrid từ sp mới nhất ───
-          resolvedMode = 'focused';
-          const sourceProductId = analysis.topProductIds[0];
-          productIds = await getSimilarProductIds(sourceProductId, 15);
-
-          // Fallback về popular nếu không có kết quả
+          // Nếu personalized trả về rỗng, fallback về popular
           if (productIds.length === 0) {
             resolvedMode = 'popular';
             productIds = await getPopularProductIds(15);
           }
 
         } else {
-          // ─── Trường hợp 3: Đa dạng → Batch từ top-3 sp gần nhất ───
-          resolvedMode = 'diverse';
-          const topIds = analysis.topProductIds.slice(0, 3);
-          productIds = await getBatchRecommendationIds(topIds, 15);
+          // ── Phân tích hành vi người dùng từ localStorage (guest) ──────────
+          const analysis = analyzeViewPattern();
 
-          // Fallback về popular nếu không có kết quả
-          if (productIds.length === 0) {
+          if (analysis.pattern === 'empty') {
+            // ─── Trường hợp 1: Guest / không có lịch sử → Popular ───────────
             resolvedMode = 'popular';
             productIds = await getPopularProductIds(15);
+
+          } else if (analysis.pattern === 'focused') {
+            // ─── Trường hợp 2: Tập trung 1 nhóm → Hybrid từ sp mới nhất ─────
+            resolvedMode = 'focused';
+            const sourceProductId = analysis.topProductIds[0];
+            productIds = await getSimilarProductIds(sourceProductId, 15);
+
+            if (productIds.length === 0) {
+              resolvedMode = 'popular';
+              productIds = await getPopularProductIds(15);
+            }
+
+          } else {
+            // ─── Trường hợp 3: Đa dạng → Batch từ top-3 sp gần nhất ─────────
+            resolvedMode = 'diverse';
+            const topIds = analysis.topProductIds.slice(0, 3);
+            productIds = await getBatchRecommendationIds(topIds, 15);
+
+            if (productIds.length === 0) {
+              resolvedMode = 'popular';
+              productIds = await getPopularProductIds(15);
+            }
+          }
+
+          if (analysis.dominantCategoryName) {
+            setDominantCategory(analysis.dominantCategoryName);
           }
         }
 
         if (isCancelled) return;
 
         setMode(resolvedMode);
-        if (analysis.dominantCategoryName) {
-          setDominantCategory(analysis.dominantCategoryName);
-        }
 
-        // ── Lấy chi tiết sản phẩm từ catalog ──
         if (productIds.length === 0) {
           setProducts([]);
           return;
         }
 
+        // ── Lấy chi tiết sản phẩm từ catalog ────────────────────────────────
         const promises = productIds.map((id) => getProductById(id).catch(() => null));
         const results = await Promise.all(promises);
         const validProducts = results.filter((p): p is CatalogProduct => p !== null);
@@ -115,15 +148,26 @@ export default function AIRecommendations() {
 
     fetchRecommendations();
     return () => { isCancelled = true; };
-  }, []);
+  }, [isAuthenticated, user?.id, cartItems]);
 
-  // ── Tiêu đề và icon thay đổi theo mode ──
+  // ── Tiêu đề và icon thay đổi theo mode ──────────────────────────────────
   const sectionConfig = {
     popular: {
       title: 'Sản phẩm bán chạy',
       subtitle: 'Được mua nhiều nhất trong tuần',
       icon: <TrendingUp size={16} className="text-orange-500" />,
       badge: null,
+    },
+    personalized: {
+      title: 'Dành riêng cho bạn',
+      subtitle: 'Dựa trên lịch sử mua sắm và sở thích của bạn',
+      icon: <Sparkles size={16} className="fill-primary text-primary" />,
+      badge: (
+        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <Sparkles size={10} className="fill-primary" />
+          AI Gợi Ý
+        </span>
+      ),
     },
     focused: {
       title: 'Dành riêng cho bạn',

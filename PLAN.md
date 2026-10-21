@@ -21,13 +21,13 @@
 ## Các bước thực hiện
 
 - [x] **Bước 0** — Tạo PLAN.md này
-- [ ] **Bước 1** — Schema: enum `UserEventType` (VIEW, ADD_TO_CART) + bảng `user_product_events` + index; index `recommendation_logs(created_at)`; chạy `prisma migrate dev`
-- [ ] **Bước 7** — `POST /recommendations/events`: nhận VIEW/ADD_TO_CART, validate, lấy customerId từ `x-user-id` header hoặc query param (TODO)
-- [ ] **Bước 2** — `getPopularProducts`: thêm time window 7 ngày cho log query
-- [ ] **Bước 3** — Exclude logic: sản phẩm đã mua 30 ngày (từ Order Service), trong cart (client truyền), impression>10 no-click; áp dụng cho `/popular` và `/personalized`
-- [ ] **Bước 4** — `getPersonalizedFeed(customerId, limit, excludeIds)` + route `GET /recommendations/personalized`; cache 60s
-- [ ] **Bước 5** — Price-range boost ±30% trong `getContentBasedProducts`; thêm route batch lấy giá vào catalog-service; thêm `CATALOG_SERVICE_URL` vào docker-compose + .env.example
-- [ ] **Bước 6** — Frontend: `AIRecommendations.tsx` gọi `/personalized` khi login; log VIEW và ADD_TO_CART events
+- [x] **Bước 1** — Schema: enum `UserEventType` (VIEW, ADD_TO_CART) + bảng `user_product_events` + index; index `recommendation_logs(created_at)`; chạy `prisma migrate dev`
+- [x] **Bước 7** — `POST /recommendations/events`: nhận VIEW/ADD_TO_CART, validate, lấy customerId từ `x-user-id` header hoặc query param (TODO)
+- [x] **Bước 2** — `getPopularProducts`: thêm time window 7 ngày cho log query
+- [x] **Bước 3** — Exclude logic: sản phẩm đã mua 30 ngày (từ Order Service), trong cart (client truyền), impression>10 no-click; áp dụng cho `/popular` và `/personalized`
+- [x] **Bước 4** — `getPersonalizedFeed(customerId, limit, excludeIds)` + route `GET /recommendations/personalized`; cache 60s
+- [x] **Bước 5** — Price-range boost ±30% trong `getContentBasedProducts`; thêm route batch lấy giá vào catalog-service; thêm `CATALOG_SERVICE_URL` vào docker-compose + .env.example
+- [x] **Bước 6** — Frontend: `AIRecommendations.tsx` gọi `/personalized` khi login; log VIEW và ADD_TO_CART events
 
 ## Ghi chú kỹ thuật
 

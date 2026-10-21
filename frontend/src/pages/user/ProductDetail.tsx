@@ -13,7 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getProductById } from "@/services/productService";
-import { getSimilarProductIds } from "@/services/recommendationService";
+import { getSimilarProductIds, logUserEvent } from "@/services/recommendationService";
 import { recordProductView } from "@/services/userBehaviorService";
 import type { CatalogProduct } from "@/types/catalog";
 import {
@@ -33,7 +33,7 @@ export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCartStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [product, setProduct] = useState<CatalogProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("desc");
@@ -63,6 +63,8 @@ export default function ProductDetail() {
             data.category_id,
             data.category?.name ?? ''
           );
+          // Ghi VIEW event lên server cho personalized feed (bỏ qua nếu guest)
+          logUserEvent({ productId: data.id, eventType: 'VIEW', customerId: user?.id });
         }
       })
       .catch(() => {})
@@ -173,6 +175,8 @@ export default function ProductDetail() {
         image_url: primaryImage,
       };
       await addItem(product.id, variantId, quantity, localMeta);
+      // Ghi ADD_TO_CART event lên server cho personalized feed
+      logUserEvent({ productId: product.id, eventType: 'ADD_TO_CART', customerId: user?.id });
       if (showToastMessage) {
         toast.success("Đã thêm sản phẩm vào giỏ hàng!");
       }
