@@ -20,7 +20,12 @@ export class DashboardController {
       };
 
       try {
-        const response = await axios.get(`${ORDER_URL}/api/orders/internal/stats`);
+        const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
+        const internalStatsUrl = queryParams
+          ? `${ORDER_URL}/api/orders/internal/stats?${queryParams}`
+          : `${ORDER_URL}/api/orders/internal/stats`;
+
+        const response = await axios.get(internalStatsUrl);
         if (response.data && response.data.success) {
           orderStats = response.data.data;
         }

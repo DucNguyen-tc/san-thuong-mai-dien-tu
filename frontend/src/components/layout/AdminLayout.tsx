@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   FolderTree,
+  Send,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Khuyến mãi", href: "/admin/promotions", icon: Package }, // Used Package or Tag if imported
   { label: "Đơn hàng", href: "/admin/orders", icon: ShoppingBag },
   { label: "Khách hàng", href: "/admin/customers", icon: Users },
+  { label: "Telegram Bot", href: "/admin/telegram", icon: Send },
 ];
 
 /**
