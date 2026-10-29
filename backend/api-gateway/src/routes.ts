@@ -45,6 +45,12 @@ router.use(
   createProxyMiddleware(proxyOptions(env.RECOMMENDATION_SERVICE_URL)),
 );
 
+// Search service routes (Public - Search & Suggest)
+router.use(
+  "/search",
+  createProxyMiddleware(proxyOptions(env.SEARCH_SERVICE_URL)),
+);
+
 // Payment Return & Callback routes (Public - Browser/Gateway Redirects don't carry JWT Authorization headers)
 router.use(
   "/payments/vnpay/return",

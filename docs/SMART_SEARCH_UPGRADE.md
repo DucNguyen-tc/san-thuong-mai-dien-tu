@@ -1,6 +1,6 @@
 # NÂNG CẤP HỆ THỐNG TÌM KIẾM THÔNG MINH
 
-## Từ SQL ILIKE → Elasticsearch + Hybrid Search + Visual Search
+## Từ SQL ILIKE → Elasticsearch + Visual Search
 
 > **Phiên bản:** 1.0  
 > **Ngày tạo:** 2026-09-23  
@@ -14,7 +14,7 @@
 1. [Tổng quan & Mục tiêu](#1-tổng-quan--mục-tiêu)
 2. [Phân tích hệ thống hiện tại](#2-phân-tích-hệ-thống-hiện-tại)
 3. [Kiến trúc hệ thống sau nâng cấp](#3-kiến-trúc-hệ-thống-sau-nâng-cấp)
-4. [Chi tiết 6 chức năng tìm kiếm](#4-chi-tiết-6-chức-năng-tìm-kiếm)
+4. [Chi tiết 5 chức năng tìm kiếm](#4-chi-tiết-5-chức-năng-tìm-kiếm)
 5. [Thiết kế Elasticsearch Index](#5-thiết-kế-elasticsearch-index)
 6. [Thiết kế Search Service (Backend)](#6-thiết-kế-search-service-backend)
 7. [Cơ chế đồng bộ dữ liệu PostgreSQL → Elasticsearch](#7-cơ-chế-đồng-bộ-dữ-liệu-postgresql--elasticsearch)
@@ -47,8 +47,7 @@ Hệ thống tìm kiếm hiện tại sử dụng **SQL Substring Matching** (Pr
 | 2 | **Fuzzy Search** | Tự động sửa lỗi chính tả (Levenshtein Distance ≤ 2 ký tự) |
 | 3 | **Autocomplete & Prefix Search** | Gợi ý từ khóa & sản phẩm theo thời gian thực khi gõ |
 | 4 | **Faceted Search & Filter** | Lọc kết hợp: khoảng giá, danh mục, màu sắc, khuyến mãi |
-| 5 | **Hybrid Search** | Kết hợp tìm kiếm từ khóa (BM25) + ngữ nghĩa (Vector/kNN) |
-| 6 | **Visual Search** | Tìm kiếm sản phẩm bằng hình ảnh (upload/chụp camera) |
+| 5 | **Visual Search** | Tìm kiếm sản phẩm bằng hình ảnh (upload/chụp camera) |
 
 ### 1.3. Nguyên tắc thiết kế
 
@@ -171,7 +170,7 @@ Hệ thống tìm kiếm hiện tại sử dụng **SQL Substring Matching** (Pr
 │                        API GATEWAY (:3000)                                │
 │                                                                           │
 │  /api/search/suggest     → Search Service (Autocomplete)                  │
-│  /api/search/products    → Search Service (Full-text + Hybrid)            │
+│  /api/search/products    → Search Service (Full-text + Facets)             │
 │  /api/search/visual      → Search Service (Visual Search)                 │
 │  /api/catalog/*          → Catalog Service (CRUD - không thay đổi)        │
 │                                                                           │
@@ -187,12 +186,10 @@ Hệ thống tìm kiếm hiện tại sử dụng **SQL Substring Matching** (Pr
 │  - Prisma/PG     │  │  - Full-text      │  │                           │
 │  - Publish event │  │  - Fuzzy          │  └───────────────────────────┘
 │    khi CUD       │  │  - Faceted Filter │
-│                  │  │  - Hybrid Search  │
-└────────┬─────────┘  │  - Visual Search  │
-         │            │                   │
+│                  │  │  - Visual Search  │
+└────────┬─────────┘  │                   │
          │            │  Kết nối:         │
          │            │  - Elasticsearch  │
-         │            │  - OpenAI API     │
          │            │  - RabbitMQ       │
          │            └─────────┬─────────┘
          │                      │
@@ -208,7 +205,7 @@ Hệ thống tìm kiếm hiện tại sử dụng **SQL Substring Matching** (Pr
 │  │              │  │                  │  │ Exchange:              │  │
 │  │ Source of    │  │ - products index │  │   product.events       │  │
 │  │ Truth        │  │ - dense_vector   │  │                        │  │
-│  │              │  │   (text + image) │  │ Routing Keys:          │  │
+│  │              │  │   (image only)  │  │ Routing Keys:          │  │
 │  │ Không thay   │  │                  │  │   product.created      │  │
 │  │ đổi gì      │  │ [THÊM MỚI]      │  │   product.updated      │  │
 │  │              │  │                  │  │   product.deleted       │  │
@@ -236,15 +233,14 @@ Admin tạo/sửa/xóa sản phẩm
 [Search Service] ──── Consumer lắng nghe event
        │
        │ 3a. Nhận dữ liệu sản phẩm từ event
-       │ 3b. Gọi OpenAI API để sinh Text Embedding (cho tên + mô tả)
-       │ 3c. Gọi OpenAI CLIP API để sinh Image Embedding (cho ảnh sản phẩm)
-       │ 3d. Ghi document vào Elasticsearch index
+       │ 3b. Gọi CLIP API để sinh Image Embedding (cho ảnh sản phẩm)
+       │ 3c. Ghi document vào Elasticsearch index
        ▼
 [Elasticsearch]
-       Lưu trữ: text fields + text_vector + image_vector
+       Lưu trữ: text fields + image_vector
 ```
 
-#### Luồng 2: Tìm kiếm từ khóa (Full-text / Fuzzy / Hybrid)
+#### Luồng 2: Tìm kiếm từ khóa (Full-text / Fuzzy)
 
 ```
 Người dùng gõ từ khóa tại SearchBar
@@ -260,8 +256,6 @@ Người dùng gõ từ khóa tại SearchBar
        │ 1. Phân tích query: chuẩn hóa Unicode (NFC), bỏ dấu (ASCII folding)
        │ 2. Xây dựng Elasticsearch query:
        │    - multi_match (BM25) trên các text fields (fuzzy enabled)
-       │    - knn search trên text_vector (semantic similarity)
-       │    - Kết hợp điểm BM25 + kNN bằng trọng số (0.7 / 0.3)
        │    - Aggregations cho faceted filters
        │ 3. Trả về kết quả + facet counts
        ▼
@@ -306,7 +300,7 @@ Người dùng upload ảnh / chụp camera
 
 ---
 
-## 4. CHI TIẾT 6 CHỨC NĂNG TÌM KIẾM
+## 4. CHI TIẾT 5 CHỨC NĂNG TÌM KIẾM
 
 ### 4.1. Full-text Search & Xử lý Tiếng Việt
 
@@ -492,63 +486,7 @@ Request: GET /api/search/products?q=áo&category_id=xxx&price_min=100000&price_m
 }
 ```
 
-### 4.5. Hybrid Search (Tìm kiếm kết hợp ngữ nghĩa)
-
-#### Cơ chế hoạt động
-
-Kết hợp 2 phương pháp tìm kiếm song song trong cùng 1 truy vấn:
-
-```
-Input: "laptop cho sinh viên giá rẻ"
-          │
-          ├──────────────────────────────────────────────┐
-          │                                              │
-          ▼                                              ▼
-┌─────────────────────────┐              ┌──────────────────────────────┐
-│  LEXICAL SEARCH (BM25)  │              │  SEMANTIC SEARCH (kNN)       │
-│                         │              │                              │
-│  Tìm theo từ khóa:      │              │  1. Gọi OpenAI API:          │
-│  - "laptop"             │              │     text-embedding-3-small   │
-│  - "sinh viên"          │              │     → Vector 1536 chiều      │
-│  - "giá rẻ"             │              │                              │
-│                         │              │  2. kNN search:              │
-│  Kết quả:               │              │     Tìm các sản phẩm có     │
-│  - Laptop Acer Aspire   │              │     text_vector gần nhất     │
-│    (chứa "laptop")      │              │                              │
-│  - Score: 8.5           │              │  Kết quả:                    │
-│                         │              │  - Laptop Acer Aspire        │
-│                         │              │    (ngữ nghĩa: máy tính     │
-│                         │              │     phù hợp sinh viên)       │
-│                         │              │  - MacBook Air M3            │
-│                         │              │    (ngữ nghĩa: laptop mỏng  │
-│                         │              │     nhẹ cho học tập)         │
-│                         │              │  - Score: 0.87               │
-└──────────┬──────────────┘              └──────────────┬───────────────┘
-           │                                            │
-           └────────────────┬───────────────────────────┘
-                            │
-                            ▼
-               ┌────────────────────────┐
-               │  SCORE FUSION          │
-               │                        │
-               │  final_score =         │
-               │    0.7 × BM25_score +  │
-               │    0.3 × kNN_score     │
-               │                        │
-               │  Sắp xếp theo          │
-               │  final_score giảm dần  │
-               └────────────────────────┘
-```
-
-#### Tại sao cần Hybrid Search?
-
-| Trường hợp | Chỉ BM25 (từ khóa) | Chỉ kNN (ngữ nghĩa) | Hybrid |
-|------------|---------------------|----------------------|--------|
-| Gõ chính xác tên sản phẩm: "iPhone 15" | ✅ Tốt | ⚠️ Có thể trả thêm sản phẩm không liên quan | ✅ Tốt nhất |
-| Gõ theo ý định: "quà tặng bạn gái" | ❌ Không khớp từ khóa nào | ✅ Hiểu ngữ nghĩa | ✅ Tốt nhất |
-| Gõ hỗn hợp: "tai nghe chống ồn dưới 2 triệu" | ⚠️ Chỉ khớp "tai nghe" | ✅ Hiểu cả ý định | ✅ Tốt nhất |
-
-### 4.6. Visual Search (Tìm kiếm bằng hình ảnh)
+### 4.5. Visual Search (Tìm kiếm bằng hình ảnh)
 
 > Chi tiết kỹ thuật được mô tả tại [Mục 9](#9-thiết-kế-visual-search-tìm-kiếm-bằng-hình-ảnh)
 
@@ -650,13 +588,6 @@ Input: "laptop cho sinh viên giá rẻ"
       "created_at":      { "type": "date" },
       "updated_at":      { "type": "date" },
 
-      "text_vector": {
-        "type": "dense_vector",
-        "dims": 1536,
-        "index": true,
-        "similarity": "cosine"
-      },
-
       "image_vector": {
         "type": "dense_vector",
         "dims": 512,
@@ -673,12 +604,11 @@ Input: "laptop cho sinh viên giá rẻ"
 }
 ```
 
-### 5.2. Giải thích các trường Vector
+### 5.2. Giải thích trường Vector
 
 | Trường | Kích thước | Mô hình AI | Mục đích |
 |--------|-----------|-------------|----------|
-| `text_vector` | 1536 chiều | OpenAI `text-embedding-3-small` | Hybrid Search — tìm theo ngữ nghĩa văn bản |
-| `image_vector` | 512 chiều | OpenAI CLIP (`ViT-B/32`) | Visual Search — tìm theo ngoại quan hình ảnh |
+| `image_vector` | 512 chiều | CLIP (`ViT-B/32`) | Visual Search — tìm theo ngoại quan hình ảnh |
 
 ### 5.3. Ví dụ Document trong Index
 
@@ -716,7 +646,6 @@ Input: "laptop cho sinh viên giá rẻ"
   "created_at": "2026-01-15T10:00:00Z",
   "updated_at": "2026-09-20T14:30:00Z",
 
-  "text_vector": [0.0123, -0.0456, 0.0789, ...],
   "image_vector": [0.234, -0.567, 0.891, ...],
 
   "suggest": {
@@ -761,7 +690,7 @@ backend/search-service/
 │   │   ├── search.service.ts      # Logic tìm kiếm chính
 │   │   ├── suggest.service.ts     # Logic autocomplete
 │   │   ├── visual.service.ts      # Logic visual search
-│   │   ├── embedding.service.ts   # Gọi OpenAI API sinh vector
+│   │   ├── embedding.service.ts   # Sinh image vector (CLIP)
 │   │   └── indexer.service.ts     # Logic đồng bộ data vào ES
 │   │
 │   ├── elasticsearch/
@@ -827,7 +756,7 @@ Response: 200 OK
 }
 ```
 
-#### 6.2.2. Tìm kiếm sản phẩm (Full-text + Hybrid + Facets)
+#### 6.2.2. Tìm kiếm sản phẩm (Full-text + Facets)
 
 ```
 GET /search/products
@@ -843,7 +772,6 @@ Query Parameters:
   brand          (string)    Lọc theo thương hiệu
   has_discount   (boolean)   Chỉ hiện sản phẩm đang giảm giá
   sort           (string)    Sắp xếp: relevance | newest | price_asc | price_desc | sales
-  mode           (string)    Chế độ: keyword | hybrid (mặc định hybrid)
 
 Response: 200 OK
 {
@@ -930,30 +858,7 @@ Response: 200 OK
 }
 ```
 
-### 6.3. Embedding Service — Gọi OpenAI API
-
-#### 6.3.1. Text Embedding (cho Hybrid Search)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                  embedding.service.ts                     │
-│                                                          │
-│  generateTextEmbedding(text: string): Promise<number[]>  │
-│                                                          │
-│  Input:  "Điện thoại Samsung Galaxy S24 Ultra"           │
-│                                                          │
-│  Gọi API:                                                │
-│    POST https://api.openai.com/v1/embeddings             │
-│    {                                                     │
-│      model: "text-embedding-3-small",                    │
-│      input: "Điện thoại Samsung Galaxy S24 Ultra"        │
-│    }                                                     │
-│                                                          │
-│  Output: number[1536] — vector 1536 chiều                │
-└─────────────────────────────────────────────────────────┘
-```
-
-#### 6.3.2. Image Embedding (cho Visual Search)
+### 6.3. Embedding Service — Image Embedding (cho Visual Search)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -1018,11 +923,10 @@ Khi remove() thành công → publishProductEvent('product.deleted', { id })
 │  ┌───────────────────────────────────────────────────────┐   │
 │  │ product.created / product.updated:                     │   │
 │  │   1. Parse product data từ message                     │   │
-│  │   2. Gọi OpenAI → sinh text_vector (từ name + desc)   │   │
-│  │   3. Gọi CLIP → sinh image_vector (từ primary image)  │   │
-│  │   4. Map sang ES document format                       │   │
-│  │   5. Upsert vào Elasticsearch index                    │   │
-│  │   6. ACK message                                       │   │
+│  │   2. Gọi CLIP → sinh image_vector (từ primary image)  │   │
+│  │   3. Map sang ES document format                       │   │
+│  │   4. Upsert vào Elasticsearch index                    │   │
+│  │   5. ACK message                                       │   │
 │  ├───────────────────────────────────────────────────────┤   │
 │  │ product.deleted:                                       │   │
 │  │   1. Parse product ID                                  │   │
@@ -1042,9 +946,8 @@ Khi remove() thành công → publishProductEvent('product.deleted', { id })
 │  2. Xóa index cũ (nếu có) → Tạo index mới với mapping      │
 │  3. Query toàn bộ products từ PostgreSQL (batch 100 records) │
 │  4. Với mỗi batch:                                           │
-│     a. Gọi OpenAI API sinh text_vector (batch embedding)     │
-│     b. Gọi CLIP sinh image_vector cho ảnh chính              │
-│     c. Bulk insert vào Elasticsearch                         │
+│     a. Gọi CLIP sinh image_vector cho ảnh chính              │
+│     b. Bulk insert vào Elasticsearch                         │
 │  5. Log tiến trình: [100/5000] [500/5000] ... [5000/5000]    │
 │  6. Verify: so sánh count PostgreSQL vs Elasticsearch        │
 │                                                              │
@@ -1078,7 +981,7 @@ Khi remove() thành công → publishProductEvent('product.deleted', { id })
                     │   (:3008)            │
                     │                      │
                     │  3. Consumer nhận    │
-                    │  4. Sinh Embedding   │──────► OpenAI API
+                    │  4. Sinh Embedding   │──────► CLIP Model
                     │  5. Ghi ES index    │
                     └──────────┬───────────┘
                                │
@@ -1089,7 +992,6 @@ Khi remove() thành công → publishProductEvent('product.deleted', { id })
                     │                      │
                     │   Index: products    │
                     │   - text fields      │
-                    │   - text_vector      │
                     │   - image_vector     │
                     └──────────────────────┘
 ```
@@ -1238,8 +1140,7 @@ useSearch(initialQuery?)
 │   ├── suggestions: { keywords[], products[] }
 │   ├── results: { items[], pagination, facets }
 │   ├── filters: { category_id?, price_min?, price_max?, color?, brand?, has_discount? }
-│   ├── isLoading: boolean
-│   └── searchMode: 'keyword' | 'hybrid'
+│   └── isLoading: boolean
 │
 ├── Effects:
 │   ├── Debounce query (150ms) → gọi searchSuggest()
@@ -1431,7 +1332,6 @@ Chỉ cần thêm **2 service mới** vào file `docker-compose.yml` hiện tạ
       ELASTICSEARCH_URL: http://elasticsearch:9200
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
       CATALOG_DB_URL: "postgresql://admin:1234567@postgres:5432/catalog_db"
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
     depends_on:
       - elasticsearch
       - rabbitmq
@@ -1537,51 +1437,29 @@ Bước 2.2 — Frontend
   ☐ Test: lọc kết hợp nhiều điều kiện
 ```
 
-### Giai đoạn 3: Hybrid Search (Tìm kiếm ngữ nghĩa)
-
-**Thời gian ước tính: 2-3 ngày**
-
-```
-Bước 3.1 — Embedding Pipeline
-  ☐ Tạo embedding.service.ts — tích hợp OpenAI text-embedding-3-small
-  ☐ Cập nhật indexer: sinh text_vector khi index sản phẩm
-  ☐ Cập nhật reindex script: sinh vector cho toàn bộ sản phẩm
-  ☐ Chạy reindex với text vectors
-
-Bước 3.2 — Hybrid Query
-  ☐ Xây dựng hybrid query: BM25 + kNN (score fusion)
-  ☐ Thêm param mode=hybrid vào API
-  ☐ Tinh chỉnh trọng số BM25/kNN (mặc định 0.7/0.3)
-
-Bước 3.3 — Test & Tinh chỉnh
-  ☐ Test case: "quà tặng bạn gái" → kết quả có ngữ nghĩa
-  ☐ Test case: "máy tính học tập giá rẻ" → kết quả hợp lý
-  ☐ So sánh kết quả hybrid vs keyword-only
-```
-
-### Giai đoạn 4: Visual Search (Tìm kiếm bằng hình ảnh)
+### Giai đoạn 3: Visual Search (Tìm kiếm bằng hình ảnh)
 
 **Thời gian ước tính: 3-4 ngày**
 
 ```
-Bước 4.1 — Image Embedding Pipeline
-  ☐ Tích hợp CLIP model (@xenova/transformers hoặc HuggingFace API)
-  ☐ Cập nhật indexer: sinh image_vector từ ảnh sản phẩm
-  ☐ Chạy reindex với image vectors
+Bước 3.1 — Image Embedding Pipeline
+  ☑ Tích hợp CLIP model (@xenova/transformers hoặc HuggingFace API)
+  ☑ Cập nhật indexer: sinh image_vector từ ảnh sản phẩm
+  ☑ Chạy reindex với image vectors
 
-Bước 4.2 — Visual Search API
-  ☐ Cấu hình Multer middleware (upload ảnh)
-  ☐ Viết visual.service.ts (nhận ảnh → CLIP → kNN query)
-  ☐ Viết visual.controller.ts + routes
-  ☐ Test API bằng Postman (upload ảnh → nhận kết quả)
+Bước 3.2 — Visual Search API
+  ☑ Cấu hình Multer middleware (upload ảnh)
+  ☑ Viết visual.service.ts (nhận ảnh → CLIP → kNN query)
+  ☑ Viết visual.controller.ts + routes
+  ☑ Test API bằng Postman (upload ảnh → nhận kết quả)
 
-Bước 4.3 — Frontend Visual Search UI
-  ☐ Tạo component VisualSearchModal
-  ☐ Hỗ trợ: kéo thả ảnh, chọn file, chụp camera (mobile)
-  ☐ Hiển thị preview ảnh + loading state
-  ☐ Hiển thị grid kết quả + % similarity
-  ☐ Thêm nút [📷] trên SearchBar (Header.tsx)
-  ☐ Test end-to-end trên desktop & mobile
+Bước 3.3 — Frontend Visual Search UI
+  ☑ Tạo component VisualSearchModal
+  ☑ Hỗ trợ: kéo thả ảnh, chọn file, dán ảnh (Ctrl+V), nhập URL
+  ☑ Hiển thị preview ảnh + loading state (AI Cyber Scanner)
+  ☑ Hiển thị grid kết quả + % similarity
+  ☑ Thêm nút [📷] trên SearchBar (Header.tsx)
+  ☑ Test end-to-end trên desktop & mobile
 ```
 
 ---
@@ -1594,9 +1472,7 @@ Bước 4.3 — Frontend Visual Search UI
 |---|--------|--------|-----------|
 | 1 | **Elasticsearch chiếm nhiều RAM** | Trung bình | Cấu hình `-Xms512m -Xmx512m` cho dev. Production tối thiểu 2GB. |
 | 2 | **Dữ liệu ES và PostgreSQL lệch nhau** | Cao | RabbitMQ đảm bảo at-least-once delivery. Thêm cron job so sánh count định kỳ. Script reindex để fix nếu lệch. |
-| 3 | **OpenAI API bị rate limit / downtime** | Trung bình | Queue retry mechanism trong consumer. Cache embedding đã sinh. Fallback về BM25-only nếu embedding fail. |
-| 4 | **Chi phí OpenAI API** | Thấp | `text-embedding-3-small` rất rẻ (~$0.02/1M tokens). Chỉ gọi khi tạo/sửa sản phẩm, không gọi mỗi lần tìm kiếm. CLIP chạy local miễn phí. |
-| 5 | **CLIP model nặng trên Node.js** | Trung bình | Dùng `@xenova/transformers` chạy ONNX runtime (không cần Python/GPU). Hoặc gọi HuggingFace API. |
+| 3 | **CLIP model nặng trên Node.js** | Trung bình | Dùng `@xenova/transformers` chạy ONNX runtime (không cần Python/GPU). Hoặc gọi HuggingFace API. |
 
 ### 12.2. Rủi ro vận hành
 
@@ -1643,9 +1519,6 @@ RABBITMQ_URL=amqp://guest:guest@localhost:5672
 # PostgreSQL (readonly — chỉ dùng cho script reindex)
 CATALOG_DB_URL=postgresql://admin:1234567@localhost:5432/catalog_db
 
-# OpenAI API (cho text embedding)
-OPENAI_API_KEY=sk-...
-
 # Image Embedding
 IMAGE_EMBEDDING_PROVIDER=xenova    # xenova | huggingface
 HUGGINGFACE_API_KEY=hf_...         # Chỉ cần nếu provider = huggingface
@@ -1659,7 +1532,6 @@ HUGGINGFACE_API_KEY=hf_...         # Chỉ cần nếu provider = huggingface
     "express": "^4.18",
     "@elastic/elasticsearch": "^8.15",
     "amqplib": "^0.10",
-    "openai": "^4.x",
     "@xenova/transformers": "^2.x",
     "multer": "^1.4",
     "sharp": "^0.33",
