@@ -81,6 +81,10 @@ router.use(
   createProxyMiddleware(proxyOptions(env.ORDER_SERVICE_URL)),
 );
 router.use(
+  "/telegram",
+  createProxyMiddleware(proxyOptions(env.ORDER_SERVICE_URL)),
+);
+router.use(
   "/payments",
   createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL)),
 );

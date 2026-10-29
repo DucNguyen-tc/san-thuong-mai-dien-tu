@@ -4,6 +4,7 @@ import { NotFoundError, BadRequestError } from '../exceptions/AppError';
 import { CreateOrderInput } from '../schemas/order.schema';
 import { OrderStatus, PaymentMethod } from '@prisma/client';
 import { rabbitMQPublisher } from '../rabbitmq/publisher';
+import { telegramAlertService } from './telegram-alert.service';
 
 const CATALOG_URL = process.env.CATALOG_SERVICE_URL || 'http://localhost:3002';
 const CART_URL = process.env.CART_SERVICE_URL || 'http://localhost:3003';
@@ -200,8 +201,22 @@ export class OrderService {
         where: { id: createdOrder.id },
         data: { status: OrderStatus.CANCELLED }
       });
+
+      // Bắn cảnh báo khẩn cấp tới Telegram Admin
+      telegramAlertService.sendCriticalAlert({
+        title: 'Saga Compensation: Lỗi khởi tạo thanh toán',
+        eventType: 'SAGA_PAYMENT_INIT_FAILED',
+        orderId: createdOrder.id,
+        customerId,
+        reason: error.response?.data?.message || error.message,
+        actionTaken: 'Đã hoàn kho qua Catalog Service và chuyển trạng thái đơn hàng sang CANCELLED.'
+      }).catch(e => console.error(e));
+
       throw new BadRequestError('Không thể khởi tạo giao dịch thanh toán.');
     }
+
+    // Thông báo nếu là đơn hàng VIP giá trị lớn
+    telegramAlertService.sendVipOrderAlert(createdOrder).catch(e => console.error(e));
 
     return {
       ...createdOrder,
@@ -341,6 +356,14 @@ export class OrderService {
       await axios.put(`${CATALOG_URL}/api/catalog/stock-reservations/by-order/${orderId}/release`);
     } catch (error: any) {
       console.error('Failed to release stock during cancellation:', error.message);
+      telegramAlertService.sendCriticalAlert({
+        title: 'Saga Compensation Thất Bại: Không thể hoàn kho',
+        eventType: 'STOCK_RELEASE_FAILED',
+        orderId,
+        customerId,
+        reason: error.response?.data?.message || error.message,
+        actionTaken: 'Cần can thiệp đối soát tồn kho thủ công trên Catalog Service.'
+      }).catch(e => console.error(e));
       throw new BadRequestError('Lỗi hệ thống khi hoàn kho. Vui lòng thử lại sau.');
     }
 

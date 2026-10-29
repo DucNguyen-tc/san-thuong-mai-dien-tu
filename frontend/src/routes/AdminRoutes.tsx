@@ -7,6 +7,7 @@ import ProductManagement from "@/pages/admin/ProductManagement";
 import PromotionManagement from "@/pages/admin/PromotionManagement";
 import CategoryManagement from "@/pages/admin/CategoryManagement";
 import AdminOrderManagement from "@/pages/admin/AdminOrderManagement";
+import TelegramMonitoring from "@/pages/admin/TelegramMonitoring";
 
 /**
  * AdminRoutes — Tập hợp tất cả routes dành cho khu vực admin
@@ -25,6 +26,7 @@ export const AdminRoutes = (
       <Route path="/admin/categories" element={<CategoryManagement />} />
       <Route path="/admin/promotions" element={<PromotionManagement />} />
       <Route path="/admin/orders" element={<AdminOrderManagement />} />
+      <Route path="/admin/telegram" element={<TelegramMonitoring />} />
       {/* <Route path="/admin/payments" element={<PaymentManagement />} />
       <Route path="/admin/reports" element={<Reports />} />
       <Route path="/admin/settings" element={<Settings />} /> */}
