@@ -16,6 +16,7 @@ const envSchema = z.object({
   PAYMENT_SERVICE_URL: z.string().url(),
   NOTIFICATION_SERVICE_URL: z.string().url(),
   RECOMMENDATION_SERVICE_URL: z.string().url(),
+  SEARCH_SERVICE_URL: z.string().url().default('http://localhost:3008'),
 });
 
 const parseEnv = () => {

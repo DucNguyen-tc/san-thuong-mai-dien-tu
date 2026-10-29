@@ -26,6 +26,23 @@ services:
       - "5672:5672" # Port giao tiếp AMQP cho các service
       - "15672:15672" # Port cho giao diện UI quản lý RabbitMQ
 
+  elasticsearch:
+    build:
+      context: .
+      dockerfile: ./docker/elasticsearch/Dockerfile
+    image: san_thuong_mai_elasticsearch:8.15.0
+    container_name: san_thuong_mai_elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/var/lib/elasticsearch/data
+
   api-gateway:
     build:
       context: ./backend/api-gateway
@@ -43,6 +60,7 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:3005
       NOTIFICATION_SERVICE_URL: http://notification-service:3006
       RECOMMENDATION_SERVICE_URL: http://recommendation-service:3007
+      SEARCH_SERVICE_URL: http://host.docker.internal:3008
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
     depends_on:
       - identity-service
@@ -178,3 +196,4 @@ services:
 volumes:
   pgdata:
   rabbitmq_data:
+  esdata:
