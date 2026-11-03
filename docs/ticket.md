@@ -51,7 +51,7 @@ Mô hình này đảm bảo:
 | `payment-service` | 3005 | Thanh toán |
 | `notification-service` | 3006 | Gửi email qua RabbitMQ |
 | `recommendation-service` | 3007 | Gợi ý sản phẩm |
-| `ai-service` | 3008 | Trợ lý AI mua sắm & RAG Engine |
+| `ai-service` | 3010 | Trợ lý AI mua sắm & RAG Engine |
 | **`support-service`** | **3009** | **Ticket CSKH thông minh (MỚI)** |
 
 ---
@@ -115,7 +115,7 @@ Mô hình này đảm bảo:
     ┌──────────────┐  ┌─────────────┐  ┌────────────────────┐
     │ ai-service   │  │ notification│  │ identity-service   │
     │ (RAG Query)  │  │ -service    │  │ (Xác thực Staff)   │
-    │ Port 3008    │  │ (Gửi Email) │  │ Port 3001          │
+    │ Port 3010    │  │ (Gửi Email) │  │ Port 3001          │
     │              │  │ Port 3006   │  │                    │
     └──────────────┘  └─────────────┘  └────────────────────┘
 ```
@@ -438,10 +438,10 @@ Kết quả AI Analyzer (sentiment, category, summary)
         ▼
 ┌───────────────────────────────────────────────┐
 │ 1. Gọi ai-service RAG API                     │
-│    GET ai-service:3008/api/ai/rag/query        │
-│    Body: { query: summary + key_issues,        │
-│            top_k: 3 }                          │
-│    → Nhận về: [{content, score, document_id}]  │
+│    POST ai-service:3010/api/ai/rag/query      │
+│    Body: { query: summary + key_issues,       │
+│            top_k: 3, threshold: 0.7 }         │
+│    → Nhận về: [{content, score, document_id}] │
 └───────────────────────┬───────────────────────┘
                         ▼
 ┌───────────────────────────────────────────────┐
@@ -535,33 +535,56 @@ Khách hàng (đã đăng nhập) truy cập trang `/support/new-ticket` và đi
 
 ### 6.2. Kênh 2: AI Shopping Assistant tự động Escalate
 
-Khi AI Shopping Assistant (do Bạn 1 xây dựng) phát hiện khách hàng bức xúc trong lúc chat, sẽ gọi **Tool mới** `escalate_to_ticket`:
+Khi AI Shopping Assistant (do Bạn 1 xây dựng) phát hiện khách hàng bức xúc trong lúc chat hoặc yêu cầu gặp người thật, AI sẽ kích hoạt **Tool `escalate_to_ticket`**:
 
-**Tool bổ sung cho ai-service (Bạn 1 implement):**
+#### A. Tool bổ sung cho `ai-service` (Bạn 1 implement):
 
-| Thuộc tính | Giá trị |
+| Thuộc tính | Chi tiết |
 |---|---|
 | **Tên Tool** | `escalate_to_ticket` |
-| **Mục đích** | Tự động tạo ticket CSKH khi khách hàng giận dữ hoặc yêu cầu nói chuyện với người thật |
-| **API nội bộ** | `POST support-service:3009/api/support/tickets/escalate` |
-| **Tham số** | `chat_session_id` (string), `reason` (string — lý do escalate), `chat_summary` (string — AI tóm tắt cuộc hội thoại) |
+| **Mục đích** | Tự động tạo ticket CSKH khi khách hàng giận dữ hoặc yêu cầu hỗ trợ từ con người |
+| **Tham số do LLM truyền** | - `reason` (string): Lý do cần escalate (VD: `"Khách bức xúc vì đơn hàng giao trễ 5 ngày, yêu cầu hoàn tiền"`).<br>- `chat_summary` (string): Tóm tắt ngắn gọn nội dung trao đổi.<br>- `related_order_id` (string, optional): ID đơn hàng khách đang khiếu nại (nếu có). |
+| **Dữ liệu do backend tự ghép** | `customer_id` (từ session/JWT), `customer_email`, `customer_name`, `chat_session_id`, `source = "AI_ESCALATE"` |
+| **API nội bộ gọi tới** | `POST http://support-service:3009/api/support/tickets/escalate` |
 
-**Payload gửi sang `support-service`:**
+#### B. Request Payload gửi sang `support-service`:
+
+```http
+POST http://support-service:3009/api/support/tickets/escalate
+Content-Type: application/json
+```
+
 ```json
 {
-  "customer_id": "uuid-from-jwt",
+  "customer_id": "c0a80123-7b89-4def-9012-3456789abcde",
   "customer_email": "khach@email.com",
   "customer_name": "Nguyễn Văn A",
   "chat_session_id": "uuid-chat-session",
   "subject": "[AI Escalate] Khách hàng bức xúc về đơn hàng giao trễ",
-  "content": "Tóm tắt cuộc hội thoại:\n- Khách hỏi về đơn #28410417 đặt 5 ngày trước\n- AI xác nhận đơn đang trong trạng thái SHIPPING\n- Khách bắt đầu bức xúc, yêu cầu hoàn tiền\n- Khách yêu cầu nói chuyện với người thật",
+  "content": "Tóm tắt cuộc hội thoại:\n- Khách hỏi về đơn #28410417 đặt 5 ngày trước\n- AI xác nhận đơn đang trong trạng thái SHIPPING\n- Khách bắt đầu bức xúc, yêu cầu hoàn tiền và gặp người thật",
   "source": "AI_ESCALATE",
   "related_order_id": "uuid-order-xxx"
 }
 ```
 
-**AI Shopping Assistant phản hồi khách:**
-> *"Em rất tiếc về trải nghiệm chưa tốt này ạ. Em đã tạo yêu cầu hỗ trợ khẩn cấp (Mã: TK-20261028-015) và chuyển cho bộ phận CSKH để xử lý ngay cho anh/chị. Anh/chị sẽ nhận được email phản hồi trong thời gian sớm nhất. Cảm ơn anh/chị đã kiên nhẫn ạ!"*
+#### C. Response Body trả về cho `ai-service` (201 Created):
+
+```json
+{
+  "success": true,
+  "data": {
+    "ticket_id": "d1e2f3a4-b5c6-7d8e-9f0a-1b2c3d4e5f6a",
+    "ticket_number": "TK-20261028-015",
+    "status": "OPEN",
+    "priority": "P1"
+  },
+  "message": "Ticket đã được tạo thành công và chuyển sang hàng đợi AI phân tích"
+}
+```
+
+#### D. AI Shopping Assistant nhận kết quả và phản hồi khách:
+Backend Bạn 1 trả kết quả Tool `{ "ticket_number": "TK-20261028-015" }` về cho LLM. LLM sử dụng mã ticket này để sinh phản hồi thân thiện:
+> *"Em rất tiếc về trải nghiệm chưa tốt này ạ. Em đã tạo yêu cầu hỗ trợ khẩn cấp (Mã ticket: **TK-20261028-015**) và chuyển ngay cho bộ phận CSKH để hỗ trợ xử lý cho anh/chị. Anh/chị sẽ nhận được email phản hồi trong thời gian sớm nhất. Cảm ơn anh/chị đã kiên nhẫn ạ!"*
 
 ---
 
@@ -602,7 +625,7 @@ Khi AI Shopping Assistant (do Bạn 1 xây dựng) phát hiện khách hàng b�
 
 | Service đích | Endpoint | Mục đích |
 |---|---|---|
-| `ai-service:3008` | `GET /api/ai/rag/query` | Lấy chunk chính sách liên quan từ RAG Knowledge Base |
+| `ai-service:3010` | `POST /api/ai/rag/query` | Lấy chunk chính sách liên quan từ RAG Knowledge Base |
 | `notification-service:3006` | RabbitMQ: `notification.email.send` | Gửi email phản hồi cho khách sau khi nhân viên duyệt |
 | `identity-service:3001` | `GET /api/identity/users/:id` | Lấy thông tin nhân viên (tên, email) để hiển thị trên Dashboard |
 
@@ -678,7 +701,7 @@ Khi AI Shopping Assistant (do Bạn 1 xây dựng) phát hiện khách hàng b�
 | Thành phần | Mức độ thay đổi | Chi tiết |
 |---|---|---|
 | Tất cả services hiện tại (1-7) | **KHÔNG thay đổi** | Giữ nguyên 100% |
-| `ai-service` (Bạn 1 phát triển) | **Thay đổi nhẹ** | Bạn 1 bổ sung 1 endpoint RAG Query public `GET /api/ai/rag/query` và 1 Tool `escalate_to_ticket` |
+| `ai-service` (Bạn 1 phát triển) | **Thay đổi nhẹ** | Bạn 1 bổ sung 1 endpoint RAG Query public `POST /api/ai/rag/query` và 1 Tool `escalate_to_ticket` |
 | `api-gateway` | **Thay đổi nhẹ** | Thêm route proxy `/support` → `support-service:3009`. Thêm biến `SUPPORT_SERVICE_URL` |
 | `docker-compose.yml` | **Thay đổi nhẹ** | Thêm container `support-service` (Port 3009) và database `support_db` |
 | `database/init.sql` | **Thay đổi nhẹ** | Thêm 1 dòng: `CREATE DATABASE support_db;` |
@@ -688,25 +711,39 @@ Khi AI Shopping Assistant (do Bạn 1 xây dựng) phát hiện khách hàng b�
 
 Bạn cần thống nhất với Bạn 1 duy nhất 1 API:
 
-**`GET ai-service:3008/api/ai/rag/query`**
+**`POST ai-service:3010/api/ai/rag/query`**
 
-```
-Request:
+```http
+Headers:
+  Content-Type: application/json
+
+Request Body:
 {
   "query": "Chính sách hoàn tiền khi đơn hàng giao trễ",
-  "top_k": 3
+  "top_k": 3,
+  "threshold": 0.7
 }
 
-Response:
+Response (200 OK):
 {
+  "success": true,
+  "query": "Chính sách hoàn tiền khi đơn hàng giao trễ",
+  "total_chunks": 2,
   "chunks": [
     {
       "chunk_id": 15,
       "document_title": "Chính sách đổi trả hàng",
+      "source_type": "policy",
       "content": "Điều 3: Đơn hàng giao trễ quá 3 ngày...",
       "score": 0.92
     },
-    ...
+    {
+      "chunk_id": 18,
+      "document_title": "Quy định hoàn tiền",
+      "source_type": "policy",
+      "content": "Khoản 2: Khách hàng được hoàn 100% tiền qua phương thức thanh toán ban đầu...",
+      "score": 0.85
+    }
   ]
 }
 ```
@@ -730,7 +767,7 @@ Response:
 - [ ] Test: Tạo ticket → AI phân tích cảm xúc đúng → chuyển sang PENDING_REVIEW.
 
 ### Bước 3: RAG Auto-Draft (Ngày 6-7)
-- [ ] Kết nối API lấy RAG chunks từ `ai-service` (`GET /api/ai/rag/query`).
+- [ ] Kết nối API lấy RAG chunks từ `ai-service` (`POST /api/ai/rag/query`).
 - [ ] Implement module Draft Generator: ghép RAG context + sentiment → gọi LLM soạn draft.
 - [ ] Lưu draft vào bảng `ticket_responses` kèm `rag_chunks_used` và `ai_confidence`.
 - [ ] Test: Ticket về "hoàn tiền" → AI lấy đúng chính sách đổi trả → soạn draft hợp lý.

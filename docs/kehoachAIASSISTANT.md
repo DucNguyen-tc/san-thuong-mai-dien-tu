@@ -8,7 +8,7 @@
 
 | Thành viên | Vai trò | Phân hệ phụ trách |
 |---|---|---|
-| **Bạn 1** | Backend & AI Core Engineer | `ai-service` (Port 3008): LLM Orchestrator, RAG Engine, 12 Tool Calling, SSE Streaming |
+| **Bạn 1** | Backend & AI Core Engineer | `ai-service` (Port 3010): LLM Orchestrator, RAG Engine, 12 Tool Calling, SSE Streaming |
 | **Bạn 2** | Frontend & UX Engineer | Chat Widget React, Product Cards, Bảng so sánh, SSE Client, Responsive |
 | **Bạn (Người 3)** | CSKH AI Copilot & Ticket System | `support-service` (Port 3009): Ticket Management, AI Sentiment Analyzer, RAG Auto-Draft, Agent Dashboard |
 
@@ -42,7 +42,7 @@ Cả 3 người cùng thống nhất:
 |---|---|---|
 | **SSE Stream Format** | Bạn 1 ↔ Bạn 2 | Format SSE event: `data: {"type": "text_chunk", "content": "..."}` vs `data: {"type": "metadata", "payload": {...}}` |
 | **Product Card metadata** | Bạn 1 ↔ Bạn 2 | Schema JSON `metadata` cho Product Cards & Comparison Table (xem Mục 5.2-5.3 trong AI_SHOPPING_ASSISTANT_AND_RAG.md) |
-| **RAG Query API** | Bạn 1 ↔ Bạn 3 | `GET /api/ai/rag/query` — Request/Response format (xem Mục 10.2 trong ticket.md) |
+| **RAG Query API** | Bạn 1 ↔ Bạn 3 | `POST /api/ai/rag/query` — Request/Response format (xem Mục 10.2 trong ticket.md) |
 | **Escalate API** | Bạn 1 ↔ Bạn 3 | `POST /api/support/tickets/escalate` — Payload khi AI Chat tự động tạo ticket (xem Mục 6.2 trong ticket.md) |
 
 > **Buổi chiều: Mỗi người setup riêng**
@@ -66,7 +66,7 @@ Cả 3 người cùng thống nhất:
 | Test: gọi LLM thành công, nhận response | Header, input box, nút gửi | `GET /api/support/tickets/:id` — Chi tiết ticket |
 | **Xây dựng RAG Pipeline** | **Responsive**: Mobile = fullscreen overlay | `POST /api/support/tickets/:id/messages` — Gửi message |
 | Ingestion script: đọc file .md/.txt → chunking (200-500 từ, overlap 50 từ) → embedding (text-embedding-3-small) → lưu pgvector | Typing indicator, auto-scroll | Tạo module sinh `ticket_number` (TK-YYYYMMDD-XXX) |
-| Viết endpoint `GET /api/ai/rag/query` ← **(Bạn 3 cần dùng)** | — | — |
+| Viết endpoint `POST /api/ai/rag/query` ← **(Bạn 3 cần dùng)** | — | — |
 
 ---
 
@@ -95,7 +95,7 @@ Cả 3 người cùng thống nhất:
 | ✅ LLM trả lời kết hợp RAG context | ✅ Product Cards render đẹp | ✅ Ticket tự động chuyển PENDING_REVIEW |
 
 **Kiểm tra điểm giao tiếp:**
-- Bạn 3 gọi thử `GET /api/ai/rag/query` của Bạn 1 → nhận về chunk chính sách ✅
+- Bạn 3 gọi thử `POST /api/ai/rag/query` của Bạn 1 → nhận về chunk chính sách ✅
 - Bạn 2 nhận SSE stream từ Bạn 1 → render text + metadata ✅
 
 ---
@@ -232,7 +232,7 @@ Bạn 3    │SETUP│ CRUD Ticket API     │AI   │RAG  │HITL  │ FE Ticke
 │   Bạn 1 (ai-service)                                            │
 │   ┌──────────────────────┐     ┌──────────────────────────┐     │
 │   │ RAG Query API        │────→│ Bạn 3 gọi để lấy chunk  │     │
-│   │ GET /api/ai/rag/query│     │ chính sách cho Draft     │     │
+│   │ POST /api/ai/rag/query│    │ chính sách cho Draft     │     │
 │   │ ★ Cần xong Ngày 3   │     │ (Bắt đầu dùng từ Ngày 6)│     │
 │   └──────────────────────┘     └──────────────────────────┘     │
 │                                                                  │
@@ -291,14 +291,14 @@ Bạn 3    │SETUP│ CRUD Ticket API     │AI   │RAG  │HITL  │ FE Ticke
 ## CHECKLIST HOÀN THÀNH
 
 ### Bạn 1 — ai-service
-- [ ] `ai-service` chạy trong Docker, port 3008
+- [ ] `ai-service` chạy trong Docker, port 3010
 - [ ] RAG Pipeline: Ingestion + Embedding + pgvector query hoạt động
 - [ ] 6 file chính sách được nạp vào Knowledge Base
 - [ ] 12 Tools hoạt động: search, detail, cart (add/update/remove/get), order (list/detail/cancel), promotions, compare, RAG search
 - [ ] SSE streaming response hoạt động
 - [ ] Tool `escalate_to_ticket` gọi sang `support-service`
 - [ ] Xác nhận 2 bước cho `cancel_order`
-- [ ] Endpoint `GET /api/ai/rag/query` public cho Bạn 3
+- [ ] Endpoint `POST /api/ai/rag/query` public cho Bạn 3
 
 ### Bạn 2 — Frontend Chat
 - [ ] Chat Widget: Floating button, mở/đóng, responsive (mobile fullscreen)
