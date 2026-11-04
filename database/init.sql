@@ -5,3 +5,5 @@ CREATE DATABASE order_db;
 CREATE DATABASE payment_db;
 CREATE DATABASE recommendation_db;
 CREATE DATABASE notification_db;
+CREATE DATABASE ai_db;
+CREATE DATABASE support_db;
