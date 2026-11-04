@@ -61,6 +61,7 @@ services:
       NOTIFICATION_SERVICE_URL: http://notification-service:3006
       RECOMMENDATION_SERVICE_URL: http://recommendation-service:3007
       SEARCH_SERVICE_URL: http://host.docker.internal:3008
+      SUPPORT_SERVICE_URL: http://support-service:3009
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
     depends_on:
       - identity-service
@@ -70,6 +71,7 @@ services:
       - payment-service
       - notification-service
       - recommendation-service
+      - support-service
 
   identity-service:
     build:
@@ -189,6 +191,25 @@ services:
       DATABASE_URL: "postgresql://admin:1234567@postgres:5432/recommendation_db"
       ORDER_SERVICE_URL: http://order-service:3004
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  support-service:
+    build:
+      context: ./backend/support-service
+    container_name: san_thuong_mai_support_service
+    restart: always
+    ports:
+      - "3009:3009"
+    env_file:
+      - ./backend/support-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/support_db"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+      AI_SERVICE_URL: "http://host.docker.internal:3010"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:3006"
+      IDENTITY_SERVICE_URL: "http://identity-service:3001"
     depends_on:
       - postgres
       - rabbitmq

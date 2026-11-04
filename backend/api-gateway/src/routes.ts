@@ -51,6 +51,12 @@ router.use(
   createProxyMiddleware(proxyOptions(env.SEARCH_SERVICE_URL)),
 );
 
+// Support Health Check & Public Info (Public)
+router.use(
+  "/support/health",
+  createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
+);
+
 // Payment Return & Callback routes (Public - Browser/Gateway Redirects don't carry JWT Authorization headers)
 router.use(
   "/payments/vnpay/return",
@@ -87,6 +93,12 @@ router.use(
 router.use(
   "/payments",
   createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL)),
+);
+
+// Support service routes (Tickets, CSKH Copilot)
+router.use(
+  "/support",
+  createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
 );
 
 // Identity service protected routes

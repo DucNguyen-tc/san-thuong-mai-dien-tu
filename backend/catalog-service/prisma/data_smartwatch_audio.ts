@@ -69,7 +69,7 @@ ${s.name} là mẫu đồng hồ thông minh thể thao cao cấp từ thương 
       brand: s.brand,
       price: s.price,
       description: desc,
-      images: s.img,
+      images: (s as any).img || TECH_IMAGES.smartwatch_garmin,
       variants
     };
   });
@@ -147,7 +147,7 @@ ${a.name} là sản phẩm âm thanh cao cấp đại diện cho trình độ ch
       brand: a.brand,
       price: a.price,
       description: desc,
-      images: a.img,
+      images: (a as any).img || TECH_IMAGES.earbuds_tws,
       variants
     };
   });
@@ -218,7 +218,7 @@ ${a.name} là phụ kiện công nghệ cao cấp chính hãng từ thương hi�
       brand: a.brand,
       price: a.price,
       description: desc,
-      images: a.img,
+      images: (a as any).img || TECH_IMAGES.earbuds_tws,
       variants
     };
   });

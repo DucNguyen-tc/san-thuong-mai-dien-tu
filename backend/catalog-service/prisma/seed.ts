@@ -1,2 +1,2 @@
-// Default prisma seed runner pointing to the 500+ product catalog
-import "./seed_500products";
+// Default prisma seed runner pointing to upgrade_catalog (742 products with full specs & hierarchy)
+import "./upgrade_catalog";
