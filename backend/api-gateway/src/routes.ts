@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { env } from "./config/env";
-import { verifyToken } from "./middlewares/auth.middleware";
+import { verifyToken, optionalToken } from "./middlewares/auth.middleware";
 
 const router = Router();
 
@@ -55,6 +55,11 @@ router.use(
 router.use(
   "/support/health",
   createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
+// AI Shopping Assistant routes (Public for Guest & carries x-user-id if token present)
+router.use(
+  "/ai",
+  optionalToken,
+  createProxyMiddleware(proxyOptions(env.AI_SERVICE_URL)),
 );
 
 // Payment Return & Callback routes (Public - Browser/Gateway Redirects don't carry JWT Authorization headers)

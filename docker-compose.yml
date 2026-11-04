@@ -62,6 +62,7 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation-service:3007
       SEARCH_SERVICE_URL: http://host.docker.internal:3008
       SUPPORT_SERVICE_URL: http://support-service:3009
+      AI_SERVICE_URL: http://ai-service:3010
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
     depends_on:
       - identity-service
@@ -72,6 +73,7 @@ services:
       - notification-service
       - recommendation-service
       - support-service
+      - ai-service
 
   identity-service:
     build:
@@ -213,6 +215,23 @@ services:
     depends_on:
       - postgres
       - rabbitmq
+  ai-service:
+    build:
+      context: ./backend/ai-service
+    container_name: san_thuong_mai_ai_service
+    restart: always
+    ports:
+      - "3010:3010"
+    env_file:
+      - ./backend/ai-service/.env
+    environment:
+      DATABASE_URL: "postgresql://admin:1234567@postgres:5432/ai_db"
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      CART_SERVICE_URL: http://cart-service:3003
+      ORDER_SERVICE_URL: http://order-service:3004
+      SUPPORT_SERVICE_URL: http://support-service:3009
+    depends_on:
+      - postgres
 
 volumes:
   pgdata:
