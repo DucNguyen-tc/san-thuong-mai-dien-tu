@@ -17,6 +17,7 @@ const envSchema = z.object({
   NOTIFICATION_SERVICE_URL: z.string().url(),
   RECOMMENDATION_SERVICE_URL: z.string().url(),
   SEARCH_SERVICE_URL: z.string().url().default('http://localhost:3008'),
+  SUPPORT_SERVICE_URL: z.string().url().default('http://localhost:3009'),
   AI_SERVICE_URL: z.string().url().default('http://localhost:3010'),
 });
 

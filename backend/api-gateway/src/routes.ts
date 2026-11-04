@@ -51,6 +51,10 @@ router.use(
   createProxyMiddleware(proxyOptions(env.SEARCH_SERVICE_URL)),
 );
 
+// Support Health Check & Public Info (Public)
+router.use(
+  "/support/health",
+  createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
 // AI Shopping Assistant routes (Public for Guest & carries x-user-id if token present)
 router.use(
   "/ai",
@@ -94,6 +98,12 @@ router.use(
 router.use(
   "/payments",
   createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL)),
+);
+
+// Support service routes (Tickets, CSKH Copilot)
+router.use(
+  "/support",
+  createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
 );
 
 // Identity service protected routes
