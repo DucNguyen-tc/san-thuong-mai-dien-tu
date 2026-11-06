@@ -1,10 +1,11 @@
 import { Outlet } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import ChatWidget from '@/components/chat/ChatWidget';
 
 /**
  * UserLayout — Layout bọc toàn bộ trang dành cho khách hàng
- * Cấu trúc: Header → <main> (Outlet) → Footer
+ * Cấu trúc: Header → <main> (Outlet) → Footer → ChatWidget (Floating AI Assistant)
  * Được sử dụng trong UserRoutes.tsx
  */
 export default function UserLayout() {
@@ -15,6 +16,7 @@ export default function UserLayout() {
         <Outlet />
       </main>
       <Footer />
+      <ChatWidget />
     </div>
   );
 }
