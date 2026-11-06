@@ -55,6 +55,8 @@ router.use(
 router.use(
   "/support/health",
   createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
+);
+
 // AI Shopping Assistant routes (Public for Guest & carries x-user-id if token present)
 router.use(
   "/ai",
