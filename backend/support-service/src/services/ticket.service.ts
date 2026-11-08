@@ -1,7 +1,14 @@
 import { prisma } from "../config/prisma";
 import { generateTicketNumber } from "../utils/ticketNumber";
-import { CreateTicketInput, AddMessageInput, ListTicketsQuery } from "../schemas/ticket.schema";
-import { TicketSource, TicketStatus, SenderType } from "@prisma/client";
+import {
+  CreateTicketInput,
+  AddMessageInput,
+  ListTicketsQuery,
+  EscalateTicketInput
+} from "../schemas/ticket.schema";
+import { TicketSource, TicketStatus, TicketPriority, SenderType } from "@prisma/client";
+import { rabbitMQService } from "../rabbitmq/rabbitmq.service";
+import { TicketAnalyzerPipeline } from "./ticket-analyzer.pipeline";
 
 export class TicketService {
   /**
@@ -46,7 +53,75 @@ export class TicketService {
       return ticket;
     });
 
+    // Tự động kích hoạt phân tích cảm xúc qua RabbitMQ (hỗ trợ fallback in-process)
+    await rabbitMQService.publishTicketCreated(createdTicket.id);
+
     return createdTicket;
+  }
+
+  /**
+   * Tạo ticket tự động từ AI Chat Assistant (source: AI_ESCALATE)
+   * Phục vụ Tool escalate_to_ticket từ ai-service khi khách bức xúc
+   */
+  static async escalateTicket(input: EscalateTicketInput) {
+    const ticketNumber = await generateTicketNumber();
+
+    const createdTicket = await prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.create({
+        data: {
+          ticket_number: ticketNumber,
+          customer_id: input.customer_id,
+          customer_email: input.customer_email,
+          customer_name: input.customer_name || "Khách hàng",
+          subject: input.subject,
+          category: input.category || "OTHER",
+          related_order_id: input.related_order_id || null,
+          chat_session_id: input.chat_session_id || null,
+          source: TicketSource.AI_ESCALATE,
+          priority: TicketPriority.P1, // Escalate do bức xúc khởi tạo mặc định P1
+          status: TicketStatus.OPEN
+        }
+      });
+
+      // Tạo tin nhắn đầu tiên chứa nội dung trao đổi / tóm tắt bức xúc
+      await tx.ticketMessage.create({
+        data: {
+          ticket_id: ticket.id,
+          sender_type: SenderType.CUSTOMER,
+          sender_id: input.customer_id,
+          content: input.content
+        }
+      });
+
+      return ticket;
+    });
+
+    // Kích hoạt phân tích cảm xúc qua RabbitMQ
+    await rabbitMQService.publishTicketCreated(createdTicket.id);
+
+    return {
+      ticket_id: createdTicket.id,
+      ticket_number: createdTicket.ticket_number,
+      status: createdTicket.status,
+      priority: createdTicket.priority
+    };
+  }
+
+  /**
+   * Kích hoạt phân tích cảm xúc thủ công (cho Admin / Test / Retry)
+   */
+  static async triggerAnalysis(ticketId: string) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId }
+    });
+
+    if (!ticket) {
+      throw new Error("Không tìm thấy ticket yêu cầu");
+    }
+
+    // Đẩy vào queue hoặc xử lý trực tiếp
+    await rabbitMQService.publishTicketCreated(ticketId);
+    return { ticketId, status: "ANALYZING_TRIGGERED" };
   }
 
   /**

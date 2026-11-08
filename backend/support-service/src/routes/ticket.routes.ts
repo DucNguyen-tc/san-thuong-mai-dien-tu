@@ -5,12 +5,25 @@ import { validateBody, validateQuery } from "../middlewares/validate.middleware"
 import {
   createTicketSchema,
   addMessageSchema,
-  listTicketsQuerySchema
+  listTicketsQuerySchema,
+  escalateTicketSchema
 } from "../schemas/ticket.schema";
 
 const router = express.Router();
 
-// Tất cả các routes tickets của khách đều yêu cầu xác thực người dùng
+// ==========================================
+// INTERNAL API (Không qua Auth Middleware)
+// ==========================================
+// ai-service tự động escalate khi phát hiện khách bức xúc
+router.post(
+  "/escalate",
+  validateBody(escalateTicketSchema),
+  TicketController.escalateTicket
+);
+
+// ==========================================
+// PUBLIC & CLIENT API (Yêu cầu xác thực người dùng)
+// ==========================================
 router.use(requireAuth);
 
 router.post(
@@ -34,6 +47,12 @@ router.post(
   "/:id/messages",
   validateBody(addMessageSchema),
   TicketController.addMessage
+);
+
+// Kích hoạt phân tích cảm xúc (Retry / Manual trigger)
+router.post(
+  "/:id/analyze",
+  TicketController.analyzeTicket
 );
 
 export default router;
