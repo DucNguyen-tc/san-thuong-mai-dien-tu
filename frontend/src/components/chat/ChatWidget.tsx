@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Bot,
+  Layers,
   MessageSquare,
   RotateCcw,
   Send,
@@ -14,6 +15,7 @@ import type {
   ChatMessage,
   ChatMetadataPayload,
   ProductCardItem,
+  SSEConnectionState,
 } from '@/types/aiChat';
 import {
   clearStoredSession,
@@ -23,6 +25,7 @@ import {
   saveMessagesToLocalCache,
   streamChatMessage,
 } from '@/services/aiChatService';
+import { getProductBySlug } from '@/services/productService';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCartStore } from '@/store/useCartStore';
 import ChatProductCardList from './ChatProductCard';
@@ -39,9 +42,30 @@ const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome-msg',
   role: 'assistant',
   content:
-    'Xin chào! 👋 Mình là Trợ lý Mua sắm AI. Mình có thể giúp bạn tìm sản phẩm, so sánh cấu hình hoặc giải đáp chính sách đổi trả, bảo hành. Bạn đang quan tâm đến sản phẩm nào?',
+    'Xin chào! 👋 Mình là **Trợ lý Mua sắm AI**. Mình có thể giúp bạn tìm sản phẩm, so sánh cấu hình hoặc giải đáp chính sách đổi trả, bảo hành. Bạn đang quan tâm đến sản phẩm nào?',
   createdAt: new Date().toISOString(),
 };
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Render nội dung text hỗ trợ định dạng in đậm **bold** khi stream từng chunk
+ */
+function renderFormattedText(content: string): React.ReactNode {
+  if (!content) return null;
+  const parts = content.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <strong key={idx} className="font-semibold text-gray-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,6 +73,7 @@ export default function ChatWidget() {
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaitingFirstChunk, setIsWaitingFirstChunk] = useState(false);
+  const [streamPhase, setStreamPhase] = useState<SSEConnectionState>('idle');
   const [isMockMode, setIsMockMode] = useState(false);
   const [forceMock, setForceMock] = useState(false);
 
@@ -100,6 +125,7 @@ export default function ChatWidget() {
     abortControllerRef.current?.abort();
     setIsStreaming(false);
     setIsWaitingFirstChunk(false);
+    setStreamPhase('idle');
   };
 
   const handleResetSession = () => {
@@ -137,11 +163,13 @@ export default function ChatWidget() {
       metadata: null,
       createdAt: new Date().toISOString(),
       isStreaming: true,
+      streamState: 'connecting',
     };
 
     setMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     setIsStreaming(true);
     setIsWaitingFirstChunk(true);
+    setStreamPhase('connecting');
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -151,6 +179,14 @@ export default function ChatWidget() {
       {
         onModeChange: (mockFallback) => {
           setIsMockMode(mockFallback);
+        },
+        onStateChange: (state) => {
+          setStreamPhase(state);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId ? { ...m, streamState: state } : m
+            )
+          );
         },
         onTextChunk: (chunk: string) => {
           setIsWaitingFirstChunk(false);
@@ -173,15 +209,19 @@ export default function ChatWidget() {
         onDone: () => {
           setIsWaitingFirstChunk(false);
           setIsStreaming(false);
+          setStreamPhase('done');
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+              m.id === assistantMsgId
+                ? { ...m, isStreaming: false, streamState: 'done' }
+                : m
             )
           );
         },
         onError: (errMsg: string) => {
           setIsWaitingFirstChunk(false);
           setIsStreaming(false);
+          setStreamPhase('error');
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMsgId
@@ -191,6 +231,7 @@ export default function ChatWidget() {
                       m.content ||
                       `Xin lỗi, hệ thống đang bận (${errMsg}). Bạn vui lòng thử lại sau nhé!`,
                     isStreaming: false,
+                    streamState: 'error',
                   }
                 : m
             )
@@ -204,6 +245,12 @@ export default function ChatWidget() {
     setIsWaitingFirstChunk(false);
   };
 
+  /**
+   * Xử lý nút "Thêm giỏ" trên Product Action Card:
+   * - Nếu đã có variant_id chuẩn UUID -> gọi thẳng useCartStore.addItem()
+   * - Nếu variant_id là mock -> tự động tìm sản phẩm thật theo slug từ catalog-service để lấy variant_id thật
+   * - Nếu chưa đăng nhập hoặc API giỏ hàng tắt -> fallback gửi lệnh chat cho AI
+   */
   const handleAddToCartFromCard = async (product: ProductCardItem) => {
     if (!isAuthenticated) {
       toast.error('Bạn vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng nhé!');
@@ -211,18 +258,40 @@ export default function ChatWidget() {
       return;
     }
 
-    const isUuid =
-      product.variant_id &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        product.variant_id
-      );
+    let targetProductId = product.id;
+    let targetVariantId = product.variant_id;
+    let targetPrice = product.price;
+    let targetAttributes: Record<string, string> = {};
 
-    if (isUuid && product.variant_id) {
+    const isValidVariantUuid =
+      Boolean(targetVariantId) && UUID_REGEX.test(targetVariantId!);
+
+    if (!isValidVariantUuid) {
       try {
-        await addItem(product.id, product.variant_id, 1, {
+        const realProduct = await getProductBySlug(product.slug || product.name);
+        if (realProduct) {
+          targetProductId = realProduct.id;
+          const activeVariant =
+            realProduct.variants?.find(
+              (v) => v.is_active && v.stock_quantity > 0
+            ) || realProduct.variants?.[0];
+          if (activeVariant) {
+            targetVariantId = activeVariant.id;
+            targetPrice = Number(activeVariant.price);
+            targetAttributes = activeVariant.attributes || {};
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi tra cứu, xử lý tiếp ở dưới
+      }
+    }
+
+    if (targetVariantId && UUID_REGEX.test(targetVariantId)) {
+      try {
+        await addItem(targetProductId, targetVariantId, 1, {
           name: product.name,
-          price: product.price,
-          attributes: {},
+          price: targetPrice,
+          attributes: targetAttributes,
           image_url: product.image_url,
         });
         toast.success(`Đã thêm "${product.name}" vào giỏ hàng!`);
@@ -233,6 +302,13 @@ export default function ChatWidget() {
     }
 
     handleSendMessage(`Thêm sản phẩm "${product.name}" vào giỏ hàng giúp tôi`);
+  };
+
+  const handleViewDetailFromCard = () => {
+    // Trên màn hình mobile (fullscreen chat), tự động thu gọn khung chat để người dùng thấy trang Chi tiết sản phẩm
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setIsOpen(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -290,7 +366,11 @@ export default function ChatWidget() {
                 </div>
                 <p className="text-[11px] text-blue-100 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-                  Tư vấn sản phẩm & chính sách 24/7
+                  {isStreaming
+                    ? streamPhase === 'receiving_metadata'
+                      ? 'Đang kết xuất dữ liệu sản phẩm...'
+                      : 'Đang trả lời trực tuyến...'
+                    : 'Tư vấn sản phẩm & chính sách 24/7'}
                 </p>
               </div>
             </div>
@@ -344,7 +424,7 @@ export default function ChatWidget() {
 
                   {/* Nội dung Bubble */}
                   <div
-                    className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                    className={`max-w-[84%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                       isUser
                         ? 'bg-primary text-white rounded-tr-xs shadow-xs'
                         : 'bg-white text-gray-800 border border-gray-200 rounded-tl-xs shadow-xs'
@@ -362,10 +442,23 @@ export default function ChatWidget() {
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap break-words">
-                        {msg.content}
+                        {isUser ? msg.content : renderFormattedText(msg.content)}
                         {!isUser && msg.isStreaming && (
                           <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-primary animate-pulse" />
                         )}
+                      </div>
+                    )}
+
+                    {/* Nhãn phân biệt khi nhận SSE Metadata (Product Cards / Comparison Table) */}
+                    {!isUser && msg.metadata && (
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
+                        <span className="inline-flex items-center gap-1 font-medium text-blue-600">
+                          <Layers className="w-3 h-3" />
+                          {msg.metadata.type === 'product_cards'
+                            ? `Gợi ý sản phẩm (${msg.metadata.products.length})`
+                            : 'Bảng so sánh thông số'}
+                        </span>
+                        <span>SSE Metadata</span>
                       </div>
                     )}
 
@@ -376,6 +469,7 @@ export default function ChatWidget() {
                         <ChatProductCardList
                           products={msg.metadata.products}
                           onAddToCart={handleAddToCartFromCard}
+                          onViewDetail={handleViewDetailFromCard}
                         />
                       )}
 
