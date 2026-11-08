@@ -56,3 +56,26 @@ export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type AddMessageInput = z.infer<typeof addMessageSchema>;
 export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;
 
+export const escalateTicketSchema = z.object({
+  customer_id: z.string().uuid("Customer ID không hợp lệ"),
+  customer_email: z.string().email("Customer Email không hợp lệ"),
+  customer_name: z.string().optional().default("Khách hàng"),
+  chat_session_id: z.string().uuid("Chat Session ID không hợp lệ").optional().nullable(),
+  subject: z
+    .string({ required_error: "Tiêu đề không được để trống" })
+    .trim()
+    .min(3, "Tiêu đề phải có ít nhất 3 ký tự")
+    .max(500, "Tiêu đề tối đa 500 ký tự"),
+  content: z
+    .string({ required_error: "Nội dung tóm tắt/hội thoại không được để trống" })
+    .trim()
+    .min(5, "Nội dung tối thiểu 5 ký tự"),
+  category: z
+    .enum(["REFUND", "WARRANTY", "SHIPPING", "PAYMENT", "PRODUCT", "ORDER", "OTHER"])
+    .default("OTHER"),
+  source: z.literal("AI_ESCALATE").default("AI_ESCALATE"),
+  related_order_id: z.string().uuid("ID đơn hàng không hợp lệ").optional().nullable()
+});
+
+export type EscalateTicketInput = z.infer<typeof escalateTicketSchema>;
+

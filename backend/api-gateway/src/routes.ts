@@ -57,6 +57,12 @@ router.use(
   createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
 );
 
+// Support Escalate route (Internal webhook from ai-service, does not require user JWT)
+router.use(
+  "/support/tickets/escalate",
+  createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
+);
+
 // AI Shopping Assistant routes (Public for Guest & carries x-user-id if token present)
 router.use(
   "/ai",

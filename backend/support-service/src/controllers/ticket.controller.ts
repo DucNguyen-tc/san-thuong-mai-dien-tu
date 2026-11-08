@@ -4,6 +4,24 @@ import { successResponse, errorResponse } from "../utils/response";
 
 export class TicketController {
   /**
+   * POST /api/support/tickets/escalate
+   * Internal API: nhận yêu cầu escalate từ ai-service khi khách bức xúc
+   */
+  static async escalateTicket(req: Request, res: Response) {
+    try {
+      const result = await TicketService.escalateTicket(req.body);
+      return successResponse(
+        res,
+        result,
+        "Ticket đã được tạo thành công và chuyển sang hàng đợi AI phân tích",
+        201
+      );
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể escalate ticket", 400);
+    }
+  }
+
+  /**
    * POST /api/support/tickets
    */
   static async createTicket(req: Request, res: Response) {
@@ -64,6 +82,27 @@ export class TicketController {
     } catch (error: any) {
       const statusCode = error.message.includes("quyền") ? 403 : 400;
       return errorResponse(res, error.message || "Không thể gửi tin nhắn", statusCode);
+    }
+  }
+
+  /**
+   * POST /api/support/tickets/:id/analyze
+   * Kích hoạt phân tích cảm xúc thủ công / retry
+   */
+  static async analyzeTicket(req: Request, res: Response) {
+    try {
+      const result = await TicketService.triggerAnalysis(req.params.id);
+      return successResponse(
+        res,
+        result,
+        "Đã kích hoạt phân tích cảm xúc cho ticket"
+      );
+    } catch (error: any) {
+      return errorResponse(
+        res,
+        error.message || "Không thể kích hoạt phân tích cảm xúc",
+        400
+      );
     }
   }
 }
