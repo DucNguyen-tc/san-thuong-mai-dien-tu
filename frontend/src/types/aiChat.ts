@@ -30,6 +30,25 @@ export interface ComparisonTableMetadata {
 
 export type ChatMetadataPayload = ProductCardsMetadata | ComparisonTableMetadata;
 
+export type SSEMessageType = 'text_chunk' | 'metadata' | 'done' | 'error' | 'session';
+
+export type SSEConnectionState =
+  | 'idle'
+  | 'connecting'
+  | 'streaming_text'
+  | 'receiving_metadata'
+  | 'done'
+  | 'error';
+
+export interface SSEEventPacket {
+  type: SSEMessageType;
+  content?: string;
+  payload?: ChatMetadataPayload;
+  session_id?: string;
+  session_token?: string;
+  message?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -37,14 +56,15 @@ export interface ChatMessage {
   metadata?: ChatMetadataPayload | null;
   createdAt: string;
   isStreaming?: boolean;
+  streamState?: SSEConnectionState;
 }
 
 export interface SSEStreamCallbacks {
   onSession?: (session: { session_id: string; session_token: string }) => void;
   onTextChunk: (chunk: string) => void;
   onMetadata?: (payload: ChatMetadataPayload) => void;
+  onStateChange?: (state: SSEConnectionState) => void;
   onDone?: () => void;
   onError?: (errorMessage: string) => void;
   onModeChange?: (isMockFallback: boolean) => void;
 }
-
