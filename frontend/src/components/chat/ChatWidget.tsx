@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Bot,
+  History,
   Layers,
   MessageSquare,
+  Plus,
   RotateCcw,
   Send,
   Sparkles,
   Square,
+  Trash2,
   User,
   X,
 } from 'lucide-react';
@@ -14,15 +17,18 @@ import toast from 'react-hot-toast';
 import type {
   ChatMessage,
   ChatMetadataPayload,
+  ChatSessionSummary,
   ProductCardItem,
   SSEConnectionState,
 } from '@/types/aiChat';
 import {
-  clearStoredSession,
+  createNewChatSession,
+  deleteStoredSession,
   fetchSessionHistory,
-  getStoredSessionToken,
-  loadMessagesFromLocalCache,
+  getOrCreateSessionToken,
+  getSavedSessionsList,
   saveMessagesToLocalCache,
+  setStoredSessionToken,
   streamChatMessage,
 } from '@/services/aiChatService';
 import { getProductBySlug } from '@/services/productService';
@@ -34,15 +40,15 @@ import ChatComparisonTable from './ChatComparisonTable';
 const QUICK_PROMPTS = [
   '📱 Tìm điện thoại chụp ảnh đẹp',
   '⚖️ So sánh iPhone 15 và Samsung S24',
+  '📊 So sánh 3 máy: iPhone 15, S24 Ultra, Xiaomi 14',
   '🔄 Chính sách đổi trả hàng thế nào?',
-  '🚚 Phí vận chuyển tính ra sao?',
 ];
 
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome-msg',
   role: 'assistant',
   content:
-    'Xin chào! 👋 Mình là **Trợ lý Mua sắm AI**. Mình có thể giúp bạn tìm sản phẩm, so sánh cấu hình hoặc giải đáp chính sách đổi trả, bảo hành. Bạn đang quan tâm đến sản phẩm nào?',
+    'Xin chào! 👋 Mình là **Trợ lý Mua sắm AI**. Mình có thể giúp bạn tìm sản phẩm, so sánh cấu hình (2-4 sản phẩm) hoặc giải đáp chính sách đổi trả, bảo hành. Bạn đang quan tâm đến sản phẩm nào?',
   createdAt: new Date().toISOString(),
 };
 
@@ -77,6 +83,11 @@ export default function ChatWidget() {
   const [isMockMode, setIsMockMode] = useState(false);
   const [forceMock, setForceMock] = useState(false);
 
+  // Quản lý Session Chat (Ngày 6-7): Guest/User session token + lịch sử các phiên
+  const [activeSessionToken, setActiveSessionToken] = useState<string>('');
+  const [savedSessions, setSavedSessions] = useState<ChatSessionSummary[]>([]);
+  const [showSessionPanel, setShowSessionPanel] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -84,14 +95,11 @@ export default function ChatWidget() {
   const { isAuthenticated } = useAuthStore();
   const { addItem } = useCartStore();
 
-  // Load lịch sử chat khi khởi tạo
+  // Khởi tạo Guest/User Session Token từ LocalStorage & Load lịch sử chat
   useEffect(() => {
-    const token = getStoredSessionToken();
-    if (!token) {
-      const cached = loadMessagesFromLocalCache();
-      if (cached.length > 0) setMessages(cached);
-      return;
-    }
+    const token = getOrCreateSessionToken();
+    setActiveSessionToken(token);
+    setSavedSessions(getSavedSessionsList());
 
     fetchSessionHistory(token).then((history) => {
       if (history.length > 0) {
@@ -102,10 +110,11 @@ export default function ChatWidget() {
 
   // Lưu cache mỗi khi messages thay đổi
   useEffect(() => {
-    if (messages.length > 1) {
-      saveMessagesToLocalCache(messages);
+    if (messages.length > 1 && activeSessionToken) {
+      saveMessagesToLocalCache(messages, activeSessionToken);
+      setSavedSessions(getSavedSessionsList());
     }
-  }, [messages]);
+  }, [messages, activeSessionToken]);
 
   // Auto-scroll xuống cuối khi có tin nhắn hoặc chunk mới
   useEffect(() => {
@@ -130,14 +139,49 @@ export default function ChatWidget() {
 
   const handleResetSession = () => {
     handleStopStream();
-    clearStoredSession();
+    const newToken = createNewChatSession();
+    setActiveSessionToken(newToken);
+    setShowSessionPanel(false);
     setMessages([
       {
         ...WELCOME_MESSAGE,
         createdAt: new Date().toISOString(),
       },
     ]);
+    setSavedSessions(getSavedSessionsList());
     toast.success('Đã tạo phiên trò chuyện mới');
+  };
+
+  const handleSelectSession = async (sessionToken: string) => {
+    handleStopStream();
+    setStoredSessionToken(sessionToken);
+    setActiveSessionToken(sessionToken);
+    setShowSessionPanel(false);
+
+    const history = await fetchSessionHistory(sessionToken);
+    if (history.length > 0) {
+      setMessages(history);
+      toast.success('Đã khôi phục lịch sử hội thoại');
+    } else {
+      setMessages([WELCOME_MESSAGE]);
+    }
+  };
+
+  const handleDeleteSession = (
+    e: React.MouseEvent,
+    sessionTokenToDelete: string
+  ) => {
+    e.stopPropagation();
+    const remaining = deleteStoredSession(sessionTokenToDelete);
+    setSavedSessions(remaining);
+
+    if (sessionTokenToDelete === activeSessionToken) {
+      if (remaining.length > 0) {
+        handleSelectSession(remaining[0].session_token);
+      } else {
+        handleResetSession();
+      }
+    }
   };
 
   const handleSendMessage = async (customText?: string) => {
@@ -147,6 +191,7 @@ export default function ChatWidget() {
     if (!customText) {
       setInputValue('');
     }
+    setShowSessionPanel(false);
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -177,6 +222,11 @@ export default function ChatWidget() {
     await streamChatMessage(
       textToSend,
       {
+        onSession: (sess) => {
+          if (sess.session_token) {
+            setActiveSessionToken(sess.session_token);
+          }
+        },
         onModeChange: (mockFallback) => {
           setIsMockMode(mockFallback);
         },
@@ -378,6 +428,21 @@ export default function ChatWidget() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => {
+                  setSavedSessions(getSavedSessionsList());
+                  setShowSessionPanel((prev) => !prev);
+                }}
+                title="Quản lý phiên & Lịch sử chat"
+                className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                  showSessionPanel
+                    ? 'bg-white/25 text-white'
+                    : 'text-white/80 hover:text-white hover:bg-white/15'
+                }`}
+              >
+                <History className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
                 onClick={handleResetSession}
                 title="Làm mới cuộc trò chuyện"
                 className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
@@ -394,6 +459,96 @@ export default function ChatWidget() {
               </button>
             </div>
           </div>
+
+          {/* Panel Quản lý Session Chat (Guest Session Token & Lịch sử hội thoại) */}
+          {showSessionPanel && (
+            <div className="bg-slate-50 border-b border-gray-200 px-3.5 py-2.5 text-xs shrink-0 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-gray-800">
+                      Phiên hiện tại:
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        isAuthenticated
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {isAuthenticated ? 'User Session' : 'Guest Session'}
+                    </span>
+                  </div>
+                  <p
+                    className="text-[10px] text-gray-500 font-mono truncate mt-0.5"
+                    title={activeSessionToken}
+                  >
+                    Token: {activeSessionToken}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetSession}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Phiên mới</span>
+                </button>
+              </div>
+
+              <div className="border-t border-gray-200/80 pt-2">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Lịch sử phiên đã lưu ({savedSessions.length})
+                </p>
+                {savedSessions.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 italic py-1">
+                    Chưa có lịch sử phiên nào được lưu.
+                  </p>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
+                    {savedSessions.map((sess) => {
+                      const isCurrent =
+                        sess.session_token === activeSessionToken;
+                      return (
+                        <div
+                          key={sess.session_token}
+                          onClick={() =>
+                            handleSelectSession(sess.session_token)
+                          }
+                          className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-left cursor-pointer transition-colors ${
+                            isCurrent
+                              ? 'bg-blue-50/90 border-blue-200 text-primary'
+                              : 'bg-white hover:bg-gray-100 border-gray-200/70 text-gray-700'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-medium truncate">
+                              {sess.title || 'Cuộc trò chuyện'}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {sess.message_count} tin nhắn •{' '}
+                              {sess.is_guest ? 'Khách (Guest)' : 'Thành viên'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDeleteSession(e, sess.session_token)
+                            }
+                            title="Xóa phiên này"
+                            className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Danh sách tin nhắn (Bubble Messages) */}
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-gray-50">

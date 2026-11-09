@@ -21,11 +21,27 @@ export interface ComparisonAttribute {
   values: string[];
 }
 
+export interface ProductProsCons {
+  product: string;
+  pros: string[];
+  cons: string[];
+}
+
 export interface ComparisonTableMetadata {
   type: 'comparison_table';
   products: string[];
   attributes: ComparisonAttribute[];
+  highlights?: ProductProsCons[];
   recommendation?: string;
+}
+
+export interface ChatSessionSummary {
+  session_token: string;
+  session_id?: string;
+  title: string;
+  is_guest: boolean;
+  updated_at: string;
+  message_count: number;
 }
 
 export type ChatMetadataPayload = ProductCardsMetadata | ComparisonTableMetadata;

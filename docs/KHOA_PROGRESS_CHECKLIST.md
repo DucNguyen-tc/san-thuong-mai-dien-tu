@@ -37,9 +37,17 @@
   - Nút **"Xem chi tiết"**: điều hướng chuẩn tới `/product/:slug` (đã bổ sung route `/product/:id` trong `UserRoutes.tsx` và hỗ trợ tìm sản phẩm theo `slug` hoặc `UUID` trong `productService.ts` để không bị 404). Tự động đóng khung chat fullscreen trên mobile khi chuyển trang.
   - Nút **"Thêm giỏ"**: có trạng thái loading (`Đang thêm`) và xác nhận (`Đã thêm`), tự động đồng bộ `variant_id` thật từ `catalog-service` theo `slug` để thêm thẳng vào `useCartStore` hoặc gửi lệnh chat cho AI.
 
-### ✅ Ngày 6-7 (Đã hoàn thành sẵn khung UI & Logic)
-- [x] Xây dựng component [`ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx): hiển thị bảng so sánh 2-4 sản phẩm và hộp gợi ý `recommendation` từ AI.
-- [x] Quản lý Session Chat: lưu `ai_chat_session_token` và cache lịch sử vào `localStorage`, đồng thời gọi `GET /api/ai/sessions/:sessionToken/messages` khi mở lại trang.
+### ✅ Ngày 6-7 (Thứ 2-3) — RENDER COMPARISON TABLE & QUẢN LÝ SESSION CHAT
+- [x] **Render Comparison Table (`frontend/src/components/chat/ChatComparisonTable.tsx`):**
+  - Hiển thị bảng so sánh từ **2 đến 4 sản phẩm** từ `metadata` (`type: "comparison_table"`), có cột cố định (`sticky left-0`) và cuộn ngang mượt trên màn hình nhỏ.
+  - Tự động phân tích số liệu từng hàng để **Highlight thông số vượt trội** (`⚡ Giá tốt nhất` cho giá thấp nhất, `⚡ Vượt trội` cho RAM/Pin/Camera/Màn hình/Sạc cao nhất).
+  - Bổ sung khu vực **"Highlight Ưu / Nhược điểm từng sản phẩm"** (`ProductProsCons`): hiển thị rõ các thẻ `✓ Ưu điểm` (xanh lá) và `! Lưu ý / Nhược điểm` (vàng cam) cho mỗi sản phẩm (hỗ trợ cả dữ liệu `highlights` từ Backend lẫn tự động tổng hợp từ bảng thông số).
+  - Hỗ trợ render in đậm `**bold**` trong hộp `Gợi ý từ AI` (`recommendation`).
+- [x] **Quản lý Session Chat (`frontend/src/services/aiChatService.ts` & `ChatWidget.tsx`):**
+  - Tự động khởi tạo và lưu trữ **Guest Session Token** (`guest-xxxxxxxx-...`) trong `localStorage` (`ai_chat_session_token`) ngay khi khách truy cập.
+  - Lưu trữ lịch sử tin nhắn theo từng phiên (`ai_chat_session_msgs_<token>`) và danh sách các phiên gần nhất (`ai_chat_sessions_index`).
+  - Tự động gọi `GET /api/ai/sessions/:sessionToken/messages` để đồng bộ lịch sử từ Server, đồng thời fallback về `localStorage` khi tải lại trang (`F5`).
+  - Thêm **Panel Quản lý Phiên & Lịch sử Chat** ngay trên Header của `ChatWidget` (xem `session_token` hiện tại, phân biệt `Guest Session` / `User Session`, chuyển đổi giữa các phiên cũ, xóa phiên hoặc tạo phiên mới).
 
 ---
 
@@ -47,11 +55,11 @@
 
 | File | Trạng thái | Mô tả |
 |---|---|---|
-| [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 4-5) | Định nghĩa `SSEMessageType`, `SSEConnectionState`, `SSEEventPacket`, `ChatMessage`, `ProductCardItem`, `ProductCardsMetadata`, `ComparisonTableMetadata` |
-| [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 4-5) | Tích hợp `EventSource` API (`connectEventSourceStream`), `dispatchSSEPacket`, `streamChatMessage`, tự động đồng bộ `slug` & `variant_id` thật từ `catalog-service` |
+| [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 6-7) | Bổ sung `ProductProsCons`, `ChatSessionSummary`, cập nhật `ComparisonTableMetadata` |
+| [`frontend/src/components/chat/ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx) | Đã cập nhật (Ngày 6-7) | Bảng so sánh 2-4 sản phẩm, tự động highlight ô thông số tốt nhất + khu vực **Highlight Ưu/Nhược điểm mỗi sản phẩm** |
+| [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 6-7) | Quản lý Guest Session Token (`getOrCreateSessionToken`, `createNewChatSession`), lưu/load lịch sử đa phiên (`getSavedSessionsList`, `fetchSessionHistory`) |
+| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 6-7) | Bổ sung Panel Quản lý Phiên & Lịch sử Chat, quick prompt so sánh 2-3 sản phẩm |
 | [`frontend/src/components/chat/ChatProductCard.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatProductCard.tsx) | Đã cập nhật (Ngày 4-5) | Product Action Card với ảnh, giá gốc gạch ngang, badge `-%`, nút **"Xem chi tiết"** (`/product/:slug`) và nút **"Thêm giỏ"** (loading/success state) |
-| [`frontend/src/components/chat/ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx) | Đã tạo | Component hiển thị bảng so sánh sản phẩm (`comparison_table`) |
-| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 4-5) | Hiển thị trạng thái pha stream (`streaming_text` vs `receiving_metadata`), format rich text `**bold**`, xử lý thêm giỏ hàng bằng `slug`/`variant_id` thật |
 | [`frontend/src/services/productService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/productService.ts) | Đã cập nhật (Ngày 4-5) | Bổ sung `getProductBySlug()` và hỗ trợ `getProductById(idOrSlug)` nhận cả UUID lẫn `slug` |
 | [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx) | Đã cập nhật (Ngày 4-5) | Thêm route `/product/:id` song song với `/products/:id` để nút **"Xem chi tiết"** (`/product/:slug`) hoạt động chuẩn xác |
 | [`frontend/src/components/layout/UserLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/UserLayout.tsx) | Đã cập nhật | Nhúng `<ChatWidget />` vào layout khách hàng |
