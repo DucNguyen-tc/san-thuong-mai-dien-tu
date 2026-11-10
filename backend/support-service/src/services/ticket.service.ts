@@ -6,9 +6,11 @@ import {
   ListTicketsQuery,
   EscalateTicketInput
 } from "../schemas/ticket.schema";
-import { TicketSource, TicketStatus, TicketPriority, SenderType } from "@prisma/client";
+import { TicketSource, TicketStatus, TicketPriority, SenderType, ReviewStatus } from "@prisma/client";
 import { rabbitMQService } from "../rabbitmq/rabbitmq.service";
 import { TicketAnalyzerPipeline } from "./ticket-analyzer.pipeline";
+import { RagClient } from "./rag.client";
+import { DraftService } from "./draft.service";
 
 export class TicketService {
   /**
@@ -243,6 +245,73 @@ export class TicketService {
     });
 
     return message;
+  }
+
+  /**
+   * Lấy bản nháp AI Draft của ticket (dành cho CSKH)
+   */
+  static async getTicketDraft(ticketId: string) {
+    const draft = await prisma.ticketResponse.findFirst({
+      where: { ticket_id: ticketId },
+      orderBy: { created_at: "desc" }
+    });
+
+    if (!draft) {
+      throw new Error("Chưa có bản nháp AI cho ticket này");
+    }
+
+    return draft;
+  }
+
+  /**
+   * Yêu cầu AI soạn lại bản nháp (Regenerate Draft)
+   */
+  static async regenerateDraft(ticketId: string) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        messages: {
+          where: { sender_type: SenderType.CUSTOMER },
+          orderBy: { created_at: "asc" },
+          take: 1
+        }
+      }
+    });
+
+    if (!ticket) {
+      throw new Error("Không tìm thấy ticket yêu cầu");
+    }
+
+    const firstMessage = ticket.messages[0]?.content || "";
+    const contentToAnalyze = firstMessage || ticket.subject;
+
+    const ragQuery = `${ticket.ai_summary || ticket.subject}`.trim();
+    const ragChunks = await RagClient.queryPolicies(ragQuery, 3, 0.65);
+
+    const draftResult = await DraftService.generateDraft({
+      customerName: ticket.customer_name || "Khách hàng",
+      ticketNumber: ticket.ticket_number,
+      subject: ticket.subject,
+      content: contentToAnalyze,
+      sentiment: ticket.sentiment || "NEUTRAL",
+      sentimentScore: ticket.sentiment_score || 50,
+      summary: ticket.ai_summary || ticket.subject,
+      keyIssues: [],
+      ragChunks
+    });
+
+    const newDraft = await prisma.ticketResponse.create({
+      data: {
+        ticket_id: ticketId,
+        ai_draft: draftResult.draft,
+        rag_chunks_used: ragChunks as any,
+        ai_tone: draftResult.tone,
+        ai_confidence: draftResult.confidence,
+        review_status: ReviewStatus.PENDING
+      }
+    });
+
+    return newDraft;
   }
 }
 

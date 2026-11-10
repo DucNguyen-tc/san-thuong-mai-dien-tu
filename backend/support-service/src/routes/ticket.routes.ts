@@ -55,5 +55,16 @@ router.post(
   TicketController.analyzeTicket
 );
 
+// AI Draft endpoints
+router.get(
+  "/:id/draft",
+  TicketController.getTicketDraft
+);
+
+router.post(
+  "/:id/draft/regenerate",
+  TicketController.regenerateDraft
+);
+
 export default router;
 

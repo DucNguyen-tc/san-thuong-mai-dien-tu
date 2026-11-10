@@ -105,5 +105,34 @@ export class TicketController {
       );
     }
   }
-}
 
+  /**
+   * GET /api/support/tickets/:id/draft
+   * Lấy bản nháp AI Draft của ticket (dành cho CSKH)
+   */
+  static async getTicketDraft(req: Request, res: Response) {
+    try {
+      const draft = await TicketService.getTicketDraft(req.params.id);
+      return successResponse(res, draft, "Lấy AI draft thành công");
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không tìm thấy draft", 404);
+    }
+  }
+
+  /**
+   * POST /api/support/tickets/:id/draft/regenerate
+   * Yêu cầu AI soạn lại bản nháp
+   */
+  static async regenerateDraft(req: Request, res: Response) {
+    try {
+      const newDraft = await TicketService.regenerateDraft(req.params.id);
+      return successResponse(res, newDraft, "Đã soạn lại AI draft thành công", 201);
+    } catch (error: any) {
+      return errorResponse(
+        res,
+        error.message || "Không thể soạn lại AI draft",
+        400
+      );
+    }
+  }
+}
