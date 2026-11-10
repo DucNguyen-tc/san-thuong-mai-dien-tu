@@ -115,6 +115,7 @@ export const streamChat = async (req: Request, res: Response) => {
     const orchestratorResult = await llmOrchestrator.streamResponse({
       messages: conversationHistory,
       contextChunks: ragChunks,
+      customerId,
       onChunk: (textChunk: string) => {
         sendEvent('message', {
           type: 'text_chunk',
