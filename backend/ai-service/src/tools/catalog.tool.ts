@@ -24,10 +24,17 @@ export interface ComparisonAttribute {
   values: string[];
 }
 
+export interface ProductProsCons {
+  product: string;
+  pros: string[];
+  cons: string[];
+}
+
 export interface ComparisonTableMetadata {
   type: 'comparison_table';
   products: string[];
   attributes: ComparisonAttribute[];
+  highlights?: ProductProsCons[];
   recommendation?: string;
 }
 
@@ -319,6 +326,18 @@ export class CatalogTool {
         { name: 'Camera chính', values: ['48MP + 12MP + 12MP (Zoom 5x)', '200MP + 50MP + 12MP + 10MP (Zoom 5x)'] },
         { name: 'Dung lượng Pin', values: ['4422 mAh (Sạc 27W)', '5000 mAh (Sạc nhanh 45W)'] },
         { name: 'Chất liệu khung viền', values: ['Titanium chuẩn hàng không', 'Titanium siêu bền'] },
+      ],
+      highlights: [
+        {
+          product: 'iPhone 15 Pro Max',
+          pros: ['Khung titan siêu nhẹ & sang trọng', 'Chip A17 Pro hiệu năng đơn nhân số 1', 'Quay phim ProRes Log chuẩn điện ảnh', 'Hệ sinh thái iOS mượt mà'],
+          cons: ['Công suất sạc giới hạn ở 27W', 'Giá bán cao hơn thị trường chung'],
+        },
+        {
+          product: 'Samsung Galaxy S24 Ultra',
+          pros: ['Camera 200MP zoom quang 5x và zoom kỹ thuật số 100x', 'Tích hợp sẵn bút S-Pen thông minh', 'Kính cường lực Gorilla Armor chống chói đỉnh cao', 'Pin 5000mAh hỗ trợ sạc 45W'],
+          cons: ['Thiết kế góc cạnh vuông vức kén người dùng tay nhỏ'],
+        },
       ],
       recommendation:
         'Nếu bạn cần camera zoom sắc nét, pin trâu và có bút S-Pen hỗ trợ công việc thì **Samsung Galaxy S24 Ultra** là lựa chọn tuyệt vời. Còn nếu bạn chuộng hệ sinh thái Apple, quay video chất lượng đỉnh cao và giữ giá tốt thì **iPhone 15 Pro Max** sẽ tối ưu nhất.',
