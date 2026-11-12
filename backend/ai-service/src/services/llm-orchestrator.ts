@@ -6,6 +6,7 @@ import { catalogTool, ToolMetadataPayload, ToolExecutionResult } from '../tools/
 import { cartTool } from '../tools/cart.tool';
 import { orderTool } from '../tools/order.tool';
 import { promotionTool } from '../tools/promotion.tool';
+import { ticketTool } from '../tools/ticket.tool';
 
 export interface ChatMessageParam {
   role: 'user' | 'assistant' | 'system';
@@ -16,6 +17,9 @@ export interface OrchestratorStreamOptions {
   messages: ChatMessageParam[];
   contextChunks: RagChunkResult[];
   customerId?: string | null;
+  customerEmail?: string | null;
+  customerName?: string | null;
+  sessionId?: string | null;
   onChunk: (chunk: string) => void;
   onMetadata?: (metadata: ToolMetadataPayload) => void;
 }
@@ -59,8 +63,9 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
    - get_orders / get_order_detail: Tra cứu đơn hàng.
    - cancel_order: Hủy đơn hàng (LUÔN hỏi xác nhận trước).
    - check_promotions: Kiểm tra voucher / mã giảm giá khả dụng.
-4. Khi trả lời về sản phẩm, hãy giới thiệu ngắn gọn, lịch sự, nêu rõ ưu điểm chính.
-5. Đối với các hành động nhạy cảm (như hủy đơn, xóa đơn), LUÔN nhắc nhở và hỏi xác nhận trước khi thực hiện.
+   - escalate_to_ticket: Chuyển tiếp khiếu nại tới nhân viên CSKH khi khách giận dữ, bức xúc hoặc yêu cầu gặp người thật.
+4. Khi khách hàng có dấu hiệu bức xúc (kêu giao hàng trễ, khiếu nại, tố lừa đảo, đòi gặp người thật), HÃY THỂ HIỆN SỰ THẤU CẢM và lập tức gọi công cụ escalate_to_ticket.
+5. Đối với các hành động nhạy cảm (như hủy đơn), LUÔN nhắc nhở và hỏi xác nhận trước khi thực hiện.
 6. Nếu khách hàng chưa đăng nhập mà yêu cầu xem giỏ hàng hoặc lịch sử đơn hàng, hãy nhắc khách đăng nhập trước.
 7. Phản hồi bằng Tiếng Việt, lịch sự, thân thiện, ngắn gọn và định dạng Markdown rõ ràng.`;
 
@@ -77,7 +82,12 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
   /**
    * Thực thi Tool Calling dựa trên tên công cụ
    */
-  public async executeTool(toolName: string, args: any, customerId?: string | null): Promise<ToolExecutionResult> {
+  public async executeTool(
+    toolName: string,
+    args: any,
+    customerId?: string | null,
+    contextInfo?: { customerEmail?: string | null; customerName?: string | null; sessionId?: string | null }
+  ): Promise<ToolExecutionResult> {
     try {
       switch (toolName) {
         // --- NHÓM 1: CATALOG TOOLS ---
@@ -101,7 +111,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
             products: Array.isArray(args.products) ? args.products : [args.products],
           });
 
-        // --- NHÓM 2: CART TOOLS (NGÀY 6-7) ---
+        // --- NHÓM 2: CART TOOLS ---
         case 'add_to_cart':
           return await cartTool.addToCart({
             customerId,
@@ -126,7 +136,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
             itemId: args.item_id,
           });
 
-        // --- NHÓM 3: ORDER TOOLS (NGÀY 6-7) ---
+        // --- NHÓM 3: ORDER TOOLS ---
         case 'get_orders':
           return await orderTool.getOrders({
             customerId,
@@ -149,10 +159,22 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
             reason: args.reason,
           });
 
-        // --- NHÓM 4: PROMOTION TOOLS (NGÀY 6-7) ---
+        // --- NHÓM 4: PROMOTION TOOLS ---
         case 'check_promotions':
           return await promotionTool.checkPromotions({
             productIds: args.product_ids,
+          });
+
+        // --- NHÓM 5: SUPPORT ESCALATE TOOL (NGÀY 8-9) ---
+        case 'escalate_to_ticket':
+          return await ticketTool.escalateToTicket({
+            customerId,
+            customerEmail: contextInfo?.customerEmail,
+            customerName: contextInfo?.customerName,
+            chatSessionId: contextInfo?.sessionId,
+            reason: args.reason || 'Khách hàng yêu cầu hỗ trợ từ nhân viên CSKH',
+            chatSummary: args.chat_summary,
+            relatedOrderId: args.related_order_id,
           });
 
         default:
@@ -176,6 +198,22 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
    */
   public detectIntent(message: string): { toolName: string | null; args: any } {
     const lower = message.toLowerCase().trim();
+
+    // 0. Ý định khiếu nại, bức xúc hoặc yêu cầu gặp người thật -> Escalate sang Ticket CSKH (Mục 6.2)
+    const escalateKeywords = [
+      'gặp người thật', 'gặp nhân viên', 'nói chuyện với người', 'tổng đài viên', 'cskh',
+      'lừa đảo', 'khiếu nại', 'bức xúc', 'tệ quá', 'làm ăn kiểu gì', 'kiện', 'báo công an',
+      'tại sao chưa giao', 'trả tiền đây', 'không hài lòng'
+    ];
+    if (escalateKeywords.some((kw) => lower.includes(kw))) {
+      return {
+        toolName: 'escalate_to_ticket',
+        args: {
+          reason: message,
+          chat_summary: `Khách hàng gửi phản ánh: "${message}"`,
+        },
+      };
+    }
 
     // 1. Ý định xác nhận hủy đơn hàng
     if (lower.includes('xác nhận hủy đơn') || lower.includes('đồng ý hủy đơn') || lower.includes('chắc chắn hủy')) {
@@ -268,7 +306,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       return { toolName: 'remove_cart_item', args: { item_id: 'sample-cart-item-id' } };
     }
 
-    // 9. Ý định so sánh sản phẩm (Nâng cấp Day 6-7 với highlights)
+    // 9. Ý định so sánh sản phẩm
     const hasCompareWord = ['so sánh', 'khác nhau', 'cái nào tốt hơn', 'hơn hay', 'giữa'].some((kw) => lower.includes(kw));
     const hasOrChoice = lower.includes('hay') && (lower.includes('nên mua') || lower.includes('chọn') || lower.includes('tốt hơn'));
 
@@ -332,7 +370,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
   }
 
   /**
-   * Định nghĩa Gemini Function Declarations (Bao gồm Catalog, Cart, Order, Promotion)
+   * Định nghĩa Gemini Function Declarations (Bao gồm Catalog, Cart, Order, Promotion, Escalate)
    */
   private getGeminiTools() {
     return [
@@ -442,6 +480,19 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
               properties: {},
             },
           },
+          {
+            name: 'escalate_to_ticket',
+            description: 'Tự động tạo ticket chuyển tiếp cho nhân viên CSKH khi khách hàng khiếu nại, bức xúc hoặc yêu cầu gặp người thật.',
+            parameters: {
+              type: SchemaType.OBJECT,
+              properties: {
+                reason: { type: SchemaType.STRING, description: 'Lý do khiếu nại hoặc cần chuyển ticket' },
+                chat_summary: { type: SchemaType.STRING, description: 'Tóm tắt nội dung trao đổi' },
+                related_order_id: { type: SchemaType.STRING, description: 'Mã đơn hàng liên quan (nếu có)' },
+              },
+              required: ['reason'],
+            },
+          },
         ],
       },
     ];
@@ -453,12 +504,13 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
   async streamResponse(
     options: OrchestratorStreamOptions
   ): Promise<OrchestratorResult> {
-    const { messages, contextChunks, customerId, onChunk, onMetadata } = options;
+    const { messages, contextChunks, customerId, customerEmail, customerName, sessionId, onChunk, onMetadata } = options;
     const systemPrompt = this.buildSystemPrompt(contextChunks);
     const lastMessage = messages[messages.length - 1]?.content || '';
     let fullResponse = '';
     let executedMetadata: ToolMetadataPayload | null = null;
     const toolCallsRecord: Array<{ name: string; args: any; result: any }> = [];
+    const contextInfo = { customerEmail, customerName, sessionId };
 
     // 1. Thử dùng Google Gemini SDK với Function Calling
     if (this.geminiClient && env.GEMINI_API_KEY) {
@@ -481,7 +533,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           const functionCalls = chunk.functionCalls();
           if (functionCalls && functionCalls.length > 0) {
             for (const call of functionCalls) {
-              const toolResult = await this.executeTool(call.name, call.args, customerId);
+              const toolResult = await this.executeTool(call.name, call.args, customerId, contextInfo);
               toolCallsRecord.push({ name: call.name, args: call.args, result: toolResult });
               if (toolResult.metadata) {
                 executedMetadata = toolResult.metadata;
@@ -538,7 +590,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     }
 
     // 3. Fallback Smart Tool Execution & Streaming (khi chạy offline / dev không có API key)
-    return await this.fallbackStreamWithTools(lastMessage, contextChunks, customerId, onChunk, onMetadata);
+    return await this.fallbackStreamWithTools(lastMessage, contextChunks, customerId, contextInfo, onChunk, onMetadata);
   }
 
   /**
@@ -548,6 +600,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     userMessage: string,
     contextChunks: RagChunkResult[],
     customerId?: string | null,
+    contextInfo?: { customerEmail?: string | null; customerName?: string | null; sessionId?: string | null },
     onChunk?: (chunk: string) => void,
     onMetadata?: (metadata: ToolMetadataPayload) => void
   ): Promise<OrchestratorResult> {
@@ -558,7 +611,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
 
     // Nếu phát hiện ý định gọi Tool
     if (toolName) {
-      const toolResult = await this.executeTool(toolName, args, customerId);
+      const toolResult = await this.executeTool(toolName, args, customerId, contextInfo);
       toolCallsRecord.push({ name: toolName, args, result: toolResult });
 
       if (toolResult.metadata) {
@@ -581,7 +634,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       fullResponse += `- 🛒 Thêm sản phẩm vào giỏ hoặc xem giỏ hàng (*"Xem giỏ hàng của tôi"*)\n`;
       fullResponse += `- 📦 Tra cứu và quản lý đơn hàng (*"Kiểm tra đơn hàng của tôi"*)\n`;
       fullResponse += `- 🎟️ Săn mã giảm giá & khuyến mãi (*"Có mã voucher nào không"*)\n`;
-      fullResponse += `- 📄 Tra cứu chính sách bảo hành, đổi trả 7 ngày, miễn phí vận chuyển.\n\n`;
+      fullResponse += `- 🆘 Hỗ trợ giải quyết khiếu nại và kết nối với tổng đài CSKH.\n\n`;
       fullResponse += `Bạn đang quan tâm đến sản phẩm hoặc cần hỗ trợ gì ạ?`;
     }
 

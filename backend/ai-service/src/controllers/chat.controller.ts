@@ -112,10 +112,16 @@ export const streamChat = async (req: Request, res: Response) => {
     // 6. Stream LLM response & Execute Tools (search_products, get_product_details, compare_products)
     let capturedMetadata: ToolMetadataPayload | null = null;
 
+    const customerEmail = (req.headers['x-user-email'] as string) || null;
+    const customerName = (req.headers['x-user-name'] as string) || null;
+
     const orchestratorResult = await llmOrchestrator.streamResponse({
       messages: conversationHistory,
       contextChunks: ragChunks,
       customerId,
+      customerEmail,
+      customerName,
+      sessionId: session?.id,
       onChunk: (textChunk: string) => {
         sendEvent('message', {
           type: 'text_chunk',
