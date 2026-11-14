@@ -6,6 +6,12 @@ import {
   ListTicketsQuery,
   EscalateTicketInput
 } from "../schemas/ticket.schema";
+import {
+  AdminListTicketsQuery,
+  UpdateDraftInput,
+  RejectDraftInput,
+  ApproveAndSendInput
+} from "../schemas/admin-ticket.schema";
 import { TicketSource, TicketStatus, TicketPriority, SenderType, ReviewStatus } from "@prisma/client";
 import { rabbitMQService } from "../rabbitmq/rabbitmq.service";
 import { TicketAnalyzerPipeline } from "./ticket-analyzer.pipeline";
@@ -312,6 +318,293 @@ export class TicketService {
     });
 
     return newDraft;
+  }
+
+  /**
+   * Lấy danh sách ticket cho nhân viên CSKH / Admin
+   * Sắp xếp theo ưu tiên P1 -> P4, rồi đến FIFO (cũ nhất trước)
+   */
+  static async getAdminTickets(query: AdminListTicketsQuery) {
+    const { page, limit, status, priority, sentiment, category, search } = query;
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {
+      ...(status ? { status } : {}),
+      ...(priority ? { priority } : {}),
+      ...(sentiment ? { sentiment } : {}),
+      ...(category ? { category } : {}),
+      ...(search
+        ? {
+            OR: [
+              { ticket_number: { contains: search, mode: "insensitive" } },
+              { subject: { contains: search, mode: "insensitive" } },
+              { customer_name: { contains: search, mode: "insensitive" } },
+              { customer_email: { contains: search, mode: "insensitive" } }
+            ]
+          }
+        : {})
+    };
+
+    const [total, items] = await Promise.all([
+      prisma.ticket.count({ where: whereClause }),
+      prisma.ticket.findMany({
+        where: whereClause,
+        skip,
+        take: limit,
+        orderBy: [
+          { priority: "asc" }, // P1, P2, P3, P4
+          { created_at: "asc" } // FIFO
+        ],
+        include: {
+          responses: {
+            orderBy: { created_at: "desc" },
+            take: 1
+          },
+          _count: {
+            select: { messages: true }
+          }
+        }
+      })
+    ]);
+
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  /**
+   * Lấy chi tiết ticket cho nhân viên CSKH / Admin
+   */
+  static async getAdminTicketDetail(ticketId: string) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        messages: { orderBy: { created_at: "asc" } },
+        responses: { orderBy: { created_at: "desc" } }
+      }
+    });
+    if (!ticket) throw new Error("Không tìm thấy ticket yêu cầu");
+    return ticket;
+  }
+
+  /**
+   * Cập nhật nội dung bản nháp và ghi chú của nhân viên
+   */
+  static async updateDraft(ticketId: string, staffId: string, input: UpdateDraftInput) {
+    const latestResponse = await prisma.ticketResponse.findFirst({
+      where: { ticket_id: ticketId },
+      orderBy: { created_at: "desc" }
+    });
+    if (!latestResponse) throw new Error("Không tìm thấy bản nháp để chỉnh sửa");
+
+    const updated = await prisma.ticketResponse.update({
+      where: { id: latestResponse.id },
+      data: {
+        final_response: input.final_response,
+        staff_notes: input.staff_notes || latestResponse.staff_notes,
+        staff_id: staffId
+      }
+    });
+    return updated;
+  }
+
+  /**
+   * Từ chối bản nháp và yêu cầu AI sinh lại bản nháp mới kèm chỉ dẫn điều chỉnh (Feedback Loop)
+   */
+  static async rejectDraft(ticketId: string, staffId: string, input: RejectDraftInput) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        messages: {
+          where: { sender_type: SenderType.CUSTOMER },
+          orderBy: { created_at: "asc" },
+          take: 1
+        },
+        responses: {
+          orderBy: { created_at: "desc" },
+          take: 1
+        }
+      }
+    });
+    if (!ticket) throw new Error("Không tìm thấy ticket");
+
+    const latestDraft = ticket.responses[0];
+    if (latestDraft) {
+      await prisma.ticketResponse.update({
+        where: { id: latestDraft.id },
+        data: {
+          review_status: ReviewStatus.REJECTED,
+          staff_notes: input.revision_instruction,
+          staff_id: staffId
+        }
+      });
+    }
+
+    const ragQuery = `${ticket.ai_summary || ticket.subject} ${input.revision_instruction}`.trim();
+    const ragChunks = await RagClient.queryPolicies(ragQuery, 3, 0.65);
+
+    const draftResult = await DraftService.generateDraft({
+      customerName: ticket.customer_name || "Khách hàng",
+      ticketNumber: ticket.ticket_number,
+      subject: ticket.subject,
+      content: ticket.messages[0]?.content || ticket.subject,
+      sentiment: ticket.sentiment || "NEUTRAL",
+      sentimentScore: ticket.sentiment_score || 50,
+      summary: ticket.ai_summary || ticket.subject,
+      keyIssues: [],
+      ragChunks,
+      revisionInstruction: input.revision_instruction
+    });
+
+    const newDraft = await prisma.ticketResponse.create({
+      data: {
+        ticket_id: ticketId,
+        ai_draft: draftResult.draft,
+        rag_chunks_used: ragChunks as any,
+        ai_tone: draftResult.tone,
+        ai_confidence: draftResult.confidence,
+        review_status: ReviewStatus.PENDING
+      }
+    });
+    return newDraft;
+  }
+
+  /**
+   * Nhân viên duyệt và gửi phản hồi cho khách hàng
+   */
+  static async approveAndSend(ticketId: string, staffId: string, input: ApproveAndSendInput) {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        responses: { orderBy: { created_at: "desc" }, take: 1 }
+      }
+    });
+    if (!ticket) throw new Error("Không tìm thấy ticket");
+
+    const latestDraft = ticket.responses[0];
+    if (!latestDraft) throw new Error("Ticket chưa có bản nháp nào để duyệt");
+
+    const finalContent = input.final_response || latestDraft.final_response || latestDraft.ai_draft;
+    if (!finalContent || finalContent.trim().length < 5) {
+      throw new Error("Nội dung phản hồi không hợp lệ");
+    }
+
+    const now = new Date();
+
+    // DB Transaction: Update response, add STAFF message, update ticket status
+    await prisma.$transaction(async (tx) => {
+      await tx.ticketResponse.update({
+        where: { id: latestDraft.id },
+        data: {
+          final_response: finalContent,
+          staff_notes: input.staff_notes || latestDraft.staff_notes,
+          review_status: ReviewStatus.APPROVED,
+          staff_id: staffId,
+          reviewed_at: now,
+          sent_at: now
+        }
+      });
+
+      await tx.ticketMessage.create({
+        data: {
+          ticket_id: ticketId,
+          sender_type: SenderType.STAFF,
+          sender_id: staffId,
+          content: finalContent
+        }
+      });
+
+      await tx.ticket.update({
+        where: { id: ticketId },
+        data: {
+          status: TicketStatus.RESPONDED
+        }
+      });
+    });
+
+    // RabbitMQ Publish sang notification-service
+    await rabbitMQService.publishTicketReplied({
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticket_number,
+      recipientEmail: ticket.customer_email,
+      customerName: ticket.customer_name || "Quý khách",
+      ticketSubject: ticket.subject,
+      emailSubject: `[${ticket.ticket_number}] Phản hồi yêu cầu hỗ trợ: ${ticket.subject}`,
+      finalResponse: finalContent,
+      staffId
+    });
+
+    return {
+      ticketId,
+      ticketNumber: ticket.ticket_number,
+      status: TicketStatus.RESPONDED,
+      sentAt: now
+    };
+  }
+
+  /**
+   * Thống kê tổng quan cho Admin CSKH
+   */
+  static async getAdminStats() {
+    const [
+      totalTickets,
+      byStatusRaw,
+      byPriorityRaw,
+      bySentimentRaw,
+      totalResponses
+    ] = await Promise.all([
+      prisma.ticket.count(),
+      prisma.ticket.groupBy({
+        by: ["status"],
+        _count: { _all: true }
+      }),
+      prisma.ticket.groupBy({
+        by: ["priority"],
+        _count: { _all: true }
+      }),
+      prisma.ticket.groupBy({
+        by: ["sentiment"],
+        _count: { _all: true }
+      }),
+      prisma.ticketResponse.groupBy({
+        by: ["review_status"],
+        _count: { _all: true }
+      })
+    ]);
+
+    const byStatus = byStatusRaw.reduce((acc, curr) => {
+      acc[curr.status] = curr._count._all;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const byPriority = byPriorityRaw.reduce((acc, curr) => {
+      acc[curr.priority] = curr._count._all;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const bySentiment = bySentimentRaw.reduce((acc, curr) => {
+      if (curr.sentiment) acc[curr.sentiment] = curr._count._all;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const byReviewStatus = totalResponses.reduce((acc, curr) => {
+      acc[curr.review_status] = curr._count._all;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      totalTickets,
+      byStatus,
+      byPriority,
+      bySentiment,
+      byReviewStatus
+    };
   }
 }
 

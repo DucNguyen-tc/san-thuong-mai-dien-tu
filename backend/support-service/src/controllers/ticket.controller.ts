@@ -135,4 +135,94 @@ export class TicketController {
       );
     }
   }
+
+  /**
+   * GET /api/support/admin/tickets
+   * Lấy danh sách ticket cho CSKH / Admin
+   */
+  static async getAdminTickets(req: Request, res: Response) {
+    try {
+      const result = await TicketService.getAdminTickets(req.query as any);
+      return successResponse(res, result, "Lấy danh sách ticket cho staff thành công");
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể lấy danh sách ticket", 400);
+    }
+  }
+
+  /**
+   * GET /api/support/admin/tickets/:id
+   * Lấy chi tiết ticket cho CSKH / Admin
+   */
+  static async getAdminTicketDetail(req: Request, res: Response) {
+    try {
+      const ticket = await TicketService.getAdminTicketDetail(req.params.id);
+      return successResponse(res, ticket, "Lấy chi tiết ticket thành công");
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không tìm thấy ticket", 404);
+    }
+  }
+
+  /**
+   * PUT /api/support/admin/tickets/:id/draft
+   * Nhân viên chỉnh sửa nội dung phản hồi nháp và ghi chú
+   */
+  static async updateDraft(req: Request, res: Response) {
+    try {
+      const staffId = req.user!.id;
+      const updated = await TicketService.updateDraft(req.params.id, staffId, req.body);
+      return successResponse(res, updated, "Cập nhật bản nháp thành công");
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể cập nhật bản nháp", 400);
+    }
+  }
+
+  /**
+   * POST /api/support/admin/tickets/:id/reject-draft
+   * Nhân viên từ chối bản nháp và gửi chỉ dẫn cho AI viết lại
+   */
+  static async rejectDraft(req: Request, res: Response) {
+    try {
+      const staffId = req.user!.id;
+      const newDraft = await TicketService.rejectDraft(req.params.id, staffId, req.body);
+      return successResponse(
+        res,
+        newDraft,
+        "Đã từ chối bản nháp cũ và yêu cầu AI sinh bản nháp mới",
+        201
+      );
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể từ chối bản nháp", 400);
+    }
+  }
+
+  /**
+   * POST /api/support/admin/tickets/:id/approve-and-send
+   * Nhân viên duyệt bản nháp và gửi email phản hồi tới khách
+   */
+  static async approveAndSend(req: Request, res: Response) {
+    try {
+      const staffId = req.user!.id;
+      const result = await TicketService.approveAndSend(req.params.id, staffId, req.body);
+      return successResponse(
+        res,
+        result,
+        "Đã duyệt và gửi email phản hồi thành công"
+      );
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể duyệt và gửi phản hồi", 400);
+    }
+  }
+
+  /**
+   * GET /api/support/admin/stats
+   * Thống kê tổng quan ticket cho Admin CSKH
+   */
+  static async getAdminStats(req: Request, res: Response) {
+    try {
+      const stats = await TicketService.getAdminStats();
+      return successResponse(res, stats, "Lấy thống kê ticket thành công");
+    } catch (error: any) {
+      return errorResponse(res, error.message || "Không thể lấy thống kê ticket", 400);
+    }
+  }
 }

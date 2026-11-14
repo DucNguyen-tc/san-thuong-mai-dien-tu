@@ -3,7 +3,7 @@ import * as cartService from '@/services/cartService';
 
 export interface LocalCartItem {
   id: string; // The backend CartItem ID (BigInt serialized as string)
-  variant_id: string; // To match which variant it is
+  variant_id?: string; // To match which variant it is
   product_id: string;
   name: string;
   price: number;
@@ -11,6 +11,8 @@ export interface LocalCartItem {
   attributes: Record<string, string>;
   image_url?: string;
 }
+
+export type CartItem = LocalCartItem;
 
 interface CartState {
   items: LocalCartItem[];

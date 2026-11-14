@@ -1,6 +1,6 @@
 import express from "express";
 import { TicketController } from "../controllers/ticket.controller";
-import { requireAuth } from "../middlewares/auth.middleware";
+import { requireAuth, requireStaffOrAdmin } from "../middlewares/auth.middleware";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 import {
   createTicketSchema,
@@ -8,6 +8,12 @@ import {
   listTicketsQuerySchema,
   escalateTicketSchema
 } from "../schemas/ticket.schema";
+import {
+  adminListTicketsQuerySchema,
+  updateDraftSchema,
+  rejectDraftSchema,
+  approveAndSendSchema
+} from "../schemas/admin-ticket.schema";
 
 const router = express.Router();
 
@@ -38,6 +44,52 @@ router.get(
   TicketController.getUserTickets
 );
 
+// ==========================================
+// STAFF & ADMIN API (Yêu cầu role STAFF hoặc ADMIN)
+// ==========================================
+router.get(
+  "/admin/stats",
+  requireStaffOrAdmin,
+  TicketController.getAdminStats
+);
+
+router.get(
+  "/admin/tickets",
+  requireStaffOrAdmin,
+  validateQuery(adminListTicketsQuerySchema),
+  TicketController.getAdminTickets
+);
+
+router.get(
+  "/admin/tickets/:id",
+  requireStaffOrAdmin,
+  TicketController.getAdminTicketDetail
+);
+
+router.put(
+  "/admin/tickets/:id/draft",
+  requireStaffOrAdmin,
+  validateBody(updateDraftSchema),
+  TicketController.updateDraft
+);
+
+router.post(
+  "/admin/tickets/:id/reject-draft",
+  requireStaffOrAdmin,
+  validateBody(rejectDraftSchema),
+  TicketController.rejectDraft
+);
+
+router.post(
+  "/admin/tickets/:id/approve-and-send",
+  requireStaffOrAdmin,
+  validateBody(approveAndSendSchema),
+  TicketController.approveAndSend
+);
+
+// ==========================================
+// CLIENT TICKET DETAIL & MESSAGES
+// ==========================================
 router.get(
   "/:id",
   TicketController.getTicketById

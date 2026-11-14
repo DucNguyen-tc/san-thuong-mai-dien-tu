@@ -133,6 +133,48 @@ class RabbitMQService {
       });
     }
   }
+
+  /**
+   * Đẩy sự kiện ticket được phản hồi / duyệt lên RabbitMQ (để notification-service gửi email)
+   */
+  async publishTicketReplied(payload: {
+    ticketId: string;
+    ticketNumber: string;
+    recipientEmail: string;
+    customerName: string;
+    ticketSubject: string;
+    emailSubject: string;
+    finalResponse: string;
+    staffId: string;
+  }) {
+    const message = {
+      ...payload,
+      sentAt: new Date().toISOString()
+    };
+
+    if (!this.channel) {
+      console.warn(
+        "[RabbitMQ] Channel chưa sẵn sàng khi publish ticket replied. Đã ghi log sự kiện:",
+        message
+      );
+      return;
+    }
+
+    try {
+      const messageBuffer = Buffer.from(JSON.stringify(message));
+      this.channel.publish(this.exchange, "support.ticket.replied", messageBuffer, {
+        persistent: true
+      });
+      console.log(
+        `[RabbitMQ] Đã publish support.ticket.replied cho ticket ${payload.ticketNumber}`
+      );
+    } catch (error: any) {
+      console.error(
+        "[RabbitMQ] Lỗi khi publish support.ticket.replied:",
+        error?.message || error
+      );
+    }
+  }
 }
 
 export const rabbitMQService = new RabbitMQService();

@@ -8,12 +8,16 @@ import Checkout from '@/pages/user/Checkout';
 import ProductList from '@/pages/user/ProductList';
 import ProductDetail from '@/pages/user/ProductDetail';
 import PaymentResult from '@/pages/user/PaymentResult';
+import NewTicket from '@/pages/user/support/NewTicket';
+import MyTickets from '@/pages/user/support/MyTickets';
 
 export const UserRoutes = (
   <Route element={<UserLayout />}>
     <Route path="/" element={<Home />} />
     <Route element={<ProtectedRoute />}>
       <Route path="/profile" element={<ProfileLayout />} />
+      <Route path="/support/new-ticket" element={<NewTicket />} />
+      <Route path="/support/my-tickets" element={<MyTickets />} />
     </Route>
     <Route path="/products" element={<ProductList />} />
     <Route path="/products/:id" element={<ProductDetail />} />

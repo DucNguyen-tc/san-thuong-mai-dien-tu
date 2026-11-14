@@ -12,6 +12,7 @@ export interface GenerateDraftInput {
   summary: string;
   keyIssues: string[];
   ragChunks: RagChunk[];
+  revisionInstruction?: string;
 }
 
 export class DraftService {
@@ -57,6 +58,13 @@ CHỈ TRẢ VỀ JSON HỢP LỆ, KHÔNG CHỨA BẤT KỲ VĂN BẢN NGOÀI NÀ
             .join("\n\n")
         : "Không tìm thấy đoạn chính sách cụ thể phù hợp trong hệ thống Knowledge Base.";
 
+    const feedbackSection = input.revisionInstruction
+      ? `\n## CHỈ DẪN ĐIỀU CHỈNH TỪ NHÂN VIÊN CSKH (BẮT BUỘC TUÂN THỦ CAO NHẤT):
+Bản nháp trước đó chưa đạt yêu cầu. Nhân viên CSKH đưa ra yêu cầu chỉnh sửa cụ thể:
+"${input.revisionInstruction}"
+Hãy điều chỉnh lại nội dung câu trả lời, giải pháp và giọng điệu để phản ánh chính xác yêu cầu này.\n`
+      : "";
+
     const userPrompt = `Hãy soạn email phản hồi cho ticket của khách hàng dựa trên các thông tin sau:
 
 ## Thông tin khách hàng & Ticket
@@ -76,7 +84,7 @@ ${input.content}
 
 ## Chính sách liên quan (từ Knowledge Base)
 ${formattedChunks}
-`;
+${feedbackSection}`;
 
     const rawResponse = await LLMClient.generateStructuredResponse(
       userPrompt,

@@ -71,3 +71,15 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
   const { data } = await apiClient.put<ApiEnvelope<Order>>(`/orders/${id}/status`, { status });
   return data.data;
 }
+
+const orderService = {
+  createOrder,
+  getOrders,
+  getOrderById,
+  cancelOrder,
+  updateOrderStatus,
+  getUserOrders: (page: number = 1, limit: number = 10) => getOrders({ page, limit })
+};
+
+export default orderService;
+
