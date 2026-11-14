@@ -65,6 +65,8 @@ export interface CatalogProduct {
   variants: ProductVariant[];
   images: ProductImage[];
   promotions?: PromotionItem[];
+  rating?: number;
+  reviews_count?: number;
 }
 
 export interface Pagination {

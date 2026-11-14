@@ -42,3 +42,26 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+/**
+ * Middleware phân quyền chỉ cho phép STAFF hoặc ADMIN truy cập
+ */
+export function requireStaffOrAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Không tìm thấy thông tin người dùng"
+    });
+  }
+
+  const allowedRoles = ["STAFF", "ADMIN"];
+  if (!allowedRoles.includes(req.user.role.toUpperCase())) {
+    return res.status(403).json({
+      success: false,
+      message: "Bạn không có quyền thực hiện chức năng này (Dành cho Staff/Admin)"
+    });
+  }
+
+  next();
+}
+
+

@@ -60,7 +60,7 @@ export default function Checkout() {
       const shippingAddress = `${formData.fullName} - ${formData.phone} - ${formData.detailAddress}`;
       const orderItems = items.map((item) => ({
         product_id: item.product_id,
-        variant_id: item.variant_id,
+        variant_id: item.variant_id || item.product_id,
         quantity: item.quantity,
       }));
 

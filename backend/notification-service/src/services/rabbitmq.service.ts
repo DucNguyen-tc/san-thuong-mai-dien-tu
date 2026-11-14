@@ -138,7 +138,75 @@ class RabbitMQService {
       if (msg) await this.processEmailEvent(msg, 'ORDER_CANCELLED', 'Đơn hàng đã bị hủy', orderCancelledTemplate);
     });
 
-    console.log('Listening for order events (completed, shipping, delivered, cancelled)...');
+    // 5. Lắng nghe sự kiện support.ticket.replied (Phản hồi hỗ trợ từ CSKH)
+    const supportExchange = "support_events";
+    await this.channel.assertExchange(supportExchange, "topic", { durable: true });
+    const queueSupportReply = await this.channel.assertQueue("notification_support_ticket_reply", { durable: true });
+    await this.channel.bindQueue(queueSupportReply.queue, supportExchange, "support.ticket.replied");
+
+    this.channel.consume(queueSupportReply.queue, async (msg) => {
+      if (!msg) return;
+      try {
+        const data = JSON.parse(msg.content.toString());
+        console.log(`[Notification Service] Nhận sự kiện email phản hồi ticket ${data.ticketNumber} tới ${data.recipientEmail}`);
+
+        // Đảm bảo template tồn tại trong DB để tránh lỗi FK
+        try {
+          await prisma.notificationTemplate.upsert({
+            where: { code: "SUPPORT_TICKET_REPLY" },
+            update: {},
+            create: {
+              code: "SUPPORT_TICKET_REPLY",
+              subject_template: "[{{ticketNumber}}] Phản hồi hỗ trợ: {{ticketSubject}}",
+              body_template: "{{finalResponse}}"
+            }
+          });
+        } catch (tplErr) {
+          // Ignore if upsert failed
+        }
+
+        // Ghi log DB PENDING
+        let notifRecord;
+        try {
+          notifRecord = await prisma.notification.create({
+            data: {
+              recipient_email: data.recipientEmail,
+              template_code: "SUPPORT_TICKET_REPLY",
+              payload: data,
+              status: "PENDING"
+            }
+          });
+        } catch (dbErr) {
+          console.warn("Log DB notification warning:", dbErr);
+        }
+
+        // HTML Template
+        const htmlBody = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h2 style="color: #2563eb; margin-bottom: 8px;">Sàn Thương Mại Điện Tử - Phản hồi Hỗ trợ</h2>
+            <p style="color: #64748b; font-size: 14px; margin-top: 0;">Mã ticket: <strong>${data.ticketNumber}</strong> | Vấn đề: <strong>${data.ticketSubject}</strong></p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
+            <div style="font-size: 15px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${data.finalResponse}</div>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 13px; color: #94a3b8; margin: 0;">Nếu cần hỗ trợ thêm, Quý khách vui lòng trả lời trực tiếp email này hoặc liên hệ hotline CSKH 1900-xxxx.</p>
+          </div>
+        `;
+
+        const sent = await sendEmail(data.recipientEmail, data.emailSubject, htmlBody);
+        if (notifRecord) {
+          await prisma.notification.update({
+            where: { id: notifRecord.id },
+            data: { status: sent ? "SENT" : "FAILED", sent_at: sent ? new Date() : null }
+          });
+        }
+        this.channel?.ack(msg);
+      } catch (err) {
+        console.error("[Notification Service] Lỗi xử lý gửi email ticket:", err);
+        this.channel?.nack(msg, false, false);
+      }
+    });
+
+    console.log('Listening for order events (completed, shipping, delivered, cancelled) and support events...');
   }
 }
 
