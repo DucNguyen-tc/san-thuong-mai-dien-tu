@@ -64,16 +64,32 @@
   - Hỗ trợ luồng **Xác nhận 2 bước khi hủy đơn (`⚠️ XÁC NHẬN HỦY ĐƠN HÀNG`)**: hiển thị 2 nút **`✅ Xác nhận hủy #<orderId>`** (gửi lệnh xác nhận bước 2) và **`❌ Giữ lại đơn`**.
   - Hỗ trợ luồng **Escalate Ticket (`Mã ticket: TK-...`)**: hiển thị nút **`🎫 Xem phiếu hỗ trợ của tôi`** điều hướng sang `/support/my-tickets` (tích hợp với trang Ticket của Bạn 3).
 
+### ✅ Ngày 10-11 (Thứ 6-7) — POLISH UI, ANIMATION, LOADING/ERROR/EMPTY STATES & MOBILE OPTIMIZATION
+- [x] **Animation mở/đóng Chat Widget (`frontend/src/components/chat/ChatWidget.tsx`):**
+  - Hiệu ứng mở/đóng mượt mà hai chiều (`handleOpenWidget`, `handleCloseWidget` với state `isClosing`, `origin-bottom-right`, scale + slide + fade transition).
+  - Hỗ trợ nhấn phím `Escape` để đóng nhanh panel lịch sử hoặc thu gọn cửa sổ chat.
+  - Hiệu ứng xuất hiện từng bong bóng tin nhắn mới (`animate-in fade-in slide-in-from-bottom-1`).
+- [x] **Loading States & Error States:**
+  - **Skeleton Loading (`isLoadingHistory`):** Hiển thị khung xương shimmer kèm spinner `"Đang tải lịch sử cuộc trò chuyện..."` khi khôi phục hoặc chuyển đổi phiên chat.
+  - **Error State & Retry (`hasError`, `failedPrompt`, `handleRetryMessage`):** Khi gặp lỗi kết nối/stream, hiển thị bong bóng cảnh báo màu đỏ kèm nút **`🔄 Thử gửi lại`** để gửi lại câu hỏi ngay lập tức.
+  - **Network Offline Detection (`isOffline`):** Tự động lắng nghe sự kiện `online`/`offline` của trình duyệt và hiển thị thanh cảnh báo khi mất mạng.
+- [x] **Empty States ("Chưa có cuộc hội thoại nào"):**
+  - Hiển thị thẻ Empty State trực quan với tiêu đề **`"Chưa có cuộc hội thoại nào"`** cả ở màn hình bắt đầu cuộc trò chuyện mới lẫn trong ngăn Lịch sử phiên chat khi danh sách trống.
+- [x] **Mobile Optimization:**
+  - Sử dụng chiều cao động `h-[100dvh]` và `pb-[max(0.75rem,env(safe-area-inset-bottom))]` giúp thanh nhập tin nhắn luôn hiển thị chuẩn xác khi bàn phím ảo bật lên trên điện thoại.
+  - Tự động khóa cuộn trang nền (`document.body.style.overflow = 'hidden'`) khi mở fullscreen chat trên mobile (`< 640px`).
+  - Bổ sung nút nổi **`⬇️ Mới nhất`** (`showScrollBottomBtn`) khi người dùng cuộn ngược lên xem lịch sử dài.
+
 ---
 
 ## 3. DANH SÁCH FILE ĐÃ TẠO / CẬP NHẬT
 
 | File | Trạng thái | Mô tả |
 |---|---|---|
-| [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 6-7) | Bổ sung `ProductProsCons`, `ChatSessionSummary`, cập nhật `ComparisonTableMetadata` |
+| [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 10-11) | Bổ sung `hasError`, `failedPrompt`, `ProductProsCons`, `ChatSessionSummary`, `ComparisonTableMetadata` |
 | [`frontend/src/components/chat/ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx) | Đã cập nhật (Ngày 6-7) | Bảng so sánh 2-4 sản phẩm, tự động highlight ô thông số tốt nhất + khu vực **Highlight Ưu/Nhược điểm mỗi sản phẩm** |
 | [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 8-9) | Kết nối `/api/ai/chat` thật (Gateway `:3000` + Direct `:3010`), gửi kèm `Authorization` & `x-user-id`, `checkAiBackendHealth()`, quản lý Session & E2E fallback |
-| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 8-9) | Đồng bộ `fetchCart()` sau khi thêm giỏ qua chat, render nút tương tác ngữ cảnh E2E (Đăng nhập, Mở giỏ, Chi tiết đơn, Xác nhận hủy đơn 2 bước, Xem Ticket CSKH) |
+| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 10-11) | Animation mở/đóng 2 chiều, Skeleton Loading, Error Retry & Offline Banner, Empty State `"Chưa có cuộc hội thoại nào"`, tối ưu Mobile `100dvh` & khóa cuộn nền |
 | [`frontend/src/components/chat/ChatProductCard.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatProductCard.tsx) | Đã cập nhật (Ngày 4-5) | Product Action Card với ảnh, giá gốc gạch ngang, badge `-%`, nút **"Xem chi tiết"** (`/product/:slug`) và nút **"Thêm giỏ"** (loading/success state) |
 | [`frontend/src/services/productService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/productService.ts) | Đã cập nhật (Ngày 4-5) | Bổ sung `getProductBySlug()` và hỗ trợ `getProductById(idOrSlug)` nhận cả UUID lẫn `slug` |
 | [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx) | Đã cập nhật (Ngày 4-5) | Thêm route `/product/:id` song song với `/products/:id` để nút **"Xem chi tiết"** (`/product/:slug`) hoạt động chuẩn xác |
@@ -82,10 +98,8 @@
 
 ---
 
-## 4. CÔNG VIỆC TIẾP THEO (TUẦN 2: NGÀY 10 - 14)
+## 4. CÔNG VIỆC TIẾP THEO (NGÀY 12 - 14)
 
-- [ ] **Ngày 10-11 (Polish UI):**
-  - Animation mở/đóng chat widget, loading states, error states, empty states ("Chưa có cuộc hội thoại nào"), tối ưu hiển thị trên mobile.
 - [ ] **Ngày 12-13 (Phối hợp tích hợp cuối cùng với Bạn 1 & Bạn 3):**
   - Kiểm tra luồng End-to-End toàn diện và thêm route `/admin/tickets/*` vào `AdminRoutes.tsx` khi Bạn 3 hoàn thành Agent Dashboard.
 

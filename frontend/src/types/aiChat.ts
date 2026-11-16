@@ -73,6 +73,8 @@ export interface ChatMessage {
   createdAt: string;
   isStreaming?: boolean;
   streamState?: SSEConnectionState;
+  hasError?: boolean;
+  failedPrompt?: string;
 }
 
 export interface SSEStreamCallbacks {

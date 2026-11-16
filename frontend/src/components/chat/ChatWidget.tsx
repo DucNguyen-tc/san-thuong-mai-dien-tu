@@ -1,15 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
+  ArrowDown,
   Bot,
   CheckCircle2,
   ClipboardList,
   History,
   Layers,
+  Loader2,
   LogIn,
   MessageSquare,
+  MessageSquareDashed,
   Package,
   Plus,
+  RefreshCw,
   RotateCcw,
   Send,
   ShoppingCart,
@@ -18,6 +23,7 @@ import {
   Ticket,
   Trash2,
   User,
+  WifiOff,
   X,
   XCircle,
 } from 'lucide-react';
@@ -85,6 +91,7 @@ function renderFormattedText(content: string): React.ReactNode {
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -92,6 +99,11 @@ export default function ChatWidget() {
   const [streamPhase, setStreamPhase] = useState<SSEConnectionState>('idle');
   const [isMockMode, setIsMockMode] = useState(false);
   const [forceMock, setForceMock] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isOffline, setIsOffline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? !navigator.onLine : false
+  );
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
 
   // Quản lý Session Chat (Ngày 6-7): Guest/User session token + lịch sử các phiên
   const [activeSessionToken, setActiveSessionToken] = useState<string>('');
@@ -99,6 +111,7 @@ export default function ChatWidget() {
   const [showSessionPanel, setShowSessionPanel] = useState(false);
 
   const navigate = useNavigate();
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -111,13 +124,56 @@ export default function ChatWidget() {
     const token = getOrCreateSessionToken();
     setActiveSessionToken(token);
     setSavedSessions(getSavedSessionsList());
+    setIsLoadingHistory(true);
 
-    fetchSessionHistory(token).then((history) => {
-      if (history.length > 0) {
-        setMessages(history);
-      }
-    });
+    fetchSessionHistory(token)
+      .then((history) => {
+        if (history.length > 0) {
+          setMessages(history);
+        }
+      })
+      .finally(() => {
+        setIsLoadingHistory(false);
+      });
   }, []);
+
+  // Lắng nghe trạng thái kết nối mạng (Online / Offline) — Ngày 10-11 Error States
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Tối ưu Mobile (Ngày 10-11): Khóa cuộn trang nền khi mở fullscreen chat trên điện thoại & hỗ trợ phím Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const isMobileViewport = window.innerWidth < 640;
+    if (isMobileViewport) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    const handleKeyDownGlobal = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        if (showSessionPanel) {
+          setShowSessionPanel(false);
+        } else {
+          handleCloseWidget();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDownGlobal);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDownGlobal);
+    };
+  }, [isOpen, showSessionPanel]);
 
   // Kiểm tra kết nối tới endpoint thật /api/ai/chat khi mở cửa sổ chat
   useEffect(() => {
@@ -145,10 +201,36 @@ export default function ChatWidget() {
 
   // Focus vào ô input khi mở cửa sổ chat
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+    if (isOpen && !isClosing) {
+      setTimeout(() => inputRef.current?.focus(), 120);
     }
-  }, [isOpen]);
+  }, [isOpen, isClosing]);
+
+  const handleOpenWidget = () => {
+    setIsClosing(false);
+    setIsOpen(true);
+  };
+
+  const handleCloseWidget = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+      setShowSessionPanel(false);
+    }, 180);
+  };
+
+  const handleScrollMessages = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBottomBtn(distanceFromBottom > 120);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setShowScrollBottomBtn(false);
+  };
 
   const handleStopStream = () => {
     abortControllerRef.current?.abort();
@@ -177,13 +259,18 @@ export default function ChatWidget() {
     setStoredSessionToken(sessionToken);
     setActiveSessionToken(sessionToken);
     setShowSessionPanel(false);
+    setIsLoadingHistory(true);
 
-    const history = await fetchSessionHistory(sessionToken);
-    if (history.length > 0) {
-      setMessages(history);
-      toast.success('Đã khôi phục lịch sử hội thoại');
-    } else {
-      setMessages([WELCOME_MESSAGE]);
+    try {
+      const history = await fetchSessionHistory(sessionToken);
+      if (history.length > 0) {
+        setMessages(history);
+        toast.success('Đã khôi phục lịch sử hội thoại');
+      } else {
+        setMessages([WELCOME_MESSAGE]);
+      }
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -312,9 +399,11 @@ export default function ChatWidget() {
                     ...m,
                     content:
                       m.content ||
-                      `Xin lỗi, hệ thống đang bận (${errMsg}). Bạn vui lòng thử lại sau nhé!`,
+                      `Xin lỗi, kết nối tới máy chủ AI đang bị gián đoạn (${errMsg}). Bạn vui lòng bấm "Thử gửi lại" nhé!`,
                     isStreaming: false,
                     streamState: 'error',
+                    hasError: true,
+                    failedPrompt: textToSend,
                   }
                 : m
             )
@@ -326,6 +415,13 @@ export default function ChatWidget() {
 
     setIsStreaming(false);
     setIsWaitingFirstChunk(false);
+  };
+
+  const handleRetryMessage = (failedMsg: ChatMessage) => {
+    if (!failedMsg.failedPrompt || isStreaming) return;
+    const promptToRetry = failedMsg.failedPrompt;
+    setMessages((prev) => prev.filter((m) => m.id !== failedMsg.id));
+    handleSendMessage(promptToRetry);
   };
 
   /**
@@ -573,16 +669,16 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) góc phải dưới */}
+      {/* Floating Action Button (FAB) góc phải dưới với hiệu ứng mở mượt mà */}
       {!isOpen && (
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={handleOpenWidget}
           aria-label="Mở Trợ lý Mua sắm AI"
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-700 hover:to-primary text-white px-4 py-3.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer group"
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50 flex items-center gap-2.5 bg-gradient-to-r from-primary to-blue-600 hover:from-blue-700 hover:to-primary text-white px-4 py-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer group animate-in fade-in zoom-in-90"
         >
           <div className="relative flex items-center justify-center">
-            <Bot className="w-6 h-6" />
+            <Bot className="w-6 h-6 transition-transform duration-200 group-hover:rotate-6" />
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full animate-pulse" />
           </div>
           <span className="text-sm font-semibold hidden sm:inline">
@@ -591,9 +687,15 @@ export default function ChatWidget() {
         </button>
       )}
 
-      {/* Cửa sổ Chat (Fullscreen trên Mobile, Floating Window trên Desktop) */}
+      {/* Cửa sổ Chat (Fullscreen 100dvh trên Mobile, Floating Window trên Desktop + Animation mở/đóng) */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 w-full h-full sm:w-[400px] sm:h-[620px] sm:max-h-[calc(100vh-48px)] bg-white sm:rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div
+          className={`fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 w-full h-[100dvh] sm:w-[400px] sm:h-[620px] sm:max-h-[calc(100dvh-48px)] bg-white sm:rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden origin-bottom-right transition-all duration-200 ease-out ${
+            isClosing
+              ? 'opacity-0 translate-y-4 sm:scale-95 pointer-events-none'
+              : 'opacity-100 translate-y-0 sm:scale-100 animate-in fade-in slide-in-from-bottom-4 duration-200'
+          }`}
+        >
           {/* Header */}
           <div className="bg-gradient-to-r from-primary to-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
@@ -608,7 +710,7 @@ export default function ChatWidget() {
                   <span
                     onClick={() => setForceMock((v) => !v)}
                     title="Bấm để chuyển đổi Live Backend / Mock SSE"
-                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer select-none ${
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer select-none transition-colors ${
                       forceMock || isMockMode
                         ? 'bg-amber-400/90 text-gray-900'
                         : 'bg-emerald-400/25 text-emerald-100 border border-emerald-300/30'
@@ -618,11 +720,19 @@ export default function ChatWidget() {
                   </span>
                 </div>
                 <p className="text-[11px] text-blue-100 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full inline-block ${
+                      isOffline ? 'bg-amber-400' : 'bg-green-400'
+                    }`}
+                  />
                   {isStreaming
                     ? streamPhase === 'receiving_metadata'
                       ? 'Đang kết xuất dữ liệu sản phẩm...'
+                      : streamPhase === 'connecting'
+                      ? 'Đang kết nối tới AI...'
                       : 'Đang trả lời trực tuyến...'
+                    : isOffline
+                    ? 'Đang ngoại tuyến (Chế độ dự phòng)'
                     : 'Tư vấn sản phẩm & chính sách 24/7'}
                 </p>
               </div>
@@ -654,8 +764,8 @@ export default function ChatWidget() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                title="Đóng cửa sổ chat"
+                onClick={handleCloseWidget}
+                title="Đóng cửa sổ chat (Esc)"
                 className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -663,9 +773,19 @@ export default function ChatWidget() {
             </div>
           </div>
 
+          {/* Banner cảnh báo mất kết nối mạng (Error State — Ngày 10-11) */}
+          {isOffline && (
+            <div className="bg-amber-50 border-b border-amber-200 px-3.5 py-1.5 flex items-center gap-2 text-[11px] text-amber-800 shrink-0">
+              <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>
+                Mất kết nối mạng — Hệ thống tự động dùng chế độ phản hồi dự phòng.
+              </span>
+            </div>
+          )}
+
           {/* Panel Quản lý Session Chat (Guest Session Token & Lịch sử hội thoại) */}
           {showSessionPanel && (
-            <div className="bg-slate-50 border-b border-gray-200 px-3.5 py-2.5 text-xs shrink-0 animate-in fade-in duration-150">
+            <div className="bg-slate-50 border-b border-gray-200 px-3.5 py-2.5 text-xs shrink-0 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -705,9 +825,15 @@ export default function ChatWidget() {
                   Lịch sử phiên đã lưu ({savedSessions.length})
                 </p>
                 {savedSessions.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 italic py-1">
-                    Chưa có lịch sử phiên nào được lưu.
-                  </p>
+                  <div className="py-3 px-2 text-center bg-white rounded-lg border border-dashed border-gray-200">
+                    <MessageSquareDashed className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                    <p className="text-[11px] font-medium text-gray-600">
+                      Chưa có cuộc hội thoại nào
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Các cuộc trò chuyện của bạn sẽ tự động lưu tại đây.
+                    </p>
+                  </div>
                 ) : (
                   <div className="max-h-36 overflow-y-auto space-y-1 pr-0.5">
                     {savedSessions.map((sess) => {
@@ -754,114 +880,182 @@ export default function ChatWidget() {
           )}
 
           {/* Danh sách tin nhắn (Bubble Messages) */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-gray-50">
-            {messages.map((msg) => {
-              const isUser = msg.role === 'user';
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex items-start gap-2 ${
-                    isUser ? 'flex-row-reverse' : 'flex-row'
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                      isUser
-                        ? 'bg-primary text-white'
-                        : 'bg-blue-100 text-primary'
-                    }`}
-                  >
-                    {isUser ? (
-                      <User className="w-4 h-4" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                  </div>
-
-                  {/* Nội dung Bubble */}
-                  <div
-                    className={`max-w-[84%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                      isUser
-                        ? 'bg-primary text-white rounded-tr-xs shadow-xs'
-                        : 'bg-white text-gray-800 border border-gray-200 rounded-tl-xs shadow-xs'
-                    }`}
-                  >
-                    {/* Typing Indicator khi chờ chunk đầu tiên */}
-                    {!isUser &&
-                    msg.isStreaming &&
-                    !msg.content &&
-                    isWaitingFirstChunk ? (
-                      <div className="flex items-center gap-1 py-1 px-1">
-                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                        <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" />
-                      </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap break-words">
-                        {isUser ? msg.content : renderFormattedText(msg.content)}
-                        {!isUser && msg.isStreaming && (
-                          <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-primary animate-pulse" />
-                        )}
-                      </div>
-                    )}
-
-                    {/* Nhãn phân biệt khi nhận SSE Metadata (Product Cards / Comparison Table) */}
-                    {!isUser && msg.metadata && (
-                      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
-                        <span className="inline-flex items-center gap-1 font-medium text-blue-600">
-                          <Layers className="w-3 h-3" />
-                          {msg.metadata.type === 'product_cards'
-                            ? `Gợi ý sản phẩm (${msg.metadata.products.length})`
-                            : 'Bảng so sánh thông số'}
-                        </span>
-                        <span>SSE Metadata</span>
-                      </div>
-                    )}
-
-                    {/* Render Product Action Cards nếu metadata.type === 'product_cards' */}
-                    {!isUser &&
-                      msg.metadata?.type === 'product_cards' &&
-                      msg.metadata.products && (
-                        <ChatProductCardList
-                          products={msg.metadata.products}
-                          onAddToCart={handleAddToCartFromCard}
-                          onViewDetail={handleViewDetailFromCard}
-                        />
-                      )}
-
-                    {/* Render Comparison Table nếu metadata.type === 'comparison_table' */}
-                    {!isUser &&
-                      msg.metadata?.type === 'comparison_table' && (
-                        <ChatComparisonTable data={msg.metadata} />
-                      )}
-
-                    {/* Các nút tương tác ngữ cảnh E2E (Đăng nhập, Mở giỏ, Chi tiết đơn, Xác nhận hủy đơn 2 bước, Xem Ticket) */}
-                    {!isUser && renderContextualActions(msg)}
-                  </div>
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScrollMessages}
+            className="relative flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-gray-50 overscroll-y-contain"
+          >
+            {/* Loading State (Skeleton khi đang khôi phục lịch sử phiên chat — Ngày 10-11) */}
+            {isLoadingHistory ? (
+              <div className="space-y-3 py-2 animate-pulse">
+                <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400 py-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  <span>Đang tải lịch sử cuộc trò chuyện...</span>
                 </div>
-              );
-            })}
+                <div className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-full bg-gray-200 shrink-0" />
+                  <div className="h-14 w-3/4 bg-gray-200 rounded-2xl rounded-tl-xs" />
+                </div>
+                <div className="flex items-start gap-2 flex-row-reverse">
+                  <div className="w-7 h-7 rounded-full bg-gray-200 shrink-0" />
+                  <div className="h-10 w-1/2 bg-gray-200 rounded-2xl rounded-tr-xs" />
+                </div>
+              </div>
+            ) : (
+              messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                const isErrorMsg = Boolean(msg.hasError || msg.streamState === 'error');
 
-            {/* Gợi ý câu hỏi nhanh (hiển thị khi mới có 1 tin nhắn chào mừng) */}
-            {messages.length === 1 && !isStreaming && (
-              <div className="pt-2">
-                <p className="text-[11px] font-medium text-gray-500 mb-2 flex items-center gap-1">
-                  <MessageSquare className="w-3 h-3" />
-                  Gợi ý câu hỏi nhanh:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => handleSendMessage(prompt)}
-                      className="text-xs bg-white hover:bg-blue-50 text-gray-700 hover:text-primary border border-gray-200 hover:border-blue-200 rounded-full px-3 py-1.5 transition-colors cursor-pointer text-left"
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start gap-2 animate-in fade-in slide-in-from-bottom-1 duration-150 ${
+                      isUser ? 'flex-row-reverse' : 'flex-row'
+                    }`}
+                  >
+                    {/* Avatar */}
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                        isUser
+                          ? 'bg-primary text-white'
+                          : isErrorMsg
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-blue-100 text-primary'
+                      }`}
                     >
-                      {prompt}
-                    </button>
-                  ))}
+                      {isUser ? (
+                        <User className="w-4 h-4" />
+                      ) : isErrorMsg ? (
+                        <AlertTriangle className="w-4 h-4" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                    </div>
+
+                    {/* Nội dung Bubble */}
+                    <div
+                      className={`max-w-[85%] sm:max-w-[84%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                        isUser
+                          ? 'bg-primary text-white rounded-tr-xs shadow-xs'
+                          : isErrorMsg
+                          ? 'bg-red-50/90 text-red-900 border border-red-200 rounded-tl-xs shadow-xs'
+                          : 'bg-white text-gray-800 border border-gray-200 rounded-tl-xs shadow-xs'
+                      }`}
+                    >
+                      {/* Typing & Loading Indicator khi chờ chunk đầu tiên */}
+                      {!isUser &&
+                      msg.isStreaming &&
+                      !msg.content &&
+                      isWaitingFirstChunk ? (
+                        <div className="flex items-center gap-2 py-1 px-0.5">
+                          <div className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                            <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                            <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" />
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            AI đang xử lý...
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">
+                          {isUser
+                            ? msg.content
+                            : renderFormattedText(msg.content)}
+                          {!isUser && msg.isStreaming && (
+                            <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-primary animate-pulse" />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Error State + Nút Thử gửi lại (Ngày 10-11) */}
+                      {!isUser && isErrorMsg && msg.failedPrompt && (
+                        <div className="mt-2 pt-2 border-t border-red-200/70 flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-red-600 font-medium">
+                            Gửi tin nhắn chưa thành công
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isStreaming}
+                            onClick={() => handleRetryMessage(msg)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Thử gửi lại</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Nhãn phân biệt khi nhận SSE Metadata (Product Cards / Comparison Table) */}
+                      {!isUser && msg.metadata && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
+                          <span className="inline-flex items-center gap-1 font-medium text-blue-600">
+                            <Layers className="w-3 h-3" />
+                            {msg.metadata.type === 'product_cards'
+                              ? `Gợi ý sản phẩm (${msg.metadata.products.length})`
+                              : 'Bảng so sánh thông số'}
+                          </span>
+                          <span>SSE Metadata</span>
+                        </div>
+                      )}
+
+                      {/* Render Product Action Cards nếu metadata.type === 'product_cards' */}
+                      {!isUser &&
+                        msg.metadata?.type === 'product_cards' &&
+                        msg.metadata.products && (
+                          <ChatProductCardList
+                            products={msg.metadata.products}
+                            onAddToCart={handleAddToCartFromCard}
+                            onViewDetail={handleViewDetailFromCard}
+                          />
+                        )}
+
+                      {/* Render Comparison Table nếu metadata.type === 'comparison_table' */}
+                      {!isUser &&
+                        msg.metadata?.type === 'comparison_table' && (
+                          <ChatComparisonTable data={msg.metadata} />
+                        )}
+
+                      {/* Các nút tương tác ngữ cảnh E2E (Đăng nhập, Mở giỏ, Chi tiết đơn, Xác nhận hủy đơn 2 bước, Xem Ticket) */}
+                      {!isUser && renderContextualActions(msg)}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* Empty State ("Chưa có cuộc hội thoại nào") & Gợi ý câu hỏi nhanh — Ngày 10-11 */}
+            {!isLoadingHistory && messages.length <= 1 && !isStreaming && (
+              <div className="pt-1 space-y-3 animate-in fade-in duration-200">
+                <div className="bg-white border border-dashed border-gray-200 rounded-xl p-3.5 text-center shadow-2xs">
+                  <div className="w-9 h-9 rounded-full bg-blue-50 text-primary flex items-center justify-center mx-auto mb-1.5">
+                    <MessageSquareDashed className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-700">
+                    Chưa có cuộc hội thoại nào
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                    Chọn nhanh một chủ đề bên dưới hoặc nhập câu hỏi để bắt đầu trò chuyện cùng Trợ lý AI.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-medium text-gray-500 mb-2 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    Gợi ý câu hỏi nhanh:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => handleSendMessage(prompt)}
+                        className="text-xs bg-white hover:bg-blue-50 active:scale-[0.98] text-gray-700 hover:text-primary border border-gray-200 hover:border-blue-200 rounded-full px-3 py-1.5 transition-all cursor-pointer text-left"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -869,8 +1063,20 @@ export default function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Thanh nhập tin nhắn */}
-          <div className="p-3 bg-white border-t border-gray-200 shrink-0">
+          {/* Nút nổi cuộn nhanh xuống tin nhắn mới nhất (Mobile & Hội thoại dài) */}
+          {showScrollBottomBtn && (
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="absolute bottom-16 right-4 z-20 inline-flex items-center gap-1 bg-white/95 hover:bg-white text-primary border border-gray-200 shadow-md rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer"
+            >
+              <ArrowDown className="w-3 h-3" />
+              <span>Mới nhất</span>
+            </button>
+          )}
+
+          {/* Thanh nhập tin nhắn (Tối ưu chạm trên Mobile) */}
+          <div className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white border-t border-gray-200 shrink-0">
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
@@ -887,7 +1093,7 @@ export default function ChatWidget() {
                   type="button"
                   onClick={handleStopStream}
                   title="Dừng trả lời"
-                  className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors cursor-pointer shrink-0"
+                  className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 transition-all cursor-pointer shrink-0"
                 >
                   <Square className="w-4 h-4 fill-current" />
                 </button>
@@ -897,7 +1103,7 @@ export default function ChatWidget() {
                   onClick={() => handleSendMessage()}
                   disabled={!inputValue.trim()}
                   title="Gửi tin nhắn"
-                  className="p-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 disabled:bg-gray-200 disabled:text-gray-400 transition-colors cursor-pointer shrink-0"
+                  className="p-2.5 rounded-xl bg-primary text-white hover:bg-primary/90 active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 transition-all cursor-pointer shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>
