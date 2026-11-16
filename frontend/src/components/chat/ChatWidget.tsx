@@ -1,17 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bot,
+  CheckCircle2,
+  ClipboardList,
   History,
   Layers,
+  LogIn,
   MessageSquare,
+  Package,
   Plus,
   RotateCcw,
   Send,
+  ShoppingCart,
   Sparkles,
   Square,
+  Ticket,
   Trash2,
   User,
   X,
+  XCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type {
@@ -22,6 +30,7 @@ import type {
   SSEConnectionState,
 } from '@/types/aiChat';
 import {
+  checkAiBackendHealth,
   createNewChatSession,
   deleteStoredSession,
   fetchSessionHistory,
@@ -39,8 +48,9 @@ import ChatComparisonTable from './ChatComparisonTable';
 
 const QUICK_PROMPTS = [
   '📱 Tìm điện thoại chụp ảnh đẹp',
+  '🛒 Thêm iPhone 15 Pro Max vào giỏ hàng',
+  '📦 Kiểm tra đơn hàng của tôi',
   '⚖️ So sánh iPhone 15 và Samsung S24',
-  '📊 So sánh 3 máy: iPhone 15, S24 Ultra, Xiaomi 14',
   '🔄 Chính sách đổi trả hàng thế nào?',
 ];
 
@@ -88,12 +98,13 @@ export default function ChatWidget() {
   const [savedSessions, setSavedSessions] = useState<ChatSessionSummary[]>([]);
   const [showSessionPanel, setShowSessionPanel] = useState(false);
 
+  const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const { isAuthenticated } = useAuthStore();
-  const { addItem } = useCartStore();
+  const { addItem, fetchCart } = useCartStore();
 
   // Khởi tạo Guest/User Session Token từ LocalStorage & Load lịch sử chat
   useEffect(() => {
@@ -107,6 +118,15 @@ export default function ChatWidget() {
       }
     });
   }, []);
+
+  // Kiểm tra kết nối tới endpoint thật /api/ai/chat khi mở cửa sổ chat
+  useEffect(() => {
+    if (isOpen && !forceMock) {
+      checkAiBackendHealth().then((online) => {
+        setIsMockMode(!online);
+      });
+    }
+  }, [isOpen, forceMock]);
 
   // Lưu cache mỗi khi messages thay đổi
   useEffect(() => {
@@ -219,6 +239,8 @@ export default function ChatWidget() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    let accumulatedReply = '';
+
     await streamChatMessage(
       textToSend,
       {
@@ -239,6 +261,7 @@ export default function ChatWidget() {
           );
         },
         onTextChunk: (chunk: string) => {
+          accumulatedReply += chunk;
           setIsWaitingFirstChunk(false);
           setMessages((prev) =>
             prev.map((m) =>
@@ -267,6 +290,16 @@ export default function ChatWidget() {
                 : m
             )
           );
+
+          // Đồng bộ lại Giỏ hàng trên Header nếu AI vừa thực thi tool add_to_cart / update / remove
+          const lowerReply = accumulatedReply.toLowerCase();
+          const isCartAction =
+            lowerReply.includes('đã thêm') && lowerReply.includes('giỏ hàng') ||
+            lowerReply.includes('đã cập nhật số lượng') ||
+            lowerReply.includes('đã xóa sản phẩm');
+          if (isCartAction && isAuthenticated) {
+            fetchCart().catch(() => {});
+          }
         },
         onError: (errMsg: string) => {
           setIsWaitingFirstChunk(false);
@@ -359,6 +392,176 @@ export default function ChatWidget() {
     if (typeof window !== 'undefined' && window.innerWidth < 640) {
       setIsOpen(false);
     }
+  };
+
+  const handleNavigateFromChat = (path: string) => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setIsOpen(false);
+    }
+    navigate(path);
+  };
+
+  /**
+   * Hiển thị các nút tương tác thông minh (Quick Action Buttons) bên dưới câu trả lời của AI
+   * Phục vụ luồng E2E Ngày 8-9:
+   * - Yêu cầu đăng nhập khi Guest thao tác Giỏ hàng / Đơn hàng (Mục 6.1)
+   * - Xác nhận 2 bước khi Hủy đơn hàng (Mục 6.2)
+   * - Xem chi tiết / Hủy đơn khi tra cứu đơn hàng
+   * - Mở giỏ hàng sau khi thêm sản phẩm qua chat
+   * - Xem danh sách Ticket sau khi AI escalate khiếu nại
+   */
+  const renderContextualActions = (msg: ChatMessage) => {
+    if (msg.role !== 'assistant' || msg.isStreaming || !msg.content) {
+      return null;
+    }
+
+    const content = msg.content;
+    const lower = content.toLowerCase();
+
+    // 1. Khi Guest chưa đăng nhập mà yêu cầu thao tác Giỏ hàng / Đơn hàng
+    if (
+      content.includes('🔒') ||
+      (lower.includes('vui lòng đăng nhập') && !isAuthenticated)
+    ) {
+      return (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleNavigateFromChat('/login')}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg shadow-2xs transition-colors cursor-pointer"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Đăng nhập ngay</span>
+          </button>
+        </div>
+      );
+    }
+
+    // 2. Khi AI hỏi Xác nhận 2 bước để Hủy đơn hàng (⚠️ XÁC NHẬN HỦY ĐƠN HÀNG #...)
+    if (
+      lower.includes('xác nhận hủy đơn hàng') ||
+      (content.includes('⚠️') && lower.includes('chắc chắn muốn hủy'))
+    ) {
+      const orderMatch = content.match(/#([A-Za-z0-9_-]+)/);
+      const orderId = orderMatch ? orderMatch[1] : 'ORD-2026-8899';
+
+      return (
+        <div className="mt-2.5 pt-2 border-t border-amber-200/70 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            disabled={isStreaming}
+            onClick={() => handleSendMessage(`Xác nhận hủy đơn ${orderId}`)}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Xác nhận hủy #{orderId}</span>
+          </button>
+          <button
+            type="button"
+            disabled={isStreaming}
+            onClick={() =>
+              handleSendMessage('Không hủy nữa, giữ lại đơn hàng giúp tôi')
+            }
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            <span>Giữ lại đơn</span>
+          </button>
+        </div>
+      );
+    }
+
+    // 3. Khi AI trả về danh sách hoặc chi tiết Đơn hàng (📦 / 📋)
+    if (
+      content.includes('📦') ||
+      content.includes('📋') ||
+      lower.includes('mã đơn: #')
+    ) {
+      const orderMatch = content.match(/#([A-Za-z0-9_-]+)/);
+      const orderId = orderMatch ? orderMatch[1] : 'ORD-2026-8899';
+      const isDetailView = content.includes('📋') || lower.includes('chi tiết đơn hàng');
+
+      return (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
+          {!isDetailView && (
+            <button
+              type="button"
+              disabled={isStreaming}
+              onClick={() => handleSendMessage(`Xem chi tiết đơn ${orderId}`)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+            >
+              <ClipboardList className="w-3 h-3" />
+              <span>Chi tiết #{orderId}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={isStreaming}
+            onClick={() => handleSendMessage(`Hủy đơn ${orderId}`)}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+          >
+            <XCircle className="w-3 h-3" />
+            <span>Yêu cầu hủy #{orderId}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleNavigateFromChat('/profile')}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+          >
+            <Package className="w-3 h-3" />
+            <span>Quản lý đơn mua</span>
+          </button>
+        </div>
+      );
+    }
+
+    // 4. Khi AI vừa thêm sản phẩm vào giỏ hàng hoặc hiển thị giỏ hàng (🛒)
+    if (
+      content.includes('🛒') &&
+      (lower.includes('đã thêm') || lower.includes('giỏ hàng hiện tại'))
+    ) {
+      return (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleNavigateFromChat('/cart')}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-primary hover:bg-primary/90 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            <ShoppingCart className="w-3 h-3" />
+            <span>Mở Giỏ hàng</span>
+          </button>
+          {lower.includes('đã thêm') && (
+            <button
+              type="button"
+              disabled={isStreaming}
+              onClick={() => handleSendMessage('Xem giỏ hàng của tôi')}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <ClipboardList className="w-3 h-3" />
+              <span>Kiểm tra giỏ qua AI</span>
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // 5. Khi AI vừa chuyển tiếp khiếu nại tạo Ticket CSKH (Mã ticket: TK-...)
+    if (lower.includes('mã ticket:') || content.includes('TK-')) {
+      return (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleNavigateFromChat('/support/my-tickets')}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            <Ticket className="w-3.5 h-3.5" />
+            <span>Xem phiếu hỗ trợ của tôi</span>
+          </button>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -633,6 +836,9 @@ export default function ChatWidget() {
                       msg.metadata?.type === 'comparison_table' && (
                         <ChatComparisonTable data={msg.metadata} />
                       )}
+
+                    {/* Các nút tương tác ngữ cảnh E2E (Đăng nhập, Mở giỏ, Chi tiết đơn, Xác nhận hủy đơn 2 bước, Xem Ticket) */}
+                    {!isUser && renderContextualActions(msg)}
                   </div>
                 </div>
               );

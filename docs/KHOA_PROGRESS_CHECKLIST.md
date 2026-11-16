@@ -49,6 +49,21 @@
   - Tự động gọi `GET /api/ai/sessions/:sessionToken/messages` để đồng bộ lịch sử từ Server, đồng thời fallback về `localStorage` khi tải lại trang (`F5`).
   - Thêm **Panel Quản lý Phiên & Lịch sử Chat** ngay trên Header của `ChatWidget` (xem `session_token` hiện tại, phân biệt `Guest Session` / `User Session`, chuyển đổi giữa các phiên cũ, xóa phiên hoặc tạo phiên mới).
 
+### ✅ Ngày 8-9 (Thứ 4-5) — TÍCH HỢP THẬT E2E VỚI BẠN 1 (`ai-service`)
+- [x] **Thay Mock SSE bằng endpoint thật `/api/ai/chat` (`frontend/src/services/aiChatService.ts`):**
+  - Kết nối trực tiếp tới `POST http://localhost:3000/api/ai/chat` (qua API Gateway) và tự động kết nối dự phòng sang `POST http://localhost:3010/api/ai/chat` (trực tiếp `ai-service` của Bạn 1 nếu Gateway chưa bật).
+  - Bổ sung hàm `checkAiBackendHealth()` tự động kiểm tra trạng thái `Live SSE` ngay khi mở cửa sổ Chat.
+  - Tự động đính kèm `Authorization: Bearer <token>`, `x-user-id` và `x-user-email` từ phiên đăng nhập thực tế để `ai-service` thực thi các Tool bảo mật (Cart, Order, Escalate Ticket).
+- [x] **Test E2E: Hỏi sản phẩm → Nhận Product Cards thật:**
+  - Gửi truy vấn tìm kiếm sản phẩm → nhận luồng SSE `text_chunk` + `metadata` (`type: "product_cards"`) từ `CatalogTool.searchProducts`, tự động chuẩn hóa `slug` và `variant_id` thật để điều hướng `/product/:slug` và thêm vào giỏ.
+- [x] **Test E2E: Thêm giỏ hàng qua chat (`add_to_cart`, `get_cart`):**
+  - **Guest (chưa đăng nhập):** Khi AI phản hồi yêu cầu đăng nhập (`🔒`), tự động hiển thị nút **`🔑 Đăng nhập ngay`** dẫn tới `/login` (đúng Mục 6.1 tài liệu kiến trúc).
+  - **User (đã đăng nhập):** Khi AI thực thi xong `add_to_cart` / `update_cart_item` / `remove_cart_item`, tự động gọi `useCartStore.getState().fetchCart()` để cập nhật ngay số lượng trên icon Giỏ hàng ở Header và hiển thị nút **`🛒 Mở Giỏ hàng`** + **`📋 Kiểm tra giỏ qua AI`**.
+- [x] **Test E2E: Tra cứu & Hủy đơn hàng 2 bước qua chat (`get_orders`, `get_order_detail`, `cancel_order`):**
+  - Hiển thị các nút thao tác ngữ cảnh ngay dưới bong bóng chat khi tra cứu đơn hàng: **`📋 Chi tiết #<orderId>`**, **`⚠️ Yêu cầu hủy #<orderId>`**, **`📦 Quản lý đơn mua`** (`/profile`).
+  - Hỗ trợ luồng **Xác nhận 2 bước khi hủy đơn (`⚠️ XÁC NHẬN HỦY ĐƠN HÀNG`)**: hiển thị 2 nút **`✅ Xác nhận hủy #<orderId>`** (gửi lệnh xác nhận bước 2) và **`❌ Giữ lại đơn`**.
+  - Hỗ trợ luồng **Escalate Ticket (`Mã ticket: TK-...`)**: hiển thị nút **`🎫 Xem phiếu hỗ trợ của tôi`** điều hướng sang `/support/my-tickets` (tích hợp với trang Ticket của Bạn 3).
+
 ---
 
 ## 3. DANH SÁCH FILE ĐÃ TẠO / CẬP NHẬT
@@ -57,8 +72,8 @@
 |---|---|---|
 | [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 6-7) | Bổ sung `ProductProsCons`, `ChatSessionSummary`, cập nhật `ComparisonTableMetadata` |
 | [`frontend/src/components/chat/ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx) | Đã cập nhật (Ngày 6-7) | Bảng so sánh 2-4 sản phẩm, tự động highlight ô thông số tốt nhất + khu vực **Highlight Ưu/Nhược điểm mỗi sản phẩm** |
-| [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 6-7) | Quản lý Guest Session Token (`getOrCreateSessionToken`, `createNewChatSession`), lưu/load lịch sử đa phiên (`getSavedSessionsList`, `fetchSessionHistory`) |
-| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 6-7) | Bổ sung Panel Quản lý Phiên & Lịch sử Chat, quick prompt so sánh 2-3 sản phẩm |
+| [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 8-9) | Kết nối `/api/ai/chat` thật (Gateway `:3000` + Direct `:3010`), gửi kèm `Authorization` & `x-user-id`, `checkAiBackendHealth()`, quản lý Session & E2E fallback |
+| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 8-9) | Đồng bộ `fetchCart()` sau khi thêm giỏ qua chat, render nút tương tác ngữ cảnh E2E (Đăng nhập, Mở giỏ, Chi tiết đơn, Xác nhận hủy đơn 2 bước, Xem Ticket CSKH) |
 | [`frontend/src/components/chat/ChatProductCard.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatProductCard.tsx) | Đã cập nhật (Ngày 4-5) | Product Action Card với ảnh, giá gốc gạch ngang, badge `-%`, nút **"Xem chi tiết"** (`/product/:slug`) và nút **"Thêm giỏ"** (loading/success state) |
 | [`frontend/src/services/productService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/productService.ts) | Đã cập nhật (Ngày 4-5) | Bổ sung `getProductBySlug()` và hỗ trợ `getProductById(idOrSlug)` nhận cả UUID lẫn `slug` |
 | [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx) | Đã cập nhật (Ngày 4-5) | Thêm route `/product/:id` song song với `/products/:id` để nút **"Xem chi tiết"** (`/product/:slug`) hoạt động chuẩn xác |
@@ -67,14 +82,10 @@
 
 ---
 
-## 4. CÔNG VIỆC TIẾP THEO (TUẦN 2: NGÀY 8 - 14)
+## 4. CÔNG VIỆC TIẾP THEO (TUẦN 2: NGÀY 10 - 14)
 
-- [ ] **Ngày 8-9 (Tích hợp E2E với Bạn 1):**
-  - Khi Dự (Bạn 1) hoàn thiện xong 12 Tools thật (`search_products`, `add_to_cart`, `get_orders`, `cancel_order`, `compare_products`), tiến hành test E2E trực tiếp ở chế độ `Live SSE`.
-  - Đồng bộ lại giỏ hàng trên Header (`useCartStore.getState().fetchCart()`) khi AI thực hiện xong tool `add_to_cart` / `update_cart_item` / `remove_cart_item` từ phía Backend.
 - [ ] **Ngày 10-11 (Polish UI):**
-  - Tinh chỉnh hiển thị Markdown cơ bản (in đậm `**text**`, danh sách gạch đầu dòng) trong tin nhắn của AI nếu LLM trả về nhiều định dạng Markdown.
-  - Kiểm tra thêm các trạng thái rỗng / mất kết nối mạng.
-- [ ] **Ngày 12-13 (Phối hợp với Bạn 3 - Đức):**
-  - Thêm các route `/support/*` (`/support/new-ticket`, `/support/my-tickets`) vào `UserRoutes.tsx` và `/admin/tickets/*` vào `AdminRoutes.tsx` khi Bạn 3 hoàn thành các trang Ticket UI.
+  - Animation mở/đóng chat widget, loading states, error states, empty states ("Chưa có cuộc hội thoại nào"), tối ưu hiển thị trên mobile.
+- [ ] **Ngày 12-13 (Phối hợp tích hợp cuối cùng với Bạn 1 & Bạn 3):**
+  - Kiểm tra luồng End-to-End toàn diện và thêm route `/admin/tickets/*` vào `AdminRoutes.tsx` khi Bạn 3 hoàn thành Agent Dashboard.
 
