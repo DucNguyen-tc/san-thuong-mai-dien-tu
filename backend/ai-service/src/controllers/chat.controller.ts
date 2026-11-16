@@ -86,13 +86,13 @@ export const streamChat = async (req: Request, res: Response) => {
     // 4. Retrieve RAG context chunks from knowledge base
     const ragChunks = await ragService.queryKnowledgeBase(trimmedMessage, 3, 0.6);
 
-    // 5. Fetch recent message history (last 6 messages) for conversational memory
+    // 5. Fetch recent message history (giới hạn 10 messages gần nhất theo mục Ngày 10-11)
     let conversationHistory: ChatMessageParam[] = [];
     try {
       const previousMessages = await prisma.chatMessage.findMany({
         where: { sessionId: session.id },
         orderBy: { createdAt: 'desc' },
-        take: 6,
+        take: 10,
       });
 
       conversationHistory = previousMessages
