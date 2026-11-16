@@ -1,0 +1,40 @@
+import { Route } from "react-router-dom";
+import ProtectedRoute from "@/routes/ProtectedRoute";
+import AdminLayout from "@/components/layout/AdminLayout";
+import Dashboard from "@/pages/admin/Dashboard";
+import UsersList from "@/pages/admin/UsersList";
+import ProductManagement from "@/pages/admin/ProductManagement";
+import PromotionManagement from "@/pages/admin/PromotionManagement";
+import CategoryManagement from "@/pages/admin/CategoryManagement";
+import AdminOrderManagement from "@/pages/admin/AdminOrderManagement";
+import TelegramMonitoring from "@/pages/admin/TelegramMonitoring";
+import AdminTickets from "@/pages/admin/AdminTickets";
+import AdminTicketDetail from "@/pages/admin/AdminTicketDetail";
+
+/**
+ * AdminRoutes — Tập hợp tất cả routes dành cho khu vực admin
+ * Bảo vệ bởi ProtectedRoute (yêu cầu role ADMIN)
+ * Bọc bởi AdminLayout (Sidebar + Header)
+ * Import và sử dụng trong AppRoutes.tsx làm direct JSX child.
+ *
+ * Thêm route admin mới: đặt thêm <Route> bên trong AdminLayout wrapper này
+ */
+export const AdminRoutes = (
+  <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
+    <Route element={<AdminLayout />}>
+      <Route path="/admin" element={<Dashboard />} />
+      <Route path="/admin/tickets" element={<AdminTickets />} />
+      <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
+      <Route path="/admin/customers" element={<UsersList />} />
+      <Route path="/admin/products" element={<ProductManagement />} />
+      <Route path="/admin/categories" element={<CategoryManagement />} />
+      <Route path="/admin/promotions" element={<PromotionManagement />} />
+      <Route path="/admin/orders" element={<AdminOrderManagement />} />
+      <Route path="/admin/telegram" element={<TelegramMonitoring />} />
+      {/* <Route path="/admin/payments" element={<PaymentManagement />} />
+      <Route path="/admin/reports" element={<Reports />} />
+      <Route path="/admin/settings" element={<Settings />} /> */}
+    </Route>
+  </Route>
+);
+export default AdminRoutes;

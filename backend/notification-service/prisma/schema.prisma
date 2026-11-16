@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model NotificationTemplate {
+  id               BigInt         @id @default(autoincrement())
+  code             String         @unique @db.VarChar(50)
+  subject_template String         @db.Text
+  body_template    String         @db.Text
+  updated_at       DateTime       @default(now()) @updatedAt @db.Timestamptz
+  notifications    Notification[]
+
+  @@map("notification_templates")
+}
+
+model Notification {
+  id               BigInt             @id @default(autoincrement())
+  recipient_email  String             @db.VarChar(255)
+  template_code    String             @db.VarChar(50)
+  related_order_id String?            @db.Uuid
+  payload          Json?
+  status           NotificationStatus @default(PENDING)
+  retry_count      Int                @default(0) @db.SmallInt
+  sent_at          DateTime?          @db.Timestamptz
+  created_at       DateTime           @default(now()) @db.Timestamptz
+
+  template NotificationTemplate @relation(fields: [template_code], references: [code])
+
+  @@index([status], map: "idx_notifications_status")
+  @@map("notifications")
+}

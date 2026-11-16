@@ -1,0 +1,124 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TicketSource {
+  FORM
+  AI_ESCALATE
+}
+
+enum TicketStatus {
+  OPEN
+  ANALYZING
+  PENDING_REVIEW
+  RESPONDED
+  REOPENED
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+enum TicketSentiment {
+  ANGRY
+  FRUSTRATED
+  DISAPPOINTED
+  NEUTRAL
+}
+
+enum SenderType {
+  CUSTOMER
+  STAFF
+  SYSTEM
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Ticket {
+  id               String           @id @default(uuid()) @db.Uuid
+  ticket_number    String           @unique @db.VarChar(20)
+  customer_id      String           @db.Uuid
+  customer_email   String           @db.VarChar(255)
+  customer_name    String?          @db.VarChar(255)
+  subject          String           @db.VarChar(500)
+  category         String?          @default("OTHER") @db.VarChar(50)
+  related_order_id String?          @db.Uuid
+  source           TicketSource     @default(FORM)
+  chat_session_id  String?          @db.Uuid
+
+  sentiment        TicketSentiment?
+  sentiment_score  Int?
+  priority         TicketPriority   @default(P3)
+  ai_category      String?          @db.VarChar(50)
+  ai_summary       String?          @db.Text
+
+  status           TicketStatus     @default(OPEN)
+  assigned_to      String?          @db.Uuid
+  resolved_at      DateTime?        @db.Timestamptz
+
+  created_at       DateTime         @default(now()) @db.Timestamptz
+  updated_at       DateTime         @updatedAt @db.Timestamptz
+
+  messages         TicketMessage[]
+  responses        TicketResponse[]
+
+  @@index([customer_id], name: "idx_tickets_customer")
+  @@index([status], name: "idx_tickets_status")
+  @@index([priority], name: "idx_tickets_priority")
+  @@index([created_at(sort: Desc)], name: "idx_tickets_created")
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id          BigInt      @id @default(autoincrement())
+  ticket_id   String      @db.Uuid
+  sender_type SenderType
+  sender_id   String?     @db.Uuid
+  content     String      @db.Text
+  attachments Json?       @db.JsonB
+  created_at  DateTime    @default(now()) @db.Timestamptz
+
+  ticket      Ticket      @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id], name: "idx_ticket_messages_ticket")
+  @@map("ticket_messages")
+}
+
+model TicketResponse {
+  id              BigInt       @id @default(autoincrement())
+  ticket_id       String       @db.Uuid
+  ai_draft        String       @db.Text
+  rag_chunks_used Json?        @db.JsonB
+  ai_tone         String?      @db.VarChar(30)
+  ai_confidence   Int?
+
+  staff_id        String?      @db.Uuid
+  final_response  String?      @db.Text
+  staff_notes     String?      @db.Text
+
+  review_status   ReviewStatus @default(PENDING)
+  reviewed_at     DateTime?    @db.Timestamptz
+  sent_at         DateTime?    @db.Timestamptz
+
+  created_at      DateTime     @default(now()) @db.Timestamptz
+
+  ticket          Ticket       @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id], name: "idx_ticket_responses_ticket")
+  @@map("ticket_responses")
+}
+

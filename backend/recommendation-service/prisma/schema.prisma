@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecommendationEventType {
+  IMPRESSION
+  CLICK
+  PURCHASE
+}
+
+model ProductVector {
+  product_id  String                     @id @db.Uuid
+  embedding   Unsupported("vector(500)")
+  computed_at DateTime                   @default(now()) @db.Timestamptz
+
+  @@map("product_vectors")
+}
+
+model RecommendationLog {
+  id                     BigInt                  @id @default(autoincrement())
+  source_product_id      String                  @db.Uuid
+  recommended_product_id String                  @db.Uuid
+  customer_id            String?                 @db.Uuid
+  event_type             RecommendationEventType
+  similarity_score       Float?                  @db.DoublePrecision
+  created_at             DateTime                @default(now()) @db.Timestamptz
+
+  @@map("recommendation_logs")
+}
