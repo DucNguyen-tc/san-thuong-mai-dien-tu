@@ -1,12 +1,12 @@
 # CHECKLIST & TIẾN ĐỘ CÔNG VIỆC — DỰ (BẠN 1: BACKEND & AI CORE ENGINEER)
 
-> **Tài liệu nghiệm thu công việc:** Tổng kết chi tiết các đầu việc Bạn 1 (Dự) đã hoàn thành cho giai đoạn **Ngày 1 đến Ngày 9 (Tuần 1 & Giữa Tuần 2)** theo đúng phân công trong [`docs/kehoachAIASSISTANT.md`](file:///q:/san-thuong-mai-dien-tu/docs/kehoachAIASSISTANT.md).
+> **Tài liệu nghiệm thu công việc:** Tổng kết chi tiết các đầu việc Bạn 1 (Dự) đã hoàn thành cho giai đoạn **Ngày 1 đến Ngày 11 (Tuần 1 & Tuần 2)** theo đúng phân công trong [`docs/kehoachAIASSISTANT.md`](file:///q:/san-thuong-mai-dien-tu/docs/kehoachAIASSISTANT.md).
 
 ---
 
 ## 1. TỔNG QUAN PHÂN CÔNG CỦA BẠN 1 (DỰ)
 - **Vai trò:** Backend & AI Core Engineer
-- **Phạm vi phụ trách chính:** `backend/ai-service` (Port 3010), PostgreSQL `ai_db` (pgvector), LLM Orchestrator, RAG Knowledge Base Engine, Hệ thống Tool Calling (Catalog, Cart, Order, Promotion, CSKH Escalate), SSE Chat Streaming và API Gateway route `/ai`.
+- **Phạm vi phụ trách chính:** `backend/ai-service` (Port 3010), PostgreSQL `ai_db` (pgvector), LLM Orchestrator, RAG Knowledge Base Engine, Hệ thống 12 Tool Calling (Catalog, Cart, Order, Promotion, CSKH Escalate), SSE Chat Streaming, Rate Limiting, Graceful Error Handling và Docker Compose.
 
 ---
 
@@ -38,26 +38,28 @@
 - [x] **Nâng cấp `compare_products` với `highlights` (Pros/Cons):** Khớp component `ChatComparisonTable.tsx` của Khoa.
 
 ### ✅ Ngày 8-9 (Thứ 4-5 Tuần 2) — ESCALATE TO TICKET & SECURITY POLICIES
-- [x] **Xây dựng module `ticket.tool.ts`:**
-  - Tool 11 `escalate_to_ticket`: Gọi `POST http://support-service:3009/api/support/tickets/escalate` đúng schema Mục 6.2 trong `docs/ticket.md`.
-  - Tự động sinh `subject`, `content`, phân loại `category` (`REFUND`, `WARRANTY`, `SHIPPING`, `PAYMENT`, `OTHER`), gán `source = 'AI_ESCALATE'`.
-  - Trả về mã ticket hiển thị `TK-YYYYMMDD-XXX` kèm lời xin lỗi thấu cảm và hướng dẫn chờ email CSKH.
-- [x] **Tự động nhận diện bức xúc (Sentiment & Escalation Detector):**
-  - Tích hợp bộ lọc từ khóa phản ánh: *"lừa đảo"*, *"khiếu nại"*, *"bức xúc"*, *"gặp người thật"*, *"tổng đài viên"*, *"tại sao chưa giao"*, *"kiện"*, *"trả tiền đây"*.
-  - AI tự động kích hoạt `escalate_to_ticket` mà không cần người dùng yêu cầu thủ công.
-- [x] **Hoàn thiện bảo mật hành động nhạy cảm & Guest Handling:**
-  - Xác nhận 2 bước cho `cancel_order`: Bắt buộc người dùng nhập xác nhận rõ ràng trước khi gọi API hủy.
-  - Từ chối lịch sự và hướng dẫn đăng nhập khi khách vãng lai (Guest) yêu cầu xem hoặc thao tác giỏ hàng/đơn hàng.
-- [x] **Đấu nối toàn diện vào `llm-orchestrator.ts` & `chat.controller.ts`:**
-  - Gemini Function Declarations bổ sung `escalate_to_ticket`.
-  - `chat.controller.ts` truyền đầy đủ `sessionId`, `customerEmail`, `customerName` cho tool CSKH.
-- [x] **Kiểm thử tự động ([`test-day8-9.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/scripts/test-day8-9.ts)):**
+- [x] **Xây dựng module `ticket.tool.ts`:** Tool 11 `escalate_to_ticket` gọi sang `support-service:3009/api/support/tickets/escalate`.
+- [x] **Tự động nhận diện bức xúc (Sentiment & Escalation Detector):** Nhận diện từ khóa tiêu cực để tự động chuyển ticket sang CSKH.
+- [x] **Hoàn thiện bảo mật:** Xác nhận 2 bước cho `cancel_order` và bắt buộc đăng nhập đối với khách vãng lai (Guest).
+
+### ✅ Ngày 10-11 (Thứ 6-7 Tuần 2) — POLISH & EDGE CASES
+- [x] **Rate Limiting cho Chat API ([`rateLimiter.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/middlewares/rateLimiter.ts)):**
+  - Xây dựng middleware Rate Limiter sliding window: Tối đa 30 requests / phút theo User ID / IP / Session Token.
+  - Phản hồi HTTP 429 hoặc gói tin SSE error kèm header `Retry-After`, bảo vệ hệ thống và quota LLM khỏi spam/DDoS.
+- [x] **Giới hạn Context Window (10 tin nhắn gần nhất):**
+  - Cập nhật truy vấn `prisma.chatMessage.findMany` giới hạn `take: 10` tin nhắn gần nhất trong phiên hội thoại, đảm bảo trí nhớ ngữ cảnh tối ưu, không vượt context limit và giảm chi phí token.
+- [x] **Graceful Error Handling & LLM Timeout:**
+  - Bổ sung cơ chế `withTimeout` (15s) cho toàn bộ lệnh gọi LLM SDK (Gemini & OpenAI), tự động chuyển sang Fallback stream nếu LLM bị treo hoặc timeout.
+  - Xử lý lỗi êm ái khi các microservice ngoài (Catalog, Cart, Order, Support) tạm thời offline hoặc gặp lỗi mạng.
+- [x] **Cập nhật `docker-compose.yml` final:**
+  - Xác nhận cấu hình hoàn chỉnh cho container `ai-service` (Port 3010, kết nối mạng nội bộ, liên kết `postgres`, `catalog-service`, `cart-service`, `order-service`, `support-service`).
+- [x] **Kiểm thử tự động ([`test-day10-11.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/scripts/test-day10-11.ts)):**
   - Đạt **5/5 tests passed 100%**:
-    1. Tạo ticket escalate trực tiếp thành công.
-    2. LLM Orchestrator tự động bắt sự bức xúc của khách và chuyển ticket.
-    3. Hủy đơn hàng an toàn qua 2 bước.
-    4. Chặn khách vãng lai khi thao tác thông tin cá nhân.
-    5. Hồi quy kiểm thử các tính năng tìm kiếm và so sánh sản phẩm.
+    1. Chặn request vượt ngưỡng với mã lỗi 429.
+    2. Cắt chuẩn xác 10 tin nhắn gần nhất cho Context Window.
+    3. Error handling êm dịu khi toàn bộ các service ngoài offline.
+    4. Timeout fallback không gây crash luồng SSE streaming.
+    5. Đồng bộ toàn bộ 12/12 Tool Calling hoạt động chính xác.
 
 ---
 
@@ -65,19 +67,15 @@
 
 | File | Trạng thái | Mô tả |
 |---|---|---|
-| `backend/ai-service/src/tools/ticket.tool.ts` | **Mới (Ngày 8-9)** | Tool `escalate_to_ticket` gọi sang `support-service:3009` |
-| `backend/ai-service/src/services/llm-orchestrator.ts` | **Cập nhật (Ngày 8-9)** | Khai báo tool escalate, bộ lọc sentiment tự động chuyển tiếp ticket CSKH |
-| `backend/ai-service/src/controllers/chat.controller.ts` | **Cập nhật (Ngày 8-9)** | Truyền thông tin email, name, sessionId sang pipeline Tool Calling |
-| `backend/ai-service/src/scripts/test-day8-9.ts` | **Mới (Ngày 8-9)** | Script kiểm thử tự động toàn diện Ngày 8-9 (5/5 passed) |
-| `backend/ai-service/src/tools/cart.tool.ts` | Đã hoàn thành | Tool Calling giỏ hàng |
-| `backend/ai-service/src/tools/order.tool.ts` | Đã hoàn thành | Tool Calling đơn hàng & xác nhận 2 bước |
-| `backend/ai-service/src/tools/promotion.tool.ts` | Đã hoàn thành | Tool Calling khuyến mãi |
-| `backend/ai-service/src/tools/catalog.tool.ts` | Đã hoàn thành | Tool Calling tìm kiếm và so sánh sản phẩm |
-| `docs/DU_PROGRESS_CHECKLIST.md` | **Cập nhật (Ngày 8-9)** | Báo cáo tiến độ nghiệm thu hoàn tất Ngày 8-9 |
+| `backend/ai-service/src/middlewares/rateLimiter.ts` | **Mới (Ngày 10-11)** | Middleware Rate Limiting sliding window (30 reqs/min) |
+| `backend/ai-service/src/routes/chat.routes.ts` | **Cập nhật (Ngày 10-11)** | Gắn `chatRateLimiter` vào route `POST /api/ai/chat` |
+| `backend/ai-service/src/controllers/chat.controller.ts` | **Cập nhật (Ngày 10-11)** | Giới hạn `take: 10` messages cho context window |
+| `backend/ai-service/src/services/llm-orchestrator.ts` | **Cập nhật (Ngày 10-11)** | Tích hợp timeout bảo vệ (15s) và graceful fallback |
+| `backend/ai-service/src/scripts/test-day10-11.ts` | **Mới (Ngày 10-11)** | Script kiểm thử toàn diện Ngày 10-11 (5/5 passed) |
+| `docs/DU_PROGRESS_CHECKLIST.md` | **Cập nhật (Ngày 10-11)** | Báo cáo tiến độ nghiệm thu hoàn tất Ngày 10-11 |
 
 ---
 
 ## 4. KẾT LUẬN & SẴN SÀNG MERGE
-- Mã nguồn nằm độc lập trong `backend/ai-service/`, không gây bất kỳ xung đột nào.
-- Đã test tích hợp luồng CSKH giữa `ai-service` và `support-service` khớp 100% schema của Bạn 3 (Đức).
-- Build sạch (`tsc` exit 0), sẵn sàng tạo Pull Request để merge vào `develop`.
+- Toàn bộ service build sạch (`tsc` exit 0), pass 100% test suite.
+- Sẵn sàng tạo Pull Request để merge vào `develop`.

@@ -498,6 +498,21 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     ];
   }
 
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, serviceName: string): Promise<T> {
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`[Timeout] ${serviceName} không phản hồi sau ${timeoutMs}ms`));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
+  }
+
   /**
    * Stream câu trả lời của AI theo thời gian thực (Server-Sent Events) kết hợp Tool Calling
    */
@@ -511,8 +526,9 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     let executedMetadata: ToolMetadataPayload | null = null;
     const toolCallsRecord: Array<{ name: string; args: any; result: any }> = [];
     const contextInfo = { customerEmail, customerName, sessionId };
+    const LLM_TIMEOUT_MS = 15000;
 
-    // 1. Thử dùng Google Gemini SDK với Function Calling
+    // 1. Thử dùng Google Gemini SDK với Function Calling (có Timeout bảo vệ)
     if (this.geminiClient && env.GEMINI_API_KEY) {
       try {
         const model = this.geminiClient.getGenerativeModel({
@@ -527,7 +543,11 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
         }));
 
         const chat = model.startChat({ history });
-        const result = await chat.sendMessageStream(lastMessage);
+        const result = await this.withTimeout(
+          chat.sendMessageStream(lastMessage),
+          LLM_TIMEOUT_MS,
+          'Google Gemini 1.5 Flash'
+        );
 
         for await (const chunk of result.stream) {
           const functionCalls = chunk.functionCalls();
@@ -557,21 +577,25 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           return { fullText: fullResponse, metadata: executedMetadata, toolCalls: toolCallsRecord };
         }
       } catch (err: any) {
-        console.warn('[LLM Orchestrator] Gemini streaming/tool calling failed, trying fallback:', err.message);
+        console.warn('[LLM Orchestrator] Gemini streaming/tool calling failed or timed out, trying OpenAI:', err.message);
       }
     }
 
-    // 2. Thử dùng OpenAI SDK (gpt-4o-mini)
+    // 2. Thử dùng OpenAI SDK (gpt-4o-mini) (có Timeout bảo vệ)
     if (this.openaiClient && env.OPENAI_API_KEY) {
       try {
-        const stream = await this.openaiClient.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-          ],
-          stream: true,
-        });
+        const stream = await this.withTimeout(
+          this.openaiClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...messages.map((m) => ({ role: m.role, content: m.content })),
+            ],
+            stream: true,
+          }),
+          LLM_TIMEOUT_MS,
+          'OpenAI GPT-4o-mini'
+        );
 
         for await (const part of stream) {
           const text = part.choices[0]?.delta?.content || '';
@@ -585,7 +609,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           return { fullText: fullResponse, metadata: executedMetadata, toolCalls: toolCallsRecord };
         }
       } catch (err: any) {
-        console.warn('[LLM Orchestrator] OpenAI streaming failed:', err.message);
+        console.warn('[LLM Orchestrator] OpenAI streaming failed or timed out:', err.message);
       }
     }
 
