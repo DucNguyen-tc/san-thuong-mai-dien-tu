@@ -10,11 +10,13 @@ import {
   LogOut,
   FolderTree,
   Send,
+  Headphones,
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "CSKH Tickets", href: "/admin/tickets", icon: Headphones },
   { label: "Danh mục", href: "/admin/categories", icon: FolderTree },
   { label: "Sản phẩm", href: "/admin/products", icon: Package },
   { label: "Khuyến mãi", href: "/admin/promotions", icon: Package }, // Used Package or Tag if imported

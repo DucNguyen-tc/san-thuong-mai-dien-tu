@@ -17,6 +17,11 @@ app.use(express.urlencoded({ extended: true }));
 // Base routes
 app.use("/api/support", healthRoutes);
 app.use("/api/support/tickets", ticketRoutes);
+// Hỗ trợ alias cho /api/support/admin/* tương thích theo đặc tả docs/ticket.md
+app.use("/api/support/admin", (req: Request, res: Response, next: NextFunction) => {
+  req.url = "/admin" + req.url;
+  ticketRoutes(req, res, next);
+});
 
 // Global Error Handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

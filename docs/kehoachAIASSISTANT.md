@@ -309,14 +309,14 @@ Bạn 3    │SETUP│ CRUD Ticket API     │AI   │RAG  │HITL  │ FE Ticke
 - [ ] Thêm route `/support/*` và `/admin/tickets/*` vào React Router (phối hợp Bạn 3)
 
 ### Bạn 3 — support-service + Ticket UI
-- [ ] `support-service` chạy trong Docker, port 3009
-- [ ] CRUD Ticket API hoạt động (tạo, xem, cập nhật)
-- [ ] AI Sentiment Analyzer: phân tích cảm xúc → JSON (sentiment, score, priority)
-- [ ] RAG Auto-Draft: gọi RAG API → soạn email draft tự động
-- [ ] Escalate API: nhận ticket từ `ai-service`
-- [ ] Human-in-the-loop API: xem draft, sửa draft, duyệt & gửi email
-- [ ] Frontend: Form gửi ticket `/support/new-ticket`
-- [ ] Frontend: Danh sách ticket `/support/my-tickets`
-- [ ] Frontend: Agent Dashboard `/admin/tickets` (bảng, sort, filter)
-- [ ] Frontend: Chi tiết ticket `/admin/tickets/:id` (2 cột, AI analysis, draft editor, nút duyệt)
+- [x] `support-service` chạy trong Docker, port 3009
+- [x] CRUD Ticket API hoạt động (tạo, xem, cập nhật)
+- [x] AI Sentiment Analyzer: phân tích cảm xúc → JSON (sentiment, score, priority)
+- [x] RAG Auto-Draft: gọi RAG API → soạn email draft tự động
+- [x] Escalate API: nhận ticket từ `ai-service`
+- [x] Human-in-the-loop API: xem draft, sửa draft, duyệt & gửi email
+- [x] Frontend: Form gửi ticket `/support/new-ticket`
+- [x] Frontend: Danh sách ticket `/support/my-tickets`
+- [x] Frontend: Agent Dashboard `/admin/tickets` (bảng, sort, filter)
+- [x] Frontend: Chi tiết ticket `/admin/tickets/:id` (2 cột, AI analysis, draft editor, nút duyệt)
 - [ ] Gửi email qua `notification-service` (RabbitMQ)
