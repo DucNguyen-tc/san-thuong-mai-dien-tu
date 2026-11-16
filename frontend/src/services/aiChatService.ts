@@ -11,12 +11,64 @@ import type {
 } from '@/types/aiChat';
 
 const AI_CHAT_API_URL = 'http://localhost:3000/api/ai/chat';
+const AI_DIRECT_CHAT_URL = 'http://localhost:3010/api/ai/chat';
+const AI_DIRECT_BASE_URL = 'http://localhost:3010/api/ai';
 const SESSION_TOKEN_KEY = 'ai_chat_session_token';
 const LOCAL_HISTORY_KEY = 'ai_chat_messages_cache';
 const SESSION_MSG_PREFIX = 'ai_chat_session_msgs_';
 const SESSIONS_INDEX_KEY = 'ai_chat_sessions_index';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Đọc thông tin user đã đăng nhập từ LocalStorage để đính kèm header xác thực
+ */
+function getAuthenticatedUserHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const accessToken = localStorage.getItem('access_token');
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  try {
+    const rawUser = localStorage.getItem('user_data');
+    if (rawUser) {
+      const user = JSON.parse(rawUser);
+      if (user?.id && typeof user.id === 'string') {
+        headers['x-user-id'] = user.id;
+      }
+      if (user?.email && typeof user.email === 'string') {
+        headers['x-user-email'] = user.email;
+      }
+    }
+  } catch {
+    // Ignore parse error
+  }
+  return headers;
+}
+
+/**
+ * Kiểm tra trạng thái hoạt động của Backend AI Service (qua Gateway :3000 hoặc trực tiếp :3008)
+ */
+export async function checkAiBackendHealth(): Promise<boolean> {
+  const endpoints = [
+    'http://localhost:3010/health',
+    'http://localhost:3000/health',
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) return true;
+    } catch {
+      // Thử tiếp endpoint kế tiếp
+    }
+  }
+  return false;
+}
 
 /**
  * Sinh chuỗi Guest Session Token chuẩn định dạng để lưu vào LocalStorage
@@ -181,7 +233,29 @@ export async function fetchSessionHistory(
       return normalized;
     }
   } catch {
-    // Fallback về LocalStorage khi backend session 404 hoặc chưa bật
+    // Nếu Gateway :3000 chưa bật, thử gọi trực tiếp ai-service :3008
+    try {
+      const directRes = await fetch(
+        `${AI_DIRECT_BASE_URL}/sessions/${sessionToken}/messages`
+      );
+      if (directRes.ok) {
+        const json = await directRes.json();
+        const backendMessages = json?.data?.messages;
+        if (Array.isArray(backendMessages) && backendMessages.length > 0) {
+          const normalized: ChatMessage[] = backendMessages.map((m: any) => ({
+            id: String(m.id),
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content || '',
+            metadata: m.metadata || null,
+            createdAt: m.createdAt || m.created_at || new Date().toISOString(),
+          }));
+          saveMessagesToLocalCache(normalized, sessionToken);
+          return normalized;
+        }
+      }
+    } catch {
+      // Fallback về LocalStorage khi cả 2 cổng đều offline
+    }
   }
   return loadMessagesFromLocalCache(sessionToken);
 }
@@ -570,6 +644,71 @@ async function simulateMockSSEStream(
           '**Samsung Galaxy S24 Ultra** vượt trội nếu bạn cần màn hình chống chói, RAM 12GB, pin 5000mAh và bút S-Pen. Trong khi đó **iPhone 15 Pro Max** tối ưu cho quay video chuyên nghiệp và sự ổn định lâu dài của iOS.',
       };
     }
+  } else if (
+    lower.includes('xác nhận hủy đơn') ||
+    lower.includes('đồng ý hủy đơn')
+  ) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
+    const orderId = match ? match[1].toUpperCase() : 'ORD-2026-8899';
+    replyText = isLoggedIn
+      ? `✅ **HỦY ĐƠN HÀNG THÀNH CÔNG!**\n\nĐơn hàng **#${orderId}** của bạn đã được chuyển sang trạng thái **Đã Hủy**. Tồn kho sản phẩm đã được hoàn trả và tiền thanh toán (nếu có) sẽ hoàn về tài khoản trong 24 - 48 giờ làm việc.`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để thực hiện thao tác hủy đơn hàng!';
+  } else if (lower.includes('hủy đơn') || lower.includes('cancel đơn')) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
+    const orderId = match ? match[1].toUpperCase() : 'ORD-2026-8899';
+    replyText = isLoggedIn
+      ? `⚠️ **XÁC NHẬN HỦY ĐƠN HÀNG #${orderId}**\n\nBạn có chắc chắn muốn hủy đơn hàng này không? Lưu ý rằng sau khi hủy:\n• Đơn hàng sẽ không thể khôi phục lại.\n• Nếu đã thanh toán trực tuyến, tiền sẽ được hoàn trả về tài khoản gốc trong 1-3 ngày làm việc.\n\n👉 Nếu bạn hoàn toàn chắc chắn, hãy bấm nút xác nhận bên dưới hoặc nhắn lại: **"Xác nhận hủy đơn ${orderId}"** để tôi tiến hành hủy ngay giúp bạn nhé!`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để thực hiện thao tác hủy đơn hàng!';
+  } else if (
+    lower.includes('chi tiết đơn') ||
+    (lower.includes('đơn hàng') && (lower.includes('#') || lower.includes('ord-')))
+  ) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    const match = lower.match(/(?:đơn hàng|mã đơn|chi tiết đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
+    const orderId = match ? match[1].toUpperCase() : 'ORD-2026-8899';
+    replyText = isLoggedIn
+      ? `📋 **Chi tiết đơn hàng #${orderId}:**\n• **Trạng thái:** 🚚 **Đang giao hàng** (Đơn vị vận chuyển: GHN Express)\n• **Sản phẩm:** 1x iPhone 15 Pro Max 256GB - Màu Titan Tự Nhiên\n• **Tổng thanh toán:** **28.990.000đ** (Đã thanh toán trực tuyến)\n• **Thời gian giao dự kiến:** Trong vòng 24h tới.`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để xem chi tiết đơn hàng nhé!';
+  } else if (
+    lower.includes('đơn hàng của tôi') ||
+    lower.includes('kiểm tra đơn') ||
+    lower.includes('xem đơn hàng') ||
+    lower.includes('lịch sử mua') ||
+    lower.includes('đơn mua')
+  ) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    replyText = isLoggedIn
+      ? `📦 **Đơn hàng gần đây của bạn:**\n\n1. **Mã đơn: #ORD-2026-8899**\n   • Trạng thái: 🚚 **Đang vận chuyển** (Dự kiến giao ngày mai)\n   • Sản phẩm: 1x iPhone 15 Pro Max 256GB\n   • Tổng thanh toán: **28.990.000đ** (Đã thanh toán qua VNPay)\n\n👉 Bạn có thể bấm nút bên dưới hoặc nhắn *"Xem chi tiết đơn ORD-2026-8899"* để kiểm tra hành trình vận chuyển nhé!`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để tra cứu lịch sử đơn hàng của mình nhé!';
+  } else if (
+    lower.includes('thêm vào giỏ') ||
+    lower.includes('thêm sản phẩm') ||
+    lower.includes('thêm giỏ hàng') ||
+    lower.includes('cho vào giỏ')
+  ) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    replyText = isLoggedIn
+      ? `🛒 Đã thêm thành công sản phẩm vào giỏ hàng của bạn! (Số lượng: 1). Bạn có thể nhấn vào nút **Xem giỏ hàng** bên dưới hoặc bảo tôi kiểm tra giỏ hàng bất kỳ lúc nào nhé!`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để có thể thêm sản phẩm vào giỏ hàng và lưu trữ nhé!';
+  } else if (
+    lower.includes('xem giỏ') ||
+    lower.includes('giỏ hàng của tôi') ||
+    lower.includes('kiểm tra giỏ')
+  ) {
+    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
+    replyText = isLoggedIn
+      ? `🛒 **Giỏ hàng hiện tại của bạn:**\n\n1. **iPhone 15 Pro Max 256GB Chính Hãng VNA**\n   • Số lượng: **1** x 28.990.000đ = **28.990.000đ**\n\n💰 **Tổng giá trị tạm tính:** **28.990.000đ**\nBạn có muốn đặt hàng hoặc áp dụng mã giảm giá không?`
+      : '🔒 Bạn vui lòng đăng nhập tài khoản để xem các sản phẩm trong giỏ hàng của mình nhé!';
+  } else if (
+    lower.includes('khiếu nại') ||
+    lower.includes('gặp nhân viên') ||
+    lower.includes('gặp người thật') ||
+    lower.includes('bức xúc')
+  ) {
+    const ticketCode = `TK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-015`;
+    replyText = `Em rất tiếc về trải nghiệm chưa tốt này của bạn ạ! 🙏\n\nEm đã tạo phiếu yêu cầu hỗ trợ khẩn cấp (Mã ticket: **${ticketCode}**) và chuyển tiếp toàn bộ vấn đề của bạn sang cho đội ngũ CSKH con người.\n\nNhân viên CSKH chuyên trách sẽ kiểm tra và phản hồi lại qua email trong thời gian sớm nhất ạ!`;
   } else if (isProductQuery) {
     replyText =
       'Mình tìm thấy các mẫu sản phẩm nổi bật phù hợp với nhu cầu của bạn. Bạn có thể bấm **"Xem chi tiết"** để mở trang sản phẩm hoặc bấm **"Thêm giỏ"** ngay trên thẻ bên dưới nhé:';
@@ -634,9 +773,10 @@ async function simulateMockSSEStream(
 }
 
 /**
- * Kết nối SSE Streaming tới POST /api/ai/chat
- * Hỗ trợ đọc từng dòng event: / data: theo chuẩn Server-Sent Events
- * và phân biệt rõ message type: text_chunk vs metadata
+ * Kết nối SSE Streaming tới POST /api/ai/chat (Tích hợp thật Ngày 8-9 với Bạn 1)
+ * - Ưu tiên gọi qua API Gateway (http://localhost:3000/api/ai/chat)
+ * - Nếu API Gateway chưa bật, tự động kết nối trực tiếp tới ai-service (http://localhost:3008/api/ai/chat)
+ * - Hỗ trợ gửi kèm JWT Authorization & x-user-id để thực thi Cart Tools, Order Tools, Escalate Ticket
  */
 export async function streamChatMessage(
   message: string,
@@ -648,33 +788,50 @@ export async function streamChatMessage(
     return;
   }
 
-  const accessToken = localStorage.getItem('access_token');
   const sessionToken = getOrCreateSessionToken();
+  const authHeaders = getAuthenticatedUserHeaders();
 
   callbacks.onStateChange?.('connecting');
 
-  try {
-    const response = await fetch(AI_CHAT_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({
-        message,
-        session_token: sessionToken || undefined,
-      }),
-      signal: options?.signal,
-    });
+  const requestInit: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...authHeaders,
+    },
+    body: JSON.stringify({
+      message,
+      session_token: sessionToken || undefined,
+    }),
+    signal: options?.signal,
+  };
 
-    if (!response.ok || !response.body) {
-      throw new Error(`HTTP ${response.status}`);
+  try {
+    let response: Response | null = null;
+
+    // 1. Thử gọi qua API Gateway (:3000) trước
+    try {
+      const gatewayRes = await fetch(AI_CHAT_API_URL, requestInit);
+      if (gatewayRes.ok && gatewayRes.body) {
+        response = gatewayRes;
+      }
+    } catch (gwErr: any) {
+      if (gwErr?.name === 'AbortError') return;
+    }
+
+    // 2. Nếu Gateway chưa bật hoặc trả lỗi 502/504, gọi trực tiếp tới ai-service (:3008)
+    if (!response) {
+      const directRes = await fetch(AI_DIRECT_CHAT_URL, requestInit);
+      if (!directRes.ok || !directRes.body) {
+        throw new Error(`HTTP ${directRes.status}`);
+      }
+      response = directRes;
     }
 
     callbacks.onModeChange?.(false);
 
-    const reader = response.body.getReader();
+    const reader = response.body!.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
     let currentEvent = 'message';
