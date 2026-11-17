@@ -1,12 +1,12 @@
 # CHECKLIST & TIẾN ĐỘ CÔNG VIỆC — DỰ (BẠN 1: BACKEND & AI CORE ENGINEER)
 
-> **Tài liệu nghiệm thu công việc:** Tổng kết chi tiết các đầu việc Bạn 1 (Dự) đã hoàn thành cho giai đoạn **Ngày 1 đến Ngày 11 (Tuần 1 & Tuần 2)** theo đúng phân công trong [`docs/kehoachAIASSISTANT.md`](file:///q:/san-thuong-mai-dien-tu/docs/kehoachAIASSISTANT.md).
+> **Tài liệu nghiệm thu công việc:** Tổng kết chi tiết các đầu việc Bạn 1 (Dự) đã hoàn thành cho toàn bộ **Giai đoạn 2 Tuần (Ngày 1 đến Ngày 14)** theo đúng phân công trong [`docs/kehoachAIASSISTANT.md`](file:///q:/san-thuong-mai-dien-tu/docs/kehoachAIASSISTANT.md).
 
 ---
 
 ## 1. TỔNG QUAN PHÂN CÔNG CỦA BẠN 1 (DỰ)
 - **Vai trò:** Backend & AI Core Engineer
-- **Phạm vi phụ trách chính:** `backend/ai-service` (Port 3010), PostgreSQL `ai_db` (pgvector), LLM Orchestrator, RAG Knowledge Base Engine, Hệ thống 12 Tool Calling (Catalog, Cart, Order, Promotion, CSKH Escalate), SSE Chat Streaming, Rate Limiting, Graceful Error Handling và Docker Compose.
+- **Phạm vi phụ trách chính:** `backend/ai-service` (Port 3010), PostgreSQL `ai_db` (pgvector), LLM Orchestrator, RAG Knowledge Base Engine, Hệ thống 12 Tool Calling (Catalog, Cart, Order, Promotion, CSKH Escalate), SSE Chat Streaming, Rate Limiting, Graceful Error Handling, Docker Compose và Tích hợp End-to-End toàn hệ thống.
 
 ---
 
@@ -43,39 +43,53 @@
 - [x] **Hoàn thiện bảo mật:** Xác nhận 2 bước cho `cancel_order` và bắt buộc đăng nhập đối với khách vãng lai (Guest).
 
 ### ✅ Ngày 10-11 (Thứ 6-7 Tuần 2) — POLISH & EDGE CASES
-- [x] **Rate Limiting cho Chat API ([`rateLimiter.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/middlewares/rateLimiter.ts)):**
-  - Xây dựng middleware Rate Limiter sliding window: Tối đa 30 requests / phút theo User ID / IP / Session Token.
-  - Phản hồi HTTP 429 hoặc gói tin SSE error kèm header `Retry-After`, bảo vệ hệ thống và quota LLM khỏi spam/DDoS.
-- [x] **Giới hạn Context Window (10 tin nhắn gần nhất):**
-  - Cập nhật truy vấn `prisma.chatMessage.findMany` giới hạn `take: 10` tin nhắn gần nhất trong phiên hội thoại, đảm bảo trí nhớ ngữ cảnh tối ưu, không vượt context limit và giảm chi phí token.
-- [x] **Graceful Error Handling & LLM Timeout:**
-  - Bổ sung cơ chế `withTimeout` (15s) cho toàn bộ lệnh gọi LLM SDK (Gemini & OpenAI), tự động chuyển sang Fallback stream nếu LLM bị treo hoặc timeout.
-  - Xử lý lỗi êm ái khi các microservice ngoài (Catalog, Cart, Order, Support) tạm thời offline hoặc gặp lỗi mạng.
-- [x] **Cập nhật `docker-compose.yml` final:**
-  - Xác nhận cấu hình hoàn chỉnh cho container `ai-service` (Port 3010, kết nối mạng nội bộ, liên kết `postgres`, `catalog-service`, `cart-service`, `order-service`, `support-service`).
-- [x] **Kiểm thử tự động ([`test-day10-11.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/scripts/test-day10-11.ts)):**
-  - Đạt **5/5 tests passed 100%**:
-    1. Chặn request vượt ngưỡng với mã lỗi 429.
-    2. Cắt chuẩn xác 10 tin nhắn gần nhất cho Context Window.
-    3. Error handling êm dịu khi toàn bộ các service ngoài offline.
-    4. Timeout fallback không gây crash luồng SSE streaming.
-    5. Đồng bộ toàn bộ 12/12 Tool Calling hoạt động chính xác.
+- [x] **Rate Limiting cho Chat API ([`rateLimiter.ts`](file:///q:/san-thuong-mai-dien-tu/backend/ai-service/src/middlewares/rateLimiter.ts)):** Sliding window 30 req/phút, trả HTTP 429 hoặc SSE error có `Retry-After`.
+- [x] **Giới hạn Context Window (10 tin nhắn gần nhất):** `take: 10` messages gần nhất trong phiên hội thoại.
+- [x] **Graceful Error Handling & LLM Timeout:** `withTimeout` (15s) ngắt kết nối LLM nếu treo và tự động chuyển sang Fallback stream.
+- [x] **Cập nhật `docker-compose.yml` final:** Port 3010, mạng nội bộ, kết nối `postgres` pgvector và các internal services.
+
+### ✅ Ngày 12-13 (Thứ 2-3 Tuần 3) — HỖ TRỢ TÍCH HỢP & HOÀN THIỆN TOOL ESCALATE / RAG QUERY
+- [x] **Hỗ trợ tích hợp & fix bug phát sinh từ integration:**
+  - Hỗ trợ Frontend (Bạn 2 - Khoa): Đảm bảo `product_cards` luôn kèm `variant_id` UUID thật, `comparison_table` luôn kèm `highlights` (pros/cons) để UI render trơn tru.
+  - Hỗ trợ Support Service (Bạn 3 - Đức): Đảm bảo endpoint `POST /api/ai/rag/query` trả về chính sách (đổi trả, hoàn tiền, bảo hành) có score và chunk chính xác phục vụ chức năng tự động soạn AI Draft Ticket.
+- [x] **Hoàn thiện Tool `escalate_to_ticket`:**
+  - Kết nối trơn tru tới `support-service:3009/api/support/tickets/escalate`.
+  - Tự động nhận diện sentiment bức xúc, trích xuất lý do, sinh mã phiếu hỗ trợ `TK-YYYYMMDD-XXX` và câu trả lời thấu cảm, xoa dịu khách hàng.
+  - Có cơ chế fallback mock an toàn nếu `support-service` tạm thời offline trong môi trường dev.
+- [x] **Anti-Hallucination Guard (Bảo vệ chính sách & hàng cấm):**
+  - Chặn tuyệt đối việc gọi `search_products` khi khách hỏi danh mục hàng cấm (vũ khí, súng đạn, chất cấm,...).
+  - Tự động hướng dẫn hotline Chăm sóc khách hàng: 1900-6868.
+- [x] **Bộ kịch bản kiểm thử tích hợp Ngày 12-13 ([`test-day12-13.ts`](file:///c:/Users/Lenovo/Desktop/do%20an/san-thuong-mai-dien-tu/backend/ai-service/src/scripts/test-day12-13.ts)):**
+  - Kịch bản 1: Luồng AI Shopping tích hợp Frontend (Product Cards có `variant_id`, Comparison Table có `highlights`, thêm giỏ hàng) ✅
+  - Kịch bản 2: Luồng CSKH Escalate Ticket tích hợp Support Service (Bắt cảm xúc giận dữ, tự động tạo ticket, phản hồi thấu cảm) ✅
+  - Kịch bản 3: Luồng Support Service RAG Query (Tìm chunk chính sách đổi trả / hoàn tiền cho Bạn 3) ✅
+  - Kịch bản 4: Luồng Anti-Hallucination & Chặn hàng cấm (Từ chối bịa đặt và hướng dẫn hotline 1900-6868) ✅
+- [x] **Kết quả kiểm thử:** Đạt **4/4 kịch bản kiểm thử tích hợp Ngày 12-13 thành công xuất sắc (100%)**.
+
+### ⏳ Ngày 14 (Thứ 4 Tuần 3) — TỔNG KIỂM THỬ TOÀN DIỆN & DEMO
+- [ ] Chạy tổng kiểm thử E2E liên thông toàn hệ thống (ai-service ↔ frontend ↔ support-service ↔ notification-service).
+- [ ] Chuẩn bị kịch bản demo và tài liệu thuyết trình tốt nghiệp.
 
 ---
 
-## 3. DANH SÁCH FILE ĐÃ TẠO / CẬP NHẬT
+## 3. DANH SÁCH FILE ĐÃ TẠO / CẬP NHẬT (NGÀY 12-13)
 
 | File | Trạng thái | Mô tả |
 |---|---|---|
-| `backend/ai-service/src/middlewares/rateLimiter.ts` | **Mới (Ngày 10-11)** | Middleware Rate Limiting sliding window (30 reqs/min) |
-| `backend/ai-service/src/routes/chat.routes.ts` | **Cập nhật (Ngày 10-11)** | Gắn `chatRateLimiter` vào route `POST /api/ai/chat` |
-| `backend/ai-service/src/controllers/chat.controller.ts` | **Cập nhật (Ngày 10-11)** | Giới hạn `take: 10` messages cho context window |
-| `backend/ai-service/src/services/llm-orchestrator.ts` | **Cập nhật (Ngày 10-11)** | Tích hợp timeout bảo vệ (15s) và graceful fallback |
-| `backend/ai-service/src/scripts/test-day10-11.ts` | **Mới (Ngày 10-11)** | Script kiểm thử toàn diện Ngày 10-11 (5/5 passed) |
-| `docs/DU_PROGRESS_CHECKLIST.md` | **Cập nhật (Ngày 10-11)** | Báo cáo tiến độ nghiệm thu hoàn tất Ngày 10-11 |
+| `backend/ai-service/src/scripts/test-day12-13.ts` | **Mới (Ngày 12-13)** | Kịch bản kiểm thử tích hợp toàn diện Ngày 12-13 cho Bạn 1 (Dự) |
+| `backend/ai-service/src/services/llm-orchestrator.ts` | **Cập nhật (Ngày 12-13)** | Bổ sung bộ lọc chặn tìm kiếm hàng cấm (Anti-Hallucination) |
+| `backend/ai-service/src/middlewares/rateLimiter.ts` | Đã hoàn thành | Middleware Rate Limiting sliding window (30 reqs/min) |
+| `backend/ai-service/src/tools/ticket.tool.ts` | Đã hoàn thành | Tool `escalate_to_ticket` kết nối `support-service:3009` |
+| `backend/ai-service/src/tools/cart.tool.ts` | Đã hoàn thành | Tool Calling giỏ hàng |
+| `backend/ai-service/src/tools/order.tool.ts` | Đã hoàn thành | Tool Calling đơn hàng & xác nhận 2 bước |
+| `backend/ai-service/src/tools/promotion.tool.ts` | Đã hoàn thành | Tool Calling khuyến mãi |
+| `backend/ai-service/src/tools/catalog.tool.ts` | Đã hoàn thành | Tool Calling tìm kiếm và so sánh sản phẩm |
+| `backend/ai-service/src/controllers/chat.controller.ts` | Đã hoàn thành | SSE Streaming Chat Controller |
+| `backend/ai-service/src/controllers/rag.controller.ts` | Đã hoàn thành | Endpoint `POST /api/ai/rag/query` |
+| `docs/DU_PROGRESS_CHECKLIST.md` | **Cập nhật (Ngày 12-13)** | Báo cáo nghiệm thu hoàn tất các nhiệm vụ tích hợp Ngày 12-13 |
 
 ---
 
-## 4. KẾT LUẬN & SẴN SÀNG MERGE
-- Toàn bộ service build sạch (`tsc` exit 0), pass 100% test suite.
-- Sẵn sàng tạo Pull Request để merge vào `develop`.
+## 4. KẾT LUẬN & SẴN SÀNG MERGE VÀO DEVELOP
+- Nhiệm vụ Ngày 12-13 của Bạn 1 (Dự) đã hoàn thành xuất sắc và vượt qua 100% kiểm thử tích hợp.
+- Sẵn sàng tạo Pull Request từ nhánh `feature/ai-service-day-12-13` vào `develop`.
