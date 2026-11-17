@@ -80,6 +80,17 @@
   - Tự động khóa cuộn trang nền (`document.body.style.overflow = 'hidden'`) khi mở fullscreen chat trên mobile (`< 640px`).
   - Bổ sung nút nổi **`⬇️ Mới nhất`** (`showScrollBottomBtn`) khi người dùng cuộn ngược lên xem lịch sử dài.
 
+### ✅ Ngày 12-13 (Thứ 2-3 Tuần 3) — HỖ TRỢ TÍCH HỢP, FIX BUG UI & HOÀN THIỆN ROUTES `/support/*`, `/admin/tickets/*`
+- [x] **Hoàn thiện hệ thống Routes `/support/*` và `/admin/tickets/*` vào React Router:**
+  - Trong [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx): cấu hình đầy đủ cụm route `/support`, `/support/new-ticket`, `/support/my-tickets`, `/support/my-tickets/:id`, `/support/tickets`, `/support/tickets/:id` và wildcard `/support/*`.
+  - Trong [`frontend/src/routes/AdminRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/AdminRoutes.tsx): cấu hình đầy đủ `/admin/tickets`, `/admin/tickets/:id` và wildcard `/admin/tickets/*`.
+  - Trong [`frontend/src/pages/user/support/MyTickets.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/pages/user/support/MyTickets.tsx): hỗ trợ tự động mở chi tiết ticket khi truy cập trực tiếp qua URL có `:id` (`/support/my-tickets/:id`).
+- [x] **Fix Bug UI & Tích hợp phát sinh:**
+  - **Fix Bug #1 ([`frontend/src/lib/api-client.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/lib/api-client.ts)):** Sửa lỗi gọi sai endpoint refresh token (`/identity/auth/refresh` bị 404 làm văng đăng nhập khi thao tác trên trang Ticket) thành `/auth/refresh-token` chuẩn của hệ thống, đồng thời đính kèm header `x-user-email` từ phiên đăng nhập để `support-service` và `ai-service` nhận đúng email khách hàng.
+  - **Fix Bug #2 ([`frontend/src/components/layout/AdminLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/AdminLayout.tsx)):** Sửa lỗi mất trạng thái active của mục **"CSKH Tickets"** trên thanh Sidebar Admin khi nhân viên bấm vào xem trang chi tiết `/admin/tickets/:id`.
+  - **Fix Bug #3 ([`Header.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/Header.tsx), [`Footer.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/Footer.tsx), [`ProfileLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/pages/user/profile/ProfileLayout.tsx)):** Bổ sung nút **"Hỗ trợ"** trên Header, mục **"Yêu cầu hỗ trợ (Tickets)"** trong Sidebar trang Cá nhân, và sửa các link chết ở Footer trỏ về `/support/my-tickets` & `/support/new-ticket`.
+  - **Fix Bug #4 ([`ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx)):** Khi AI escalate tạo ticket (`Mã ticket: TK-...`) hoặc hướng dẫn liên hệ CSKH, hiển thị đầy đủ các nút **`🎫 Xem phiếu hỗ trợ`**, **`➕ Tạo phiếu mới`**, và nút **`✨ CSKH Dashboard`** (`/admin/tickets` dành cho tài khoản Admin khi demo E2E).
+
 ---
 
 ## 3. DANH SÁCH FILE ĐÃ TẠO / CẬP NHẬT
@@ -89,17 +100,24 @@
 | [`frontend/src/types/aiChat.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/types/aiChat.ts) | Đã cập nhật (Ngày 10-11) | Bổ sung `hasError`, `failedPrompt`, `ProductProsCons`, `ChatSessionSummary`, `ComparisonTableMetadata` |
 | [`frontend/src/components/chat/ChatComparisonTable.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatComparisonTable.tsx) | Đã cập nhật (Ngày 6-7) | Bảng so sánh 2-4 sản phẩm, tự động highlight ô thông số tốt nhất + khu vực **Highlight Ưu/Nhược điểm mỗi sản phẩm** |
 | [`frontend/src/services/aiChatService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/aiChatService.ts) | Đã cập nhật (Ngày 8-9) | Kết nối `/api/ai/chat` thật (Gateway `:3000` + Direct `:3010`), gửi kèm `Authorization` & `x-user-id`, `checkAiBackendHealth()`, quản lý Session & E2E fallback |
-| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 10-11) | Animation mở/đóng 2 chiều, Skeleton Loading, Error Retry & Offline Banner, Empty State `"Chưa có cuộc hội thoại nào"`, tối ưu Mobile `100dvh` & khóa cuộn nền |
-| [`frontend/src/components/chat/ChatProductCard.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatProductCard.tsx) | Đã cập nhật (Ngày 4-5) | Product Action Card với ảnh, giá gốc gạch ngang, badge `-%`, nút **"Xem chi tiết"** (`/product/:slug`) và nút **"Thêm giỏ"** (loading/success state) |
+| [`frontend/src/components/chat/ChatWidget.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatWidget.tsx) | Đã cập nhật (Ngày 12-13) | Animation mở/đóng, Skeleton/Error/Empty states, nút điều hướng nhanh sang `/support/my-tickets`, `/support/new-ticket` và `/admin/tickets` |
+| [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx) | Đã cập nhật (Ngày 12-13) | Hoàn thiện cụm route `/support/*` và `/product/:slug` |
+| [`frontend/src/routes/AdminRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/AdminRoutes.tsx) | Đã cập nhật (Ngày 12-13) | Hoàn thiện cụm route `/admin/tickets/*` |
+| [`frontend/src/components/layout/AdminLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/AdminLayout.tsx) | Đã cập nhật (Ngày 12-13) | Fix active highlight trên Sidebar cho các route con `/admin/tickets/:id` |
+| [`frontend/src/components/layout/Header.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/Header.tsx) | Đã cập nhật (Ngày 12-13) | Thêm nút điều hướng nhanh **Hỗ trợ CSKH** (`/support/my-tickets`) trên thanh Header |
+| [`frontend/src/components/layout/Footer.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/Footer.tsx) | Đã cập nhật (Ngày 12-13) | Cập nhật các liên kết Hỗ trợ khách hàng trỏ về `/support/my-tickets` và `/support/new-ticket` |
+| [`frontend/src/pages/user/profile/ProfileLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/pages/user/profile/ProfileLayout.tsx) | Đã cập nhật (Ngày 12-13) | Thêm mục **Yêu cầu hỗ trợ (Tickets)** trong menu tài khoản khách hàng |
+| [`frontend/src/pages/user/support/MyTickets.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/pages/user/support/MyTickets.tsx) | Đã cập nhật (Ngày 12-13) | Hỗ trợ mở tự động chi tiết ticket từ tham số `:id` trên URL |
+| [`frontend/src/lib/api-client.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/lib/api-client.ts) | Đã cập nhật (Ngày 12-13) | Fix lỗi refresh token `/auth/refresh-token` và bổ sung header `x-user-email` |
+| [`frontend/src/components/chat/ChatProductCard.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/chat/ChatProductCard.tsx) | Đã cập nhật (Ngày 4-5) | Product Action Card với ảnh, giá gốc gạch ngang, badge `-%`, nút **"Xem chi tiết"** (`/product/:slug`) và nút **"Thêm giỏ"** |
 | [`frontend/src/services/productService.ts`](file:///q:/san-thuong-mai-dien-tu/frontend/src/services/productService.ts) | Đã cập nhật (Ngày 4-5) | Bổ sung `getProductBySlug()` và hỗ trợ `getProductById(idOrSlug)` nhận cả UUID lẫn `slug` |
-| [`frontend/src/routes/UserRoutes.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/routes/UserRoutes.tsx) | Đã cập nhật (Ngày 4-5) | Thêm route `/product/:id` song song với `/products/:id` để nút **"Xem chi tiết"** (`/product/:slug`) hoạt động chuẩn xác |
 | [`frontend/src/components/layout/UserLayout.tsx`](file:///q:/san-thuong-mai-dien-tu/frontend/src/components/layout/UserLayout.tsx) | Đã cập nhật | Nhúng `<ChatWidget />` vào layout khách hàng |
 | [`docs/NOTES_CHO_DU_BAN1.md`](file:///q:/san-thuong-mai-dien-tu/docs/NOTES_CHO_DU_BAN1.md) | Đã tạo | Tài liệu chốt API Contract (SSE + Metadata) và lưu ý kỹ thuật gửi cho Dự (Bạn 1) |
 
 ---
 
-## 4. CÔNG VIỆC TIẾP THEO (NGÀY 12 - 14)
+## 4. CÔNG VIỆC TIẾP THEO (NGÀY 14 — TỔNG KIỂM THỬ & DEMO)
 
-- [ ] **Ngày 12-13 (Phối hợp tích hợp cuối cùng với Bạn 1 & Bạn 3):**
-  - Kiểm tra luồng End-to-End toàn diện và thêm route `/admin/tickets/*` vào `AdminRoutes.tsx` khi Bạn 3 hoàn thành Agent Dashboard.
+- [x] **Hoàn tất 100% các task từ Ngày 1 đến Ngày 13 của Khoa (Bạn 2).**
+- [ ] **Ngày 14:** Chạy kiểm thử tổng thể 4 kịch bản Demo E2E cùng Bạn 1 và Bạn 3.
 

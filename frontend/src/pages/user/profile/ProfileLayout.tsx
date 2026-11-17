@@ -69,6 +69,16 @@ const ProfileLayout: React.FC = () => {
             </button>
           ))}
 
+          {/* Link sang Trung tâm Hỗ trợ / Khiếu nại (/support/my-tickets) */}
+          <button
+            type="button"
+            onClick={() => navigate("/support/my-tickets")}
+            className="flex items-center gap-4 w-full p-4 rounded-lg transition-all text-sm font-semibold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+          >
+            <span className="material-symbols-outlined">support_agent</span>
+            <span>Yêu cầu hỗ trợ (Tickets)</span>
+          </button>
+
           {/* Divider + Logout */}
           <div className="pt-6 mt-6 border-t border-outline-variant">
             <button
