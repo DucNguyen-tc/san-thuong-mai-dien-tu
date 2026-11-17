@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supportService } from "../../../services/support.service";
 import type { Ticket } from "../../../types/support";
 import { PlusCircle, MessageSquare, Clock, CheckCircle2, ChevronRight, X, Send } from "lucide-react";
 
 export const MyTickets: React.FC = () => {
   const navigate = useNavigate();
+  const { id: routeTicketId } = useParams<{ id?: string }>();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -27,6 +28,17 @@ export const MyTickets: React.FC = () => {
   useEffect(() => {
     fetchTickets();
   }, []);
+
+  useEffect(() => {
+    if (routeTicketId) {
+      supportService
+        .getTicketDetail(routeTicketId)
+        .then((full) => {
+          if (full) setSelectedTicket(full);
+        })
+        .catch(() => {});
+    }
+  }, [routeTicketId]);
 
   const openTicketDetail = async (ticket: Ticket) => {
     try {
