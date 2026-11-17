@@ -199,6 +199,12 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
   public detectIntent(message: string): { toolName: string | null; args: any } {
     const lower = message.toLowerCase().trim();
 
+    // -1. Kiểm tra danh mục hàng cấm / quy chế không cho phép -> Không gọi tool tìm kiếm sản phẩm (Anti-Hallucination)
+    const prohibitedKeywords = ['vũ khí', 'súng', 'đạn', 'chất cấm', 'ma túy', 'hàng cấm', 'pháo hoa', 'tiền giả', 'bán vũ khí'];
+    if (prohibitedKeywords.some((kw) => lower.includes(kw))) {
+      return { toolName: null, args: {} };
+    }
+
     // 0. Ý định khiếu nại, bức xúc hoặc yêu cầu gặp người thật -> Escalate sang Ticket CSKH (Mục 6.2)
     const escalateKeywords = [
       'gặp người thật', 'gặp nhân viên', 'nói chuyện với người', 'tổng đài viên', 'cskh',
@@ -650,16 +656,24 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       fullResponse += contextChunks[0].content + '\n\n';
       fullResponse += 'Nếu bạn cần thêm thông tin hoặc hỗ trợ gì khác, cứ nhắn cho mình nhé!';
     } else {
-      // Câu chào hỏi / hướng dẫn thông thường
-      fullResponse = `Chào bạn! Tôi là **Trợ lý Mua Sắm AI** của sàn thương mại điện tử.\n\n`;
-      fullResponse += `Tôi có thể hỗ trợ bạn:\n`;
-      fullResponse += `- 🔍 Tìm kiếm sản phẩm theo ngân sách & nhu cầu (*"Tìm điện thoại dưới 30 triệu"*)\n`;
-      fullResponse += `- ⚖️ So sánh chi tiết cấu hình và ưu/nhược điểm (*"So sánh iPhone 15 Pro Max và Galaxy S24 Ultra"*)\n`;
-      fullResponse += `- 🛒 Thêm sản phẩm vào giỏ hoặc xem giỏ hàng (*"Xem giỏ hàng của tôi"*)\n`;
-      fullResponse += `- 📦 Tra cứu và quản lý đơn hàng (*"Kiểm tra đơn hàng của tôi"*)\n`;
-      fullResponse += `- 🎟️ Săn mã giảm giá & khuyến mãi (*"Có mã voucher nào không"*)\n`;
-      fullResponse += `- 🆘 Hỗ trợ giải quyết khiếu nại và kết nối với tổng đài CSKH.\n\n`;
-      fullResponse += `Bạn đang quan tâm đến sản phẩm hoặc cần hỗ trợ gì ạ?`;
+      // Kiểm tra câu hỏi ngoài phạm vi / hàng cấm / quy chế không có (Anti-Hallucination - Kịch bản 4)
+      const prohibitedKeywords = ['vũ khí', 'súng', 'đạn', 'chất cấm', 'ma túy', 'hàng cấm', 'pháo hoa', 'tiền giả', 'bán vũ khí'];
+      const isProhibited = prohibitedKeywords.some((kw) => userMessage.toLowerCase().includes(kw));
+
+      if (isProhibited) {
+        fullResponse = `Xin lỗi, tôi không tìm thấy thông tin về vấn đề này trong quy chế hoạt động của sàn. Sàn nghiêm cấm kinh doanh các mặt hàng thuộc danh mục hàng cấm theo quy định của pháp luật. Bạn vui lòng liên hệ Hotline CSKH: 1900-6868 hoặc gửi yêu cầu hỗ trợ để được giải đáp chi tiết hơn nhé!`;
+      } else {
+        // Câu chào hỏi / hướng dẫn thông thường
+        fullResponse = `Chào bạn! Tôi là **Trợ lý Mua Sắm AI** của sàn thương mại điện tử.\n\n`;
+        fullResponse += `Tôi có thể hỗ trợ bạn:\n`;
+        fullResponse += `- 🔍 Tìm kiếm sản phẩm theo ngân sách & nhu cầu (*"Tìm điện thoại dưới 30 triệu"*)\n`;
+        fullResponse += `- ⚖️ So sánh chi tiết cấu hình và ưu/nhược điểm (*"So sánh iPhone 15 Pro Max và Galaxy S24 Ultra"*)\n`;
+        fullResponse += `- 🛒 Thêm sản phẩm vào giỏ hoặc xem giỏ hàng (*"Xem giỏ hàng của tôi"*)\n`;
+        fullResponse += `- 📦 Tra cứu và quản lý đơn hàng (*"Kiểm tra đơn hàng của tôi"*)\n`;
+        fullResponse += `- 🎟️ Săn mã giảm giá & khuyến mãi (*"Có mã voucher nào không"*)\n`;
+        fullResponse += `- 🆘 Hỗ trợ giải quyết khiếu nại và kết nối với tổng đài CSKH.\n\n`;
+        fullResponse += `Bạn đang quan tâm đến sản phẩm hoặc cần hỗ trợ gì ạ?`;
+      }
     }
 
     // Giả lập stream chữ chạy mượt mà
