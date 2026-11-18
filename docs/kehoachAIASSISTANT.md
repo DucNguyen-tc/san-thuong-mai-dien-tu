@@ -319,4 +319,4 @@ Bạn 3    │SETUP│ CRUD Ticket API     │AI   │RAG  │HITL  │ FE Ticke
 - [x] Frontend: Danh sách ticket `/support/my-tickets`
 - [x] Frontend: Agent Dashboard `/admin/tickets` (bảng, sort, filter)
 - [x] Frontend: Chi tiết ticket `/admin/tickets/:id` (2 cột, AI analysis, draft editor, nút duyệt)
-- [ ] Gửi email qua `notification-service` (RabbitMQ)
+- [x] Gửi email qua `notification-service` (RabbitMQ)
