@@ -41,23 +41,23 @@ export class TicketAnalyzerPipeline {
       return;
     }
 
-    // Chỉ phân tích nếu ticket đang OPEN hoặc ANALYZING (tránh ghi đè nếu đã review/closed)
-    if (
-      ticket.status !== TicketStatus.OPEN &&
-      ticket.status !== TicketStatus.ANALYZING
-    ) {
+    // 2. Chuyển trạng thái sang ANALYZING atomically (tránh duplicate execution khi nhiều worker cùng xử lý)
+    const updateResult = await prisma.ticket.updateMany({
+      where: {
+        id: ticketId,
+        status: TicketStatus.OPEN
+      },
+      data: { status: TicketStatus.ANALYZING }
+    });
+
+    if (updateResult.count === 0) {
       console.log(
-        `[TicketAnalyzerPipeline] Bỏ qua ticket ${ticketId} vì trạng thái hiện tại là ${ticket.status}`
+        `[TicketAnalyzerPipeline] Bỏ qua ticket ${ticketId} vì trạng thái không phải OPEN (hiện tại: ${ticket.status})`
       );
       return;
     }
 
     try {
-      // 2. Chuyển trạng thái sang ANALYZING
-      await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { status: TicketStatus.ANALYZING }
-      });
 
       // 3. Chuẩn bị nội dung gửi LLM
       const subject = ticket.subject;
