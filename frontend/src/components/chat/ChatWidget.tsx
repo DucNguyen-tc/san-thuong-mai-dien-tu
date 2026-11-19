@@ -53,11 +53,12 @@ import ChatProductCardList from './ChatProductCard';
 import ChatComparisonTable from './ChatComparisonTable';
 
 const QUICK_PROMPTS = [
-  '📱 Tìm điện thoại chụp ảnh đẹp',
-  '🛒 Thêm iPhone 15 Pro Max vào giỏ hàng',
-  '📦 Kiểm tra đơn hàng của tôi',
+  '📱 Tìm điện thoại dưới 15 triệu',
   '⚖️ So sánh iPhone 15 và Samsung S24',
-  '🔄 Chính sách đổi trả hàng thế nào?',
+  '🛒 Thêm iPhone 15 vào giỏ',
+  '😡 Đơn hàng 5 ngày chưa giao, các bạn lừa đảo à?',
+  '🔄 Chính sách đổi trả hàng như thế nào?',
+  '🚫 Sàn có bán vũ khí không?',
 ];
 
 const WELCOME_MESSAGE: ChatMessage = {
