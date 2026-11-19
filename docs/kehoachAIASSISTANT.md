@@ -301,12 +301,12 @@ Bạn 3    │SETUP│ CRUD Ticket API     │AI   │RAG  │HITL  │ FE Ticke
 - [ ] Endpoint `POST /api/ai/rag/query` public cho Bạn 3
 
 ### Bạn 2 — Frontend Chat
-- [ ] Chat Widget: Floating button, mở/đóng, responsive (mobile fullscreen)
-- [ ] SSE streaming: text chạy realtime
-- [ ] Product Action Cards: ảnh, giá, nút xem chi tiết, nút thêm giỏ
-- [ ] Comparison Table: bảng so sánh 2-4 sản phẩm
-- [ ] Session management: Guest (LocalStorage) + User đăng nhập
-- [ ] Thêm route `/support/*` và `/admin/tickets/*` vào React Router (phối hợp Bạn 3)
+- [x] Chat Widget: Floating button, mở/đóng, responsive (mobile fullscreen)
+- [x] SSE streaming: text chạy realtime
+- [x] Product Action Cards: ảnh, giá, nút xem chi tiết, nút thêm giỏ
+- [x] Comparison Table: bảng so sánh 2-4 sản phẩm
+- [x] Session management: Guest (LocalStorage) + User đăng nhập
+- [x] Thêm route `/support/*` và `/admin/tickets/*` vào React Router (phối hợp Bạn 3)
 
 ### Bạn 3 — support-service + Ticket UI
 - [x] `support-service` chạy trong Docker, port 3009
