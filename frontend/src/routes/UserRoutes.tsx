@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom';
+import { Navigate, Route } from 'react-router-dom';
 import UserLayout from '@/components/layout/UserLayout';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import Home from '@/pages/user/Home';
@@ -16,8 +16,14 @@ export const UserRoutes = (
     <Route path="/" element={<Home />} />
     <Route element={<ProtectedRoute />}>
       <Route path="/profile" element={<ProfileLayout />} />
+      {/* Cụm routes /support/* (Ngày 12-13) */}
+      <Route path="/support" element={<Navigate to="/support/my-tickets" replace />} />
       <Route path="/support/new-ticket" element={<NewTicket />} />
       <Route path="/support/my-tickets" element={<MyTickets />} />
+      <Route path="/support/my-tickets/:id" element={<MyTickets />} />
+      <Route path="/support/tickets" element={<Navigate to="/support/my-tickets" replace />} />
+      <Route path="/support/tickets/:id" element={<MyTickets />} />
+      <Route path="/support/*" element={<Navigate to="/support/my-tickets" replace />} />
     </Route>
     <Route path="/products" element={<ProductList />} />
     <Route path="/products/:id" element={<ProductDetail />} />

@@ -497,25 +497,38 @@ async function simulateMockSSEStream(
   });
 
   const lower = message.toLowerCase();
+  const isOutOfScopeOrBanned = [
+    'vũ khí',
+    'súng',
+    'đạn',
+    'ma túy',
+    'hàng cấm',
+    'pháo nổ',
+    'thuốc nổ',
+    'chất cấm',
+  ].some((kw) => lower.includes(kw));
+
   const isComparison =
     lower.includes('so sánh') ||
     lower.includes('khác nhau') ||
     lower.includes('nên mua');
   const isProductQuery =
-    isComparison ||
-    [
-      'tìm',
-      'sản phẩm',
-      'mua',
-      'giá',
-      'điện thoại',
-      'laptop',
-      'iphone',
-      'samsung',
-      'tai nghe',
-      'đồng hồ',
-      'tư vấn',
-    ].some((kw) => lower.includes(kw));
+    !isOutOfScopeOrBanned &&
+    (isComparison ||
+      [
+        'tìm',
+        'sản phẩm',
+        'mua',
+        'giá',
+        'điện thoại',
+        'laptop',
+        'iphone',
+        'samsung',
+        'tai nghe',
+        'đồng hồ',
+        'tư vấn',
+        'dưới 15 triệu',
+      ].some((kw) => lower.includes(kw)));
   const isPolicyQuery = [
     'đổi trả',
     'bảo hành',
@@ -530,7 +543,10 @@ async function simulateMockSSEStream(
     'Xin chào! Mình là **Trợ lý Mua sắm AI** của sàn. Mình có thể giúp bạn:\n• Tìm kiếm sản phẩm theo nhu cầu và tầm giá\n• So sánh cấu hình chi tiết giữa các sản phẩm (2-4 mẫu)\n• Giải đáp chính sách đổi trả, bảo hành, vận chuyển 24/7!';
   let metadataPayload: ChatMetadataPayload | null = null;
 
-  if (isComparison) {
+  if (isOutOfScopeOrBanned) {
+    replyText =
+      'Xin lỗi, tôi không tìm thấy thông tin về vấn đề này trong quy chế của sàn. Bạn vui lòng liên hệ Hotline CSKH: **1900-6868** hoặc gửi yêu cầu hỗ trợ để được giải đáp chi tiết hơn nhé!';
+  } else if (isComparison) {
     const wantsThreeProducts =
       lower.includes('3') ||
       lower.includes('xiaomi') ||
@@ -683,14 +699,24 @@ async function simulateMockSSEStream(
       ? `📦 **Đơn hàng gần đây của bạn:**\n\n1. **Mã đơn: #ORD-2026-8899**\n   • Trạng thái: 🚚 **Đang vận chuyển** (Dự kiến giao ngày mai)\n   • Sản phẩm: 1x iPhone 15 Pro Max 256GB\n   • Tổng thanh toán: **28.990.000đ** (Đã thanh toán qua VNPay)\n\n👉 Bạn có thể bấm nút bên dưới hoặc nhắn *"Xem chi tiết đơn ORD-2026-8899"* để kiểm tra hành trình vận chuyển nhé!`
       : '🔒 Bạn vui lòng đăng nhập tài khoản để tra cứu lịch sử đơn hàng của mình nhé!';
   } else if (
-    lower.includes('thêm vào giỏ') ||
+    lower.includes('khiếu nại') ||
+    lower.includes('lừa đảo') ||
+    lower.includes('chưa giao') ||
+    lower.includes('gặp nhân viên') ||
+    lower.includes('gặp người thật') ||
+    lower.includes('bức xúc') ||
+    lower.includes('tệ quá')
+  ) {
+    const ticketCode = `TK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-015`;
+    replyText = `Em rất tiếc về trải nghiệm chưa tốt này của bạn ạ! 🙏\n\nEm đã tạo phiếu yêu cầu hỗ trợ khẩn cấp (Mã ticket: **${ticketCode}** — Mức ưu tiên: **P1 / ANGRY**) và chuyển tiếp toàn bộ vấn đề của bạn sang cho đội ngũ CSKH xử lý.\n\nNhân viên CSKH chuyên trách sẽ kiểm tra và phản hồi lại qua email trong thời gian sớm nhất ạ!`;
+  } else if (
+    (lower.includes('thêm') && lower.includes('giỏ')) ||
     lower.includes('thêm sản phẩm') ||
-    lower.includes('thêm giỏ hàng') ||
     lower.includes('cho vào giỏ')
   ) {
     const isLoggedIn = Boolean(localStorage.getItem('access_token'));
     replyText = isLoggedIn
-      ? `🛒 Đã thêm thành công sản phẩm vào giỏ hàng của bạn! (Số lượng: 1). Bạn có thể nhấn vào nút **Xem giỏ hàng** bên dưới hoặc bảo tôi kiểm tra giỏ hàng bất kỳ lúc nào nhé!`
+      ? `🛒 Đã thêm thành công sản phẩm vào giỏ hàng của bạn! (Số lượng: 1). Bạn có thể nhấn vào nút **Mở Giỏ hàng** bên dưới hoặc bảo tôi kiểm tra giỏ hàng bất kỳ lúc nào nhé!`
       : '🔒 Bạn vui lòng đăng nhập tài khoản để có thể thêm sản phẩm vào giỏ hàng và lưu trữ nhé!';
   } else if (
     lower.includes('xem giỏ') ||
@@ -701,14 +727,6 @@ async function simulateMockSSEStream(
     replyText = isLoggedIn
       ? `🛒 **Giỏ hàng hiện tại của bạn:**\n\n1. **iPhone 15 Pro Max 256GB Chính Hãng VNA**\n   • Số lượng: **1** x 28.990.000đ = **28.990.000đ**\n\n💰 **Tổng giá trị tạm tính:** **28.990.000đ**\nBạn có muốn đặt hàng hoặc áp dụng mã giảm giá không?`
       : '🔒 Bạn vui lòng đăng nhập tài khoản để xem các sản phẩm trong giỏ hàng của mình nhé!';
-  } else if (
-    lower.includes('khiếu nại') ||
-    lower.includes('gặp nhân viên') ||
-    lower.includes('gặp người thật') ||
-    lower.includes('bức xúc')
-  ) {
-    const ticketCode = `TK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-015`;
-    replyText = `Em rất tiếc về trải nghiệm chưa tốt này của bạn ạ! 🙏\n\nEm đã tạo phiếu yêu cầu hỗ trợ khẩn cấp (Mã ticket: **${ticketCode}**) và chuyển tiếp toàn bộ vấn đề của bạn sang cho đội ngũ CSKH con người.\n\nNhân viên CSKH chuyên trách sẽ kiểm tra và phản hồi lại qua email trong thời gian sớm nhất ạ!`;
   } else if (isProductQuery) {
     replyText =
       'Mình tìm thấy các mẫu sản phẩm nổi bật phù hợp với nhu cầu của bạn. Bạn có thể bấm **"Xem chi tiết"** để mở trang sản phẩm hoặc bấm **"Thêm giỏ"** ngay trên thẻ bên dưới nhé:';
