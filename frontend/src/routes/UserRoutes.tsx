@@ -17,8 +17,13 @@ export const UserRoutes = (
     <Route element={<ProtectedRoute />}>
       <Route path="/profile" element={<ProfileLayout />} />
       <Route path="/orders" element={<Navigate to="/profile?tab=orders" replace />} />
+      <Route path="/support" element={<Navigate to="/support/my-tickets" replace />} />
       <Route path="/support/new-ticket" element={<NewTicket />} />
       <Route path="/support/my-tickets" element={<MyTickets />} />
+      <Route path="/support/my-tickets/:id" element={<MyTickets />} />
+      <Route path="/support/tickets" element={<Navigate to="/support/my-tickets" replace />} />
+      <Route path="/support/tickets/:id" element={<MyTickets />} />
+      <Route path="/support/*" element={<Navigate to="/support/my-tickets" replace />} />
     </Route>
     <Route path="/products" element={<ProductList />} />
     <Route path="/products/:id" element={<ProductDetail />} />

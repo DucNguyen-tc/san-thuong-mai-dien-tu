@@ -382,7 +382,18 @@ export default function Header() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Hỗ trợ CSKH (/support/my-tickets) */}
+          <Link
+            to="/support/my-tickets"
+            className="p-2 text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1.5"
+            title="Trung tâm Hỗ trợ & Khiếu nại CSKH"
+            aria-label="Hỗ trợ CSKH"
+          >
+            <Headphones size={20} />
+            <span className="hidden lg:inline text-xs font-medium">Hỗ trợ</span>
+          </Link>
+
           {/* Cart */}
           <Link
             to="/cart"

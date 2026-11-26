@@ -1,4 +1,4 @@
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import AdminLayout from "@/components/layout/AdminLayout";
 import Dashboard from "@/pages/admin/Dashboard";
@@ -23,8 +23,10 @@ export const AdminRoutes = (
   <Route element={<ProtectedRoute requiredRole="ADMIN" />}>
     <Route element={<AdminLayout />}>
       <Route path="/admin" element={<Dashboard />} />
+      {/* Cụm routes /admin/tickets/* (Ngày 12-13) */}
       <Route path="/admin/tickets" element={<AdminTickets />} />
       <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
+      <Route path="/admin/tickets/*" element={<Navigate to="/admin/tickets" replace />} />
       <Route path="/admin/customers" element={<UsersList />} />
       <Route path="/admin/products" element={<ProductManagement />} />
       <Route path="/admin/categories" element={<CategoryManagement />} />

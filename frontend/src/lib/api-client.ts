@@ -16,6 +16,20 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Đính kèm email & id từ user_data để support-service / ai-service nhận đủ context
+    try {
+      const rawUser = localStorage.getItem('user_data');
+      if (rawUser && config.headers) {
+        const parsedUser = JSON.parse(rawUser);
+        if (parsedUser?.email && typeof parsedUser.email === 'string') {
+          config.headers['x-user-email'] = parsedUser.email;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
     return config;
   },
   (error) => {
@@ -28,33 +42,34 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
-    // Handle Token Expiration (401) and try refreshing
+
+    // Handle Token Expiration (401) and try refreshing via /auth/refresh-token
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
-          // Call your identity service refresh token endpoint
-          const response = await axios.post(`${API_BASE_URL}/identity/auth/refresh`, {
-            refresh_token: refreshToken,
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+            refreshToken,
           });
-          
-          const { access_token } = response.data;
-          localStorage.setItem('access_token', access_token);
-          
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return apiClient(originalRequest);
+
+          const newAccessToken =
+            response.data?.data?.accessToken || response.data?.access_token;
+          if (newAccessToken) {
+            localStorage.setItem('access_token', newAccessToken);
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            return apiClient(originalRequest);
+          }
         }
       } catch (refreshError) {
-        // Refresh token failed, clear tokens and redirect to login
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        localStorage.removeItem('user_data');
+        window.location.href = '/login?session_expired=true';
         return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );

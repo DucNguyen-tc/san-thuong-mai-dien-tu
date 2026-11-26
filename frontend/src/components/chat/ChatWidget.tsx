@@ -54,12 +54,12 @@ import ChatComparisonTable from './ChatComparisonTable';
 import ChatOrderCardList from './ChatOrderCard';
 
 const QUICK_PROMPTS = [
-  '📱 Tìm điện thoại chụp ảnh đẹp',
-  '🛒 Xem giỏ hàng của tôi',
-  '📦 Kiểm tra đơn hàng của tôi',
+  '📱 Tìm điện thoại dưới 15 triệu',
   '⚖️ So sánh iPhone 15 và Samsung S24',
-  '🔄 Chính sách đổi trả hàng thế nào?',
-  '🏷️ Voucher & Khuyến mãi hôm nay',
+  '🛒 Thêm iPhone 15 vào giỏ',
+  '😡 Đơn hàng 5 ngày chưa giao, các bạn lừa đảo à?',
+  '🔄 Chính sách đổi trả hàng như thế nào?',
+  '🚫 Sàn có bán vũ khí không?',
 ];
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -664,8 +664,13 @@ export default function ChatWidget() {
       );
     }
 
-    // 5. Khi AI vừa chuyển tiếp khiếu nại tạo Ticket CSKH (Mã ticket: TK-...)
-    if (lower.includes('mã ticket:') || content.includes('TK-')) {
+    // 5. Khi AI vừa chuyển tiếp khiếu nại tạo Ticket CSKH (Mã ticket: TK-...) hoặc hướng dẫn liên hệ CSKH
+    if (
+      lower.includes('mã ticket:') ||
+      content.includes('TK-') ||
+      lower.includes('gửi yêu cầu hỗ trợ') ||
+      lower.includes('1900-')
+    ) {
       return (
         <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
           <button
@@ -674,8 +679,26 @@ export default function ChatWidget() {
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
           >
             <Ticket className="w-3.5 h-3.5" />
-            <span>Xem phiếu hỗ trợ của tôi</span>
+            <span>Xem phiếu hỗ trợ</span>
           </button>
+          <button
+            type="button"
+            onClick={() => handleNavigateFromChat('/support/new-ticket')}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Tạo phiếu mới</span>
+          </button>
+          {user?.role === 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => handleNavigateFromChat('/admin/tickets')}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>CSKH Dashboard</span>
+            </button>
+          )}
         </div>
       );
     }
