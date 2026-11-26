@@ -5,6 +5,11 @@ import { ragService } from '../services/rag.service';
 import { llmOrchestrator, ChatMessageParam } from '../services/llm-orchestrator';
 import { ToolMetadataPayload } from '../tools/catalog.tool';
 
+// Global BigInt serializer fix for Express res.json
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 /**
  * POST /api/ai/chat
  * Server-Sent Events (SSE) Streaming response
@@ -21,10 +26,11 @@ export const streamChat = async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders?.();
 
   let isClientConnected = true;
-  req.on('close', () => {
+  res.on('close', () => {
     isClientConnected = false;
   });
 
@@ -32,6 +38,9 @@ export const streamChat = async (req: Request, res: Response) => {
     if (!isClientConnected) return;
     res.write(`event: ${event}\n`);
     res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (typeof (res as any).flush === 'function') {
+      (res as any).flush();
+    }
   };
 
   try {
@@ -54,7 +63,25 @@ export const streamChat = async (req: Request, res: Response) => {
         where: { sessionToken: token },
       });
 
-      if (!session) {
+      if (session) {
+        // Security check: If session already belongs to another user, create a brand-new session
+        if (session.customerId && customerId && session.customerId !== customerId) {
+          const newToken = uuidv4();
+          session = await prisma.chatSession.create({
+            data: {
+              sessionToken: newToken,
+              customerId: customerId,
+              title: trimmedMessage.slice(0, 50),
+            },
+          });
+        } else if (!session.customerId && customerId) {
+          // Associate guest session to authenticated user
+          session = await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { customerId: customerId },
+          });
+        }
+      } else {
         session = await prisma.chatSession.create({
           data: {
             sessionToken: token,
@@ -84,7 +111,7 @@ export const streamChat = async (req: Request, res: Response) => {
     });
 
     // 4. Retrieve RAG context chunks from knowledge base
-    const ragChunks = await ragService.queryKnowledgeBase(trimmedMessage, 3, 0.6);
+    const ragChunks = await ragService.queryKnowledgeBase(trimmedMessage, 3, 0.45);
 
     // 5. Fetch recent message history (giới hạn 10 messages gần nhất theo mục Ngày 10-11)
     let conversationHistory: ChatMessageParam[] = [];
@@ -179,6 +206,7 @@ export const streamChat = async (req: Request, res: Response) => {
 export const getSessionHistory = async (req: Request, res: Response) => {
   try {
     const { sessionToken } = req.params;
+    const customerId = (req.headers['x-user-id'] as string) || null;
 
     if (!sessionToken) {
       res.status(400).json({ success: false, message: 'sessionToken is required' });
@@ -198,6 +226,12 @@ export const getSessionHistory = async (req: Request, res: Response) => {
         return;
       }
 
+      // Security check: If session belongs to a different customer, deny access
+      if (session.customerId && customerId && session.customerId !== customerId) {
+        res.status(404).json({ success: false, message: 'Chat session not found' });
+        return;
+      }
+
       messages = await prisma.chatMessage.findMany({
         where: { sessionId: session.id },
         orderBy: { createdAt: 'asc' },
@@ -208,11 +242,16 @@ export const getSessionHistory = async (req: Request, res: Response) => {
       messages = [];
     }
 
+    const formattedMessages = messages.map((m) => ({
+      ...m,
+      id: m.id ? m.id.toString() : String(m.id),
+    }));
+
     res.status(200).json({
       success: true,
       data: {
         session,
-        messages,
+        messages: formattedMessages,
       },
     });
   } catch (error: any) {

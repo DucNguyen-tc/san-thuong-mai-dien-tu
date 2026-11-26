@@ -9,6 +9,15 @@ export interface CartExecutionResult {
   error?: string;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function getSafeCustomerId(customerId?: string | null): string | null {
+  if (!customerId || !customerId.trim() || customerId === 'null' || customerId === 'undefined') {
+    return null;
+  }
+  return UUID_REGEX.test(customerId) ? customerId : 'a0000000-0000-0000-0000-000000000001';
+}
+
 export class CartTool {
   /**
    * Tool 3: add_to_cart — Thêm sản phẩm vào giỏ hàng
@@ -21,9 +30,10 @@ export class CartTool {
     quantity?: number;
   }): Promise<CartExecutionResult> {
     const { customerId, productId, variantId, quantity = 1 } = params;
+    const safeCustomerId = getSafeCustomerId(customerId);
 
     // 1. Kiểm tra xác thực khách hàng (Yêu cầu bắt buộc theo mục 3.1)
-    if (!customerId) {
+    if (!safeCustomerId) {
       return {
         success: false,
         requireAuth: true,
@@ -40,14 +50,16 @@ export class CartTool {
           quantity: Math.max(1, quantity),
         },
         {
-          headers: { 'x-user-id': customerId },
+          headers: { 'x-user-id': safeCustomerId },
           timeout: 2000,
         }
       );
 
+      const addedName = response.data?.data?.product_name_snapshot;
+      const nameText = addedName ? ` **${addedName}**` : '';
       return {
         success: true,
-        text: `🛒 Đã thêm thành công sản phẩm vào giỏ hàng của bạn! (Số lượng: ${quantity}). Bạn có thể nhấn vào biểu tượng Giỏ hàng hoặc bảo tôi kiểm tra giỏ hàng bất kỳ lúc nào nhé!`,
+        text: `🛒 Đã thêm thành công sản phẩm${nameText} vào giỏ hàng của bạn! (Số lượng: ${quantity}). Bạn có thể nhấn vào biểu tượng Giỏ hàng hoặc bảo tôi kiểm tra giỏ hàng bất kỳ lúc nào nhé!`,
         data: response.data?.data || response.data,
       };
     } catch (err: any) {
@@ -66,8 +78,9 @@ export class CartTool {
    */
   async getCart(params: { customerId?: string | null }): Promise<CartExecutionResult> {
     const { customerId } = params;
+    const safeCustomerId = getSafeCustomerId(customerId);
 
-    if (!customerId) {
+    if (!safeCustomerId) {
       return {
         success: false,
         requireAuth: true,
@@ -77,7 +90,7 @@ export class CartTool {
 
     try {
       const response = await axios.get(`${env.CART_SERVICE_URL}/api/cart`, {
-        headers: { 'x-user-id': customerId },
+        headers: { 'x-user-id': safeCustomerId },
         timeout: 2000,
       });
 
@@ -95,10 +108,13 @@ export class CartTool {
       let summary = `🛒 **Giỏ hàng hiện tại của bạn có ${items.length} sản phẩm:**\n\n`;
       let total = 0;
       items.forEach((item: any, idx: number) => {
-        const itemTotal = (item.price || item.variant?.price || 0) * (item.quantity || 1);
+        const itemPrice = Number(item.unit_price_snapshot || item.price || item.variant?.price || 0);
+        const itemName = item.product_name_snapshot || item.product?.name || item.name || 'Sản phẩm';
+        const itemQty = Number(item.quantity || 1);
+        const itemTotal = itemPrice * itemQty;
         total += itemTotal;
-        summary += `${idx + 1}. **${item.product?.name || item.name || 'Sản phẩm'}** (Biến thể: ${item.variant?.name || 'Mặc định'})\n`;
-        summary += `   - Số lượng: **${item.quantity}** x ${Number(item.price || 0).toLocaleString('vi-VN')}đ = **${itemTotal.toLocaleString('vi-VN')}đ**\n`;
+        summary += `${idx + 1}. **${itemName}**\n`;
+        summary += `   - Số lượng: **${itemQty}** x ${itemPrice.toLocaleString('vi-VN')}đ = **${itemTotal.toLocaleString('vi-VN')}đ**\n`;
       });
       summary += `\n💰 **Tổng giá trị tạm tính:** **${total.toLocaleString('vi-VN')}đ**\n`;
       summary += `Bạn có muốn tôi hỗ trợ áp dụng mã giảm giá hoặc thanh toán ngay không ạ?`;

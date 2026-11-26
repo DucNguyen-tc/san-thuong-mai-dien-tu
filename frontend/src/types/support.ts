@@ -92,6 +92,8 @@ export interface CreateTicketDto {
   category: string;
   content: string;
   related_order_id?: string;
+  customer_name?: string;
+  customer_email?: string;
   attachments?: any[];
 }
 

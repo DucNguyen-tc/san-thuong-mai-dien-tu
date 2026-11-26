@@ -40,6 +40,9 @@ function getAuthenticatedUserHeaders(): Record<string, string> {
       if (user?.email && typeof user.email === 'string') {
         headers['x-user-email'] = user.email;
       }
+      if (user?.full_name && typeof user.full_name === 'string') {
+        headers['x-user-name'] = encodeURIComponent(user.full_name);
+      }
     }
   } catch {
     // Ignore parse error
@@ -81,50 +84,76 @@ export function generateGuestSessionToken(): string {
   return `guest-${randomPart}`;
 }
 
-export function getStoredSessionToken(): string | null {
-  return localStorage.getItem(SESSION_TOKEN_KEY);
+export function getCurrentUserId(): string | null {
+  try {
+    const raw = localStorage.getItem('user_data');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    return user?.id || null;
+  } catch {
+    return null;
+  }
 }
 
-export function setStoredSessionToken(token: string): void {
+export function getSessionTokenKey(userId?: string | null): string {
+  const uid = userId !== undefined ? userId : getCurrentUserId();
+  return uid ? `ai_chat_session_token_${uid}` : 'ai_chat_session_token_guest';
+}
+
+export function getSessionsIndexKey(userId?: string | null): string {
+  const uid = userId !== undefined ? userId : getCurrentUserId();
+  return uid ? `ai_chat_sessions_index_${uid}` : 'ai_chat_sessions_index_guest';
+}
+
+export function getLocalHistoryKey(userId?: string | null): string {
+  const uid = userId !== undefined ? userId : getCurrentUserId();
+  return uid ? `ai_chat_messages_cache_${uid}` : 'ai_chat_messages_cache_guest';
+}
+
+export function getStoredSessionToken(userId?: string | null): string | null {
+  return localStorage.getItem(getSessionTokenKey(userId));
+}
+
+export function setStoredSessionToken(token: string, userId?: string | null): void {
   if (!token) return;
-  localStorage.setItem(SESSION_TOKEN_KEY, token);
+  localStorage.setItem(getSessionTokenKey(userId), token);
 }
 
 /**
- * Đảm bảo luôn có 1 session_token trong LocalStorage (cho cả Guest và User đã đăng nhập)
+ * Đảm bảo luôn có 1 session_token trong LocalStorage (cho đúng User hiện tại hoặc Guest)
  */
-export function getOrCreateSessionToken(): string {
-  const existing = getStoredSessionToken();
+export function getOrCreateSessionToken(userId?: string | null): string {
+  const existing = getStoredSessionToken(userId);
   if (existing) return existing;
   const newToken = generateGuestSessionToken();
-  setStoredSessionToken(newToken);
+  setStoredSessionToken(newToken, userId);
   return newToken;
 }
 
 /**
- * Tạo một phiên hội thoại mới hoàn toàn và trả về session_token mới
+ * Tạo một phiên hội thoại mới hoàn toàn và trả về session_token mới cho User hiện tại
  */
-export function createNewChatSession(): string {
+export function createNewChatSession(userId?: string | null): string {
   const newToken = generateGuestSessionToken();
-  setStoredSessionToken(newToken);
+  setStoredSessionToken(newToken, userId);
   return newToken;
 }
 
-export function clearStoredSession(): void {
-  const current = getStoredSessionToken();
+export function clearStoredSession(userId?: string | null): void {
+  const current = getStoredSessionToken(userId);
   if (current) {
     localStorage.removeItem(`${SESSION_MSG_PREFIX}${current}`);
   }
-  localStorage.removeItem(SESSION_TOKEN_KEY);
-  localStorage.removeItem(LOCAL_HISTORY_KEY);
+  localStorage.removeItem(getSessionTokenKey(userId));
+  localStorage.removeItem(getLocalHistoryKey(userId));
 }
 
 /**
- * Lấy danh sách các phiên chat đã lưu trong LocalStorage (tối đa 10 phiên gần nhất)
+ * Lấy danh sách các phiên chat đã lưu trong LocalStorage của đúng User hiện tại (tối đa 10 phiên)
  */
-export function getSavedSessionsList(): ChatSessionSummary[] {
+export function getSavedSessionsList(userId?: string | null): ChatSessionSummary[] {
   try {
-    const raw = localStorage.getItem(SESSIONS_INDEX_KEY);
+    const raw = localStorage.getItem(getSessionsIndexKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ChatSessionSummary[]) : [];
@@ -134,15 +163,15 @@ export function getSavedSessionsList(): ChatSessionSummary[] {
 }
 
 /**
- * Xóa 1 phiên chat cụ thể khỏi danh sách lịch sử LocalStorage
+ * Xóa 1 phiên chat cụ thể khỏi danh sách lịch sử LocalStorage của User
  */
-export function deleteStoredSession(sessionToken: string): ChatSessionSummary[] {
+export function deleteStoredSession(sessionToken: string, userId?: string | null): ChatSessionSummary[] {
   try {
     localStorage.removeItem(`${SESSION_MSG_PREFIX}${sessionToken}`);
-    const list = getSavedSessionsList().filter(
+    const list = getSavedSessionsList(userId).filter(
       (s) => s.session_token !== sessionToken
     );
-    localStorage.setItem(SESSIONS_INDEX_KEY, JSON.stringify(list));
+    localStorage.setItem(getSessionsIndexKey(userId), JSON.stringify(list));
     return list;
   } catch {
     return [];
@@ -150,26 +179,26 @@ export function deleteStoredSession(sessionToken: string): ChatSessionSummary[] 
 }
 
 /**
- * Lưu lịch sử tin nhắn của phiên hiện tại vào LocalStorage
- * và cập nhật chỉ mục các phiên hội thoại (Guest / User)
+ * Lưu lịch sử tin nhắn của phiên hiện tại vào LocalStorage theo đúng User
  */
 export function saveMessagesToLocalCache(
   messages: ChatMessage[],
-  sessionToken?: string
+  sessionToken?: string,
+  userId?: string | null
 ): void {
   try {
-    const activeToken = sessionToken || getOrCreateSessionToken();
+    const activeToken = sessionToken || getOrCreateSessionToken(userId);
     const trimmed = messages.slice(-40);
     const serialized = JSON.stringify(trimmed);
 
-    localStorage.setItem(LOCAL_HISTORY_KEY, serialized);
+    localStorage.setItem(getLocalHistoryKey(userId), serialized);
     localStorage.setItem(`${SESSION_MSG_PREFIX}${activeToken}`, serialized);
 
     // Chỉ cập nhật vào danh sách lịch sử khi có ít nhất 1 tin nhắn từ người dùng
     const firstUserMsg = trimmed.find((m) => m.role === 'user');
     if (firstUserMsg) {
-      const isGuest = !localStorage.getItem('access_token');
-      const currentList = getSavedSessionsList();
+      const isGuest = !userId && !localStorage.getItem('access_token');
+      const currentList = getSavedSessionsList(userId);
       const summary: ChatSessionSummary = {
         session_token: activeToken,
         title: firstUserMsg.content.slice(0, 48),
@@ -182,7 +211,7 @@ export function saveMessagesToLocalCache(
         (item) => item.session_token !== activeToken
       );
       const updatedList = [summary, ...filtered].slice(0, 10);
-      localStorage.setItem(SESSIONS_INDEX_KEY, JSON.stringify(updatedList));
+      localStorage.setItem(getSessionsIndexKey(userId), JSON.stringify(updatedList));
     }
   } catch {
     // Bỏ qua lỗi tràn bộ nhớ LocalStorage
@@ -192,9 +221,9 @@ export function saveMessagesToLocalCache(
 /**
  * Đọc lịch sử tin nhắn từ LocalStorage theo sessionToken (hoặc bộ đệm gần nhất)
  */
-export function loadMessagesFromLocalCache(sessionToken?: string): ChatMessage[] {
+export function loadMessagesFromLocalCache(sessionToken?: string, userId?: string | null): ChatMessage[] {
   try {
-    const token = sessionToken || getStoredSessionToken();
+    const token = sessionToken || getStoredSessionToken(userId);
     if (token) {
       const bySession = localStorage.getItem(`${SESSION_MSG_PREFIX}${token}`);
       if (bySession) {
@@ -202,7 +231,7 @@ export function loadMessagesFromLocalCache(sessionToken?: string): ChatMessage[]
       }
     }
 
-    const raw = localStorage.getItem(LOCAL_HISTORY_KEY);
+    const raw = localStorage.getItem(getLocalHistoryKey(userId));
     if (!raw) return [];
     return JSON.parse(raw) as ChatMessage[];
   } catch {
@@ -216,7 +245,8 @@ export function loadMessagesFromLocalCache(sessionToken?: string): ChatMessage[]
  * thì tự động khôi phục từ LocalStorage của đúng sessionToken đó.
  */
 export async function fetchSessionHistory(
-  sessionToken: string
+  sessionToken: string,
+  userId?: string | null
 ): Promise<ChatMessage[]> {
   try {
     const res = await api.get(`/ai/sessions/${sessionToken}/messages`);
@@ -229,14 +259,15 @@ export async function fetchSessionHistory(
         metadata: m.metadata || null,
         createdAt: m.createdAt || m.created_at || new Date().toISOString(),
       }));
-      saveMessagesToLocalCache(normalized, sessionToken);
+      saveMessagesToLocalCache(normalized, sessionToken, userId);
       return normalized;
     }
   } catch {
-    // Nếu Gateway :3000 chưa bật, thử gọi trực tiếp ai-service :3008
+    // Nếu Gateway :3000 chưa bật, thử gọi trực tiếp ai-service :3010
     try {
       const directRes = await fetch(
-        `${AI_DIRECT_BASE_URL}/sessions/${sessionToken}/messages`
+        `${AI_DIRECT_BASE_URL}/sessions/${sessionToken}/messages`,
+        { headers: getAuthenticatedUserHeaders() }
       );
       if (directRes.ok) {
         const json = await directRes.json();
@@ -249,7 +280,7 @@ export async function fetchSessionHistory(
             metadata: m.metadata || null,
             createdAt: m.createdAt || m.created_at || new Date().toISOString(),
           }));
-          saveMessagesToLocalCache(normalized, sessionToken);
+          saveMessagesToLocalCache(normalized, sessionToken, userId);
           return normalized;
         }
       }
@@ -257,7 +288,7 @@ export async function fetchSessionHistory(
       // Fallback về LocalStorage khi cả 2 cổng đều offline
     }
   }
-  return loadMessagesFromLocalCache(sessionToken);
+  return loadMessagesFromLocalCache(sessionToken, userId);
 }
 
 /**
@@ -645,22 +676,12 @@ async function simulateMockSSEStream(
       };
     }
   } else if (
-    lower.includes('xác nhận hủy đơn') ||
-    lower.includes('đồng ý hủy đơn')
+    lower.includes('hủy đơn') ||
+    lower.includes('huy don') ||
+    lower.includes('cancel đơn') ||
+    lower.includes('muốn hủy')
   ) {
-    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
-    const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
-    const orderId = match ? match[1].toUpperCase() : 'ORD-2026-8899';
-    replyText = isLoggedIn
-      ? `✅ **HỦY ĐƠN HÀNG THÀNH CÔNG!**\n\nĐơn hàng **#${orderId}** của bạn đã được chuyển sang trạng thái **Đã Hủy**. Tồn kho sản phẩm đã được hoàn trả và tiền thanh toán (nếu có) sẽ hoàn về tài khoản trong 24 - 48 giờ làm việc.`
-      : '🔒 Bạn vui lòng đăng nhập tài khoản để thực hiện thao tác hủy đơn hàng!';
-  } else if (lower.includes('hủy đơn') || lower.includes('cancel đơn')) {
-    const isLoggedIn = Boolean(localStorage.getItem('access_token'));
-    const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
-    const orderId = match ? match[1].toUpperCase() : 'ORD-2026-8899';
-    replyText = isLoggedIn
-      ? `⚠️ **XÁC NHẬN HỦY ĐƠN HÀNG #${orderId}**\n\nBạn có chắc chắn muốn hủy đơn hàng này không? Lưu ý rằng sau khi hủy:\n• Đơn hàng sẽ không thể khôi phục lại.\n• Nếu đã thanh toán trực tuyến, tiền sẽ được hoàn trả về tài khoản gốc trong 1-3 ngày làm việc.\n\n👉 Nếu bạn hoàn toàn chắc chắn, hãy bấm nút xác nhận bên dưới hoặc nhắn lại: **"Xác nhận hủy đơn ${orderId}"** để tôi tiến hành hủy ngay giúp bạn nhé!`
-      : '🔒 Bạn vui lòng đăng nhập tài khoản để thực hiện thao tác hủy đơn hàng!';
+    replyText = `📦 **Hướng dẫn hủy đơn hàng:**\n\nĐể đảm bảo an toàn cho tài khoản và quyền lợi đơn hàng của bạn, sàn thương mại điện tử **không hỗ trợ hủy đơn qua chatbot** mà thực hiện trực tiếp trên hệ thống.\n👉 Bạn vui lòng truy cập trang **[Quản lý đơn hàng](/profile?tab=orders)** và chọn đơn hàng cần hủy để thực hiện trực tiếp trên hệ thống nhé! 😊`;
   } else if (
     lower.includes('chi tiết đơn') ||
     (lower.includes('đơn hàng') && (lower.includes('#') || lower.includes('ord-')))
@@ -680,7 +701,7 @@ async function simulateMockSSEStream(
   ) {
     const isLoggedIn = Boolean(localStorage.getItem('access_token'));
     replyText = isLoggedIn
-      ? `📦 **Đơn hàng gần đây của bạn:**\n\n1. **Mã đơn: #ORD-2026-8899**\n   • Trạng thái: 🚚 **Đang vận chuyển** (Dự kiến giao ngày mai)\n   • Sản phẩm: 1x iPhone 15 Pro Max 256GB\n   • Tổng thanh toán: **28.990.000đ** (Đã thanh toán qua VNPay)\n\n👉 Bạn có thể bấm nút bên dưới hoặc nhắn *"Xem chi tiết đơn ORD-2026-8899"* để kiểm tra hành trình vận chuyển nhé!`
+      ? `📦 **Đơn hàng gần đây của bạn:**\n\n1. **Mã đơn: #ORD-2026-8899**\n   • Trạng thái: 🚚 **Đang vận chuyển** (Dự kiến giao ngày mai)\n   • Sản phẩm: 1x iPhone 15 Pro Max 256GB\n   • Tổng thanh toán: **28.990.000đ** (Đã thanh toán qua VNPay)\n\n👉 Bạn có thể bấm nút **[Quản lý đơn hàng](/profile?tab=orders)** bên dưới để theo dõi chi tiết nhé!`
       : '🔒 Bạn vui lòng đăng nhập tài khoản để tra cứu lịch sử đơn hàng của mình nhé!';
   } else if (
     lower.includes('thêm vào giỏ') ||

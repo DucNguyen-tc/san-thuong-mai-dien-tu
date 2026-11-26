@@ -51,13 +51,15 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useCartStore } from '@/store/useCartStore';
 import ChatProductCardList from './ChatProductCard';
 import ChatComparisonTable from './ChatComparisonTable';
+import ChatOrderCardList from './ChatOrderCard';
 
 const QUICK_PROMPTS = [
   '📱 Tìm điện thoại chụp ảnh đẹp',
-  '🛒 Thêm iPhone 15 Pro Max vào giỏ hàng',
+  '🛒 Xem giỏ hàng của tôi',
   '📦 Kiểm tra đơn hàng của tôi',
   '⚖️ So sánh iPhone 15 và Samsung S24',
   '🔄 Chính sách đổi trả hàng thế nào?',
+  '🏷️ Voucher & Khuyến mãi hôm nay',
 ];
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -72,17 +74,74 @@ const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Render nội dung text hỗ trợ định dạng in đậm **bold** khi stream từng chunk
+ * Render nội dung text hỗ trợ định dạng hình ảnh ![alt](url), in đậm **bold** và liên kết [text](url) khi stream từng chunk
  */
-function renderFormattedText(content: string): React.ReactNode {
+function renderFormattedText(content: string, onNavigate?: (url: string) => void): React.ReactNode {
   if (!content) return null;
-  const parts = content.split(/(\*\*[^*]+\*\*)/g);
+  // Bóc tách theo markdown image (![alt](url)), markdown link ([text](url)) hoặc bold (**text**)
+  const parts = content.split(/(!?\[[^\]]*\]\([^)]+\)|\*\*[^*]+\*\*)/g);
   return parts.map((part, idx) => {
+    // 1. Markdown Image: ![alt](url) hoặc ![alt|targetUrl](url)
+    const imgMatch = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imgMatch) {
+      const [altText, targetUrl] = (imgMatch[1] || '').split('|');
+      const imgUrl = imgMatch[2];
+      return (
+        <span
+          key={idx}
+          onClick={() => {
+            if (targetUrl && onNavigate) {
+              onNavigate(targetUrl);
+            }
+          }}
+          className={`inline-flex items-center my-0.5 mr-1.5 align-middle overflow-hidden rounded-md border border-gray-200 bg-white shadow-2xs group ${
+            targetUrl ? 'cursor-pointer hover:border-blue-400' : ''
+          }`}
+          title={targetUrl ? `Bấm để xem chi tiết ${altText}` : altText}
+        >
+          <img
+            src={imgUrl}
+            alt={altText || 'Sản phẩm'}
+            className="w-7 h-7 sm:w-8 sm:h-8 object-cover group-hover:scale-105 transition-transform duration-200"
+            loading="lazy"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
+        </span>
+      );
+    }
+
+    // 2. Bold text: **text**
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
         <strong key={idx} className="font-semibold text-gray-900">
           {part.slice(2, -2)}
         </strong>
+      );
+    }
+
+    // 3. Markdown Link: [text](url)
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      let linkText = linkMatch[1];
+      const linkUrl = linkMatch[2];
+      // Loại bỏ các ký tự ** bao bọc bên trong link nếu có để hiển thị gọn sạch
+      linkText = linkText.replace(/^\*\*|\*\*$/g, '');
+      return (
+        <a
+          key={idx}
+          href={linkUrl}
+          onClick={(e) => {
+            e.preventDefault();
+            if (onNavigate) {
+              onNavigate(linkUrl);
+            }
+          }}
+          className="font-semibold text-primary underline hover:text-blue-700 cursor-pointer transition-colors"
+        >
+          {linkText}
+        </a>
       );
     }
     return <React.Fragment key={idx}>{part}</React.Fragment>;
@@ -116,26 +175,45 @@ export default function ChatWidget() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const currentUserId = user?.id || null;
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
   const { addItem, fetchCart } = useCartStore();
 
-  // Khởi tạo Guest/User Session Token từ LocalStorage & Load lịch sử chat
+  // Khởi tạo Guest/User Session Token từ LocalStorage & Load lịch sử chat theo User
   useEffect(() => {
-    const token = getOrCreateSessionToken();
+    const isUserSwitched = prevUserIdRef.current !== undefined && prevUserIdRef.current !== currentUserId;
+    prevUserIdRef.current = currentUserId;
+
+    if (isUserSwitched) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      setIsStreaming(false);
+      setIsWaitingFirstChunk(false);
+    }
+
+    const token = getOrCreateSessionToken(currentUserId);
     setActiveSessionToken(token);
-    setSavedSessions(getSavedSessionsList());
+    setSavedSessions(getSavedSessionsList(currentUserId));
     setIsLoadingHistory(true);
 
-    fetchSessionHistory(token)
+    fetchSessionHistory(token, currentUserId)
       .then((history) => {
         if (history.length > 0) {
           setMessages(history);
+        } else {
+          setMessages([WELCOME_MESSAGE]);
         }
+      })
+      .catch(() => {
+        setMessages([WELCOME_MESSAGE]);
       })
       .finally(() => {
         setIsLoadingHistory(false);
       });
-  }, []);
+  }, [currentUserId]);
 
   // Lắng nghe trạng thái kết nối mạng (Online / Offline) — Ngày 10-11 Error States
   useEffect(() => {
@@ -184,13 +262,13 @@ export default function ChatWidget() {
     }
   }, [isOpen, forceMock]);
 
-  // Lưu cache mỗi khi messages thay đổi
+  // Lưu cache mỗi khi messages thay đổi theo đúng User
   useEffect(() => {
     if (messages.length > 1 && activeSessionToken) {
-      saveMessagesToLocalCache(messages, activeSessionToken);
-      setSavedSessions(getSavedSessionsList());
+      saveMessagesToLocalCache(messages, activeSessionToken, currentUserId);
+      setSavedSessions(getSavedSessionsList(currentUserId));
     }
-  }, [messages, activeSessionToken]);
+  }, [messages, activeSessionToken, currentUserId]);
 
   // Auto-scroll xuống cuối khi có tin nhắn hoặc chunk mới
   useEffect(() => {
@@ -241,7 +319,7 @@ export default function ChatWidget() {
 
   const handleResetSession = () => {
     handleStopStream();
-    const newToken = createNewChatSession();
+    const newToken = createNewChatSession(currentUserId);
     setActiveSessionToken(newToken);
     setShowSessionPanel(false);
     setMessages([
@@ -250,19 +328,19 @@ export default function ChatWidget() {
         createdAt: new Date().toISOString(),
       },
     ]);
-    setSavedSessions(getSavedSessionsList());
+    setSavedSessions(getSavedSessionsList(currentUserId));
     toast.success('Đã tạo phiên trò chuyện mới');
   };
 
   const handleSelectSession = async (sessionToken: string) => {
     handleStopStream();
-    setStoredSessionToken(sessionToken);
+    setStoredSessionToken(sessionToken, currentUserId);
     setActiveSessionToken(sessionToken);
     setShowSessionPanel(false);
     setIsLoadingHistory(true);
 
     try {
-      const history = await fetchSessionHistory(sessionToken);
+      const history = await fetchSessionHistory(sessionToken, currentUserId);
       if (history.length > 0) {
         setMessages(history);
         toast.success('Đã khôi phục lịch sử hội thoại');
@@ -279,7 +357,7 @@ export default function ChatWidget() {
     sessionTokenToDelete: string
   ) => {
     e.stopPropagation();
-    const remaining = deleteStoredSession(sessionTokenToDelete);
+    const remaining = deleteStoredSession(sessionTokenToDelete, currentUserId);
     setSavedSessions(remaining);
 
     if (sessionTokenToDelete === activeSessionToken) {
@@ -533,79 +611,24 @@ export default function ChatWidget() {
       );
     }
 
-    // 2. Khi AI hỏi Xác nhận 2 bước để Hủy đơn hàng (⚠️ XÁC NHẬN HỦY ĐƠN HÀNG #...)
-    if (
-      lower.includes('xác nhận hủy đơn hàng') ||
-      (content.includes('⚠️') && lower.includes('chắc chắn muốn hủy'))
-    ) {
-      const orderMatch = content.match(/#([A-Za-z0-9_-]+)/);
-      const orderId = orderMatch ? orderMatch[1] : 'ORD-2026-8899';
-
-      return (
-        <div className="mt-2.5 pt-2 border-t border-amber-200/70 flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            disabled={isStreaming}
-            onClick={() => handleSendMessage(`Xác nhận hủy đơn ${orderId}`)}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Xác nhận hủy #{orderId}</span>
-          </button>
-          <button
-            type="button"
-            disabled={isStreaming}
-            onClick={() =>
-              handleSendMessage('Không hủy nữa, giữ lại đơn hàng giúp tôi')
-            }
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
-          >
-            <XCircle className="w-3.5 h-3.5" />
-            <span>Giữ lại đơn</span>
-          </button>
-        </div>
-      );
-    }
-
-    // 3. Khi AI trả về danh sách hoặc chi tiết Đơn hàng (📦 / 📋)
+    // 2. Khi AI trả về danh sách hoặc chi tiết Đơn hàng hoặc hướng dẫn hủy đơn (📦 / 📋)
     if (
       content.includes('📦') ||
       content.includes('📋') ||
-      lower.includes('mã đơn: #')
+      lower.includes('mã đơn: #') ||
+      lower.includes('hướng dẫn hủy đơn') ||
+      lower.includes('hủy đơn qua chatbot') ||
+      lower.includes('đơn hàng')
     ) {
-      const orderMatch = content.match(/#([A-Za-z0-9_-]+)/);
-      const orderId = orderMatch ? orderMatch[1] : 'ORD-2026-8899';
-      const isDetailView = content.includes('📋') || lower.includes('chi tiết đơn hàng');
-
       return (
         <div className="mt-2.5 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
-          {!isDetailView && (
-            <button
-              type="button"
-              disabled={isStreaming}
-              onClick={() => handleSendMessage(`Xem chi tiết đơn ${orderId}`)}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-            >
-              <ClipboardList className="w-3 h-3" />
-              <span>Chi tiết #{orderId}</span>
-            </button>
-          )}
           <button
             type="button"
-            disabled={isStreaming}
-            onClick={() => handleSendMessage(`Hủy đơn ${orderId}`)}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+            onClick={() => handleNavigateFromChat('/profile?tab=orders')}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200/80 px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
           >
-            <XCircle className="w-3 h-3" />
-            <span>Yêu cầu hủy #{orderId}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNavigateFromChat('/profile')}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-          >
-            <Package className="w-3 h-3" />
-            <span>Quản lý đơn mua</span>
+            <Package className="w-3.5 h-3.5" />
+            <span>Quản lý đơn hàng</span>
           </button>
         </div>
       );
@@ -961,7 +984,7 @@ export default function ChatWidget() {
                         <div className="whitespace-pre-wrap break-words">
                           {isUser
                             ? msg.content
-                            : renderFormattedText(msg.content)}
+                            : renderFormattedText(msg.content, handleNavigateFromChat)}
                           {!isUser && msg.isStreaming && (
                             <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-primary animate-pulse" />
                           )}
@@ -986,18 +1009,30 @@ export default function ChatWidget() {
                         </div>
                       )}
 
-                      {/* Nhãn phân biệt khi nhận SSE Metadata (Product Cards / Comparison Table) */}
+                      {/* Nhãn phân biệt khi nhận SSE Metadata (Product Cards / Comparison Table / Order Cards) */}
                       {!isUser && msg.metadata && (
                         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400">
                           <span className="inline-flex items-center gap-1 font-medium text-blue-600">
                             <Layers className="w-3 h-3" />
                             {msg.metadata.type === 'product_cards'
                               ? `Gợi ý sản phẩm (${msg.metadata.products.length})`
+                              : msg.metadata.type === 'order_cards'
+                              ? `Đơn hàng gần đây (${msg.metadata.orders.length})`
                               : 'Bảng so sánh thông số'}
                           </span>
                           <span>SSE Metadata</span>
                         </div>
                       )}
+
+                      {/* Render Order Action Cards nếu metadata.type === 'order_cards' */}
+                      {!isUser &&
+                        msg.metadata?.type === 'order_cards' &&
+                        msg.metadata.orders && (
+                          <ChatOrderCardList
+                            orders={msg.metadata.orders}
+                            onNavigate={handleNavigateFromChat}
+                          />
+                        )}
 
                       {/* Render Product Action Cards nếu metadata.type === 'product_cards' */}
                       {!isUser &&
@@ -1073,6 +1108,26 @@ export default function ChatWidget() {
               <ArrowDown className="w-3 h-3" />
               <span>Mới nhất</span>
             </button>
+          )}
+
+          {/* Gợi ý câu hỏi nhanh dạng cuộn ngang (Luôn sẵn sàng khi đang chat) */}
+          {messages.length > 1 && !isStreaming && (
+            <div className="px-3 py-1.5 bg-slate-50 border-t border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              <span className="text-[10px] font-semibold text-gray-500 shrink-0 uppercase tracking-wider flex items-center gap-1 pl-0.5">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Gợi ý:
+              </span>
+              {QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handleSendMessage(prompt)}
+                  className="shrink-0 text-[11px] bg-white hover:bg-blue-50 active:scale-[0.97] text-gray-700 hover:text-primary border border-gray-200 hover:border-blue-200 rounded-full px-2.5 py-1 transition-all cursor-pointer whitespace-nowrap shadow-2xs font-medium"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Thanh nhập tin nhắn (Tối ưu chạm trên Mobile) */}

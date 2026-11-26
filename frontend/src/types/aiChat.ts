@@ -44,7 +44,30 @@ export interface ChatSessionSummary {
   message_count: number;
 }
 
-export type ChatMetadataPayload = ProductCardsMetadata | ComparisonTableMetadata;
+export interface OrderItemSummary {
+  name: string;
+  image_url?: string;
+  quantity: number;
+  price: number;
+  product_id?: string;
+}
+
+export interface OrderCardItem {
+  id: string;
+  order_number: string;
+  status: string;
+  status_text: string;
+  total_amount: number;
+  created_at?: string;
+  items: OrderItemSummary[];
+}
+
+export interface OrderCardsMetadata {
+  type: 'order_cards';
+  orders: OrderCardItem[];
+}
+
+export type ChatMetadataPayload = ProductCardsMetadata | ComparisonTableMetadata | OrderCardsMetadata;
 
 export type SSEMessageType = 'text_chunk' | 'metadata' | 'done' | 'error' | 'session';
 

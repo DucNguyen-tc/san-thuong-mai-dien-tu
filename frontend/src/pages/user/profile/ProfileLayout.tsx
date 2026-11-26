@@ -1,24 +1,50 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ProfileInfo from "./ProfileInformation";
 import ChangePassword from "./ChangePassword";
 import AddressManager from "./AddressManager";
 import OrderManager from "./OrderManager";
 
-type TabKey = "profile" | "addresses" | "orders" | "password";
+type TabKey = "profile" | "addresses" | "orders" | "password" | "tickets";
 
-const sidebarItems: { key: TabKey; label: string; icon: string }[] = [
+const sidebarItems: { key: TabKey; label: string; icon: string; path?: string }[] = [
   { key: "profile", label: "Thông tin cá nhân", icon: "person" },
   { key: "addresses", label: "Sổ địa chỉ", icon: "location_on" },
   { key: "orders", label: "Quản lý đơn hàng", icon: "receipt_long" },
+  { key: "tickets", label: "Hỗ trợ & Khiếu nại", icon: "support_agent", path: "/support/my-tickets" },
   { key: "password", label: "Đổi mật khẩu", icon: "lock" },
 ];
 
 const ProfileLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") as TabKey | null;
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    tabFromUrl && ["profile", "addresses", "orders", "password"].includes(tabFromUrl)
+      ? tabFromUrl
+      : "profile"
+  );
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (tabFromUrl === "tickets") {
+      navigate("/support/my-tickets");
+    } else if (tabFromUrl && ["profile", "addresses", "orders", "password"].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    } else if (!tabFromUrl) {
+      setActiveTab("profile");
+    }
+  }, [tabFromUrl, navigate]);
+
+  const handleTabChange = (key: TabKey, path?: string) => {
+    if (path) {
+      navigate(path);
+      return;
+    }
+    setActiveTab(key);
+    setSearchParams({ tab: key });
+  };
 
   const handleLogout = () => {
     logout();
@@ -54,10 +80,10 @@ const ProfileLayout: React.FC = () => {
 
         {/* Nav items */}
         <nav className="space-y-1">
-          {sidebarItems.map(({ key, label, icon }) => (
+          {sidebarItems.map(({ key, label, icon, path }) => (
             <button
               key={key}
-              onClick={() => setActiveTab(key)}
+              onClick={() => handleTabChange(key, path)}
               className={`flex items-center gap-4 w-full p-4 rounded-lg transition-all text-sm font-semibold ${
                 activeTab === key
                   ? "bg-primary-fixed text-on-primary-fixed"

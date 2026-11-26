@@ -13,6 +13,8 @@ const supportLinks = [
   { label: 'Trung tâm trợ giúp', href: '/help' },
   { label: 'Hướng dẫn mua hàng', href: '/guide' },
   { label: 'Trả hàng & Hoàn tiền', href: '/returns' },
+  { label: 'Phiếu hỗ trợ của tôi', href: '/support/my-tickets' },
+  { label: 'Gửi yêu cầu hỗ trợ', href: '/support/new-ticket' },
   { label: 'Liên hệ', href: '/contact' },
 ];
 

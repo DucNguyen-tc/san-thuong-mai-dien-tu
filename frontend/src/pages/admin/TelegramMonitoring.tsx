@@ -120,7 +120,7 @@ export default function TelegramMonitoring() {
       setIsEditingCron(false);
       setNotification({
         type: 'success',
-        message: `Đã cập nhật lịch phát báo cáo thành công: ${formatCronSchedule(res.cronExpression)} (${res.cronExpression})`,
+        message: `Đã cập nhật lịch phát báo cáo thành công: ${formatCronSchedule(res.cronExpression)}`,
       });
     } catch (err: any) {
       setNotification({
@@ -305,14 +305,11 @@ export default function TelegramMonitoring() {
                       </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-2 mt-1.5">
                       <div className="flex items-center gap-1.5 text-sm sm:text-base font-bold text-on-surface">
                         <Clock size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
                         <span>{formatCronSchedule(status?.cronExpression)}</span>
                       </div>
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-indigo-100/80 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 font-medium">
-                        {status?.cronExpression || '0 23 * * *'}
-                      </span>
                     </div>
                   </div>
 

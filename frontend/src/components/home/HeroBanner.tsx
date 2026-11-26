@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { heroSlides } from '@/utils/mockData';
 
 export default function HeroBanner() {
@@ -28,9 +29,12 @@ export default function HeroBanner() {
           {slide.subtitle}
         </p>
         <div className="mt-8">
-          <button className="bg-[#fe9800] text-white px-8 py-3 rounded-lg font-bold text-lg hover:scale-105 transition-transform shadow-lg">
+          <Link
+            to="/products"
+            className="inline-block bg-[#fe9800] text-white px-8 py-3 rounded-lg font-bold text-lg hover:scale-105 transition-transform shadow-lg cursor-pointer"
+          >
             {slide.ctaText}
-          </button>
+          </Link>
         </div>
       </div>
 
