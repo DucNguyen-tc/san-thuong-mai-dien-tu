@@ -1,0 +1,95 @@
+@startuml
+title Sơ đồ Tuần Tự: Hệ Thống Ticket CSKH Thông Minh (Mô hình HITL & RAG)
+
+autonumber
+skinparam dpi 200
+skinparam defaultFontSize 13
+skinparam defaultFontName Arial
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 15
+skinparam ParticipantPadding 15
+skinparam ArrowThickness 1.2
+
+' Màu sắc trực quan, độ tương phản cao cho bản in/báo cáo
+skinparam actor {
+    BackgroundColor #EBF8FF
+    BorderColor #2B6CB0
+    FontStyle bold
+}
+skinparam participant {
+    BackgroundColor #FFFFFF
+    BorderColor #2B6CB0
+    FontStyle bold
+}
+
+' ==========================================
+' CÁC ĐỐI TƯỢNG CHÍNH (TỐI GIẢN CHO BÁO CÁO)
+' ==========================================
+actor "Khách hàng\n(Customer)" as Customer #BEE3F8
+participant "Giao diện Web\n(Frontend)" as FE #EDF2F7
+participant "Hệ thống CSKH\n(Support Service)" as Support #EBF8FF
+participant "Bộ não AI\n(RAG & LLM Engine)" as AI #E6FFFA
+actor "Nhân viên CSKH\n(Support Staff)" as Staff #FEFCBF
+participant "Dịch vụ Thông báo\n(Notification Service)" as Notif #FED7D7
+
+' ==========================================
+' 1. KHÁCH HÀNG GỬI TICKET
+' ==========================================
+== 1. Khách hàng gửi yêu cầu hỗ trợ ==
+Customer -> FE: Nhập nội dung khiếu nại & gửi Ticket
+activate Customer
+activate FE
+
+FE -> Support: POST /api/support/tickets (Lưu ticket mới - Trạng thái: OPEN)
+activate Support
+
+Support --> FE: Phản hồi tạo thành công (Mã: TK-20261028-XXX)
+FE --> Customer: Thông báo: "Gửi yêu cầu thành công, mã số TK-..."
+deactivate Customer
+deactivate FE
+
+' ==========================================
+' 2. AI PHÂN TÍCH & SOẠN NHÁP (RAG)
+' ==========================================
+== 2. AI Phân tích cảm xúc & Tự soạn câu trả lời (RAG Auto-Draft) ==
+Support -> AI: Yêu cầu phân tích khiếu nại & soạn câu trả lời
+activate AI
+
+AI -> AI: Phân tích mức độ giận dữ & Xếp hạng ưu tiên (P1 - P4)
+AI -> AI: RAG: Truy vấn chính sách đổi trả/bảo hành từ Vector DB
+AI -> AI: Sinh câu trả lời mẫu xoa dịu (AI Draft)
+
+AI --> Support: Trả về kết quả phân tích & Bản nháp câu trả lời
+deactivate AI
+
+Support -> Support: Lưu bản nháp (Cập nhật trạng thái: PENDING_REVIEW)
+
+' ==========================================
+' 3. DUYỆT CÂU TRẢ LỜI (HUMAN-IN-THE-LOOP)
+' ==========================================
+== 3. Nhân viên CSKH duyệt câu trả lời (Human-in-the-loop) ==
+Staff -> Support: Mở Dashboard xem ticket ưu tiên (P1) & đọc AI Draft
+activate Staff
+
+Staff -> Support: Chỉnh sửa nội dung và bấm "Duyệt & Gửi"
+Support -> Support: Lưu câu trả lời chính thức (Trạng thái: RESPONDED)
+Support --> Staff: Thông báo duyệt thành công
+deactivate Staff
+
+' ==========================================
+' 4. GỬI EMAIL PHẢN HỒI CHO KHÁCH
+' ==========================================
+== 4. Gửi email phản hồi chính thức cho khách hàng ==
+Support -> Notif: Bắn sự kiện gửi email qua RabbitMQ
+deactivate Support
+activate Notif
+
+Notif -> Customer: Gửi Email phản hồi chính thức đến hòm thư của khách
+activate Customer
+Customer --> Customer: Đọc email giải quyết khiếu nại
+deactivate Customer
+deactivate Notif
+
+@enduml

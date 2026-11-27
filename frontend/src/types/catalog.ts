@@ -106,19 +106,28 @@ export function getDiscountedPrice(product: CatalogProduct): number {
   
   if (!product.promotions || product.promotions.length === 0) return basePrice;
   
+  const now = new Date();
   let bestPrice = basePrice;
   for (const item of product.promotions) {
-    const promo = item.promotion;
-    if (promo.discount_type === 'PERCENT') {
-      const p = basePrice * (1 - Number(promo.discount_value) / 100);
+    const promo = (item as any)?.promotion || item;
+    if (!promo || promo.is_active === false) continue;
+    if (promo.valid_from && new Date(promo.valid_from) > now) continue;
+    if (promo.valid_to && new Date(promo.valid_to) <= now) continue;
+
+    const discountType = String(promo.discount_type || 'PERCENT').toUpperCase();
+    const discountValue = Number(promo.discount_value ?? promo.discount_percent ?? 0);
+    if (discountValue <= 0) continue;
+
+    if (discountType === 'PERCENT') {
+      const p = basePrice * (1 - discountValue / 100);
       if (p < bestPrice) bestPrice = p;
     } else {
-      const p = basePrice - Number(promo.discount_value);
+      const p = basePrice - discountValue;
       if (p < bestPrice) bestPrice = p;
     }
   }
   
-  return Math.max(0, bestPrice);
+  return Math.max(0, Math.round(bestPrice));
 }
 
 /** Lấy % giảm giá lớn nhất để hiển thị tag giảm giá */
@@ -132,7 +141,7 @@ export function getMaxDiscountTag(product: CatalogProduct): string | null {
   if (discounted >= basePrice) return null;
   
   const percent = Math.round(((basePrice - discounted) / basePrice) * 100);
-  return `-${percent}%`;
+  return percent > 0 ? `-${percent}%` : null;
 }
 
 /** Lấy ảnh đại diện: ưu tiên ảnh is_primary, fallback ảnh đầu tiên, fallback placeholder */

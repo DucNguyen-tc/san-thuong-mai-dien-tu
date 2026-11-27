@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { searchProducts } from '@/services/searchService';
 import type { SearchFacets } from '@/services/searchService';
+import { getCategoryTree } from '@/services/categoryService';
+import type { Category } from '@/types/catalog';
 import { formatPrice } from '@/utils/formatters';
 import StarRating from '@/components/ui/StarRating';
 
@@ -61,9 +63,16 @@ export default function ProductList() {
   // Local state
   const [products, setProducts] = useState<DisplayProduct[]>([]);
   const [facets, setFacets] = useState<SearchFacets | null>(null);
+  const [categoryTree, setCategoryTree] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+
+  useEffect(() => {
+    getCategoryTree()
+      .then(setCategoryTree)
+      .catch(() => {});
+  }, []);
 
   // Custom price input state
   const [customPriceMin, setCustomPriceMin] = useState(priceMinParam || '');
@@ -214,6 +223,39 @@ export default function ProductList() {
     hasDiscount
   );
 
+  // Tìm tên danh mục đang chọn (hỗ trợ cả danh mục cha và con) và danh sách con nếu chọn cha
+  const selectedParentCategory = categoryTree.find((c) => c.id === categoryId);
+  const activeCategoryName =
+    facets?.categories.find((c) => c.id === categoryId)?.name ||
+    selectedParentCategory?.name ||
+    categoryTree.flatMap((c) => c.children || []).find((c) => c.id === categoryId)?.name ||
+    'Đã chọn';
+
+  const visibleCategories = (() => {
+    const allCats = facets?.categories || [];
+    if (selectedParentCategory?.children && selectedParentCategory.children.length > 0) {
+      const childIds = new Set(selectedParentCategory.children.map((c) => c.id));
+      const filtered = allCats.filter((c) => childIds.has(c.id));
+      if (filtered.length > 0) return filtered;
+    }
+    return allCats;
+  })();
+
+  const handleSelectCategory = (nextCategoryId?: string) => {
+    if (nextCategoryId) {
+      searchParams.set('category_id', nextCategoryId);
+    } else {
+      searchParams.delete('category_id');
+    }
+    // Reset các bộ lọc thuộc tính (thương hiệu, màu, giá) khi đổi sang danh mục khác
+    searchParams.delete('brand');
+    searchParams.delete('color');
+    searchParams.delete('price_min');
+    searchParams.delete('price_max');
+    searchParams.set('page', '1');
+    setSearchParams(searchParams);
+  };
+
   return (
     <div className="bg-[#f8f9fa] min-h-screen pb-16">
       <div className="max-w-7xl mx-auto px-4 mt-6 flex gap-6">
@@ -248,28 +290,20 @@ export default function ProductList() {
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    searchParams.delete('category_id');
-                    searchParams.set('page', '1');
-                    setSearchParams(searchParams);
-                  }}
+                  onClick={() => handleSelectCategory()}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-sm flex items-center justify-between transition-colors ${
                     !categoryId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <span>Tất cả danh mục</span>
+                  <span>{selectedParentCategory ? '← Tất cả danh mục' : 'Tất cả danh mục'}</span>
                   <span className="text-xs text-gray-400">({facets?.categories.reduce((s, c) => s + c.count, 0) || totalItems})</span>
                 </button>
 
-                {facets?.categories.map((cat) => (
+                {visibleCategories.map((cat) => (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => {
-                      searchParams.set('category_id', cat.id);
-                      searchParams.set('page', '1');
-                      setSearchParams(searchParams);
-                    }}
+                    onClick={() => handleSelectCategory(cat.id)}
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg text-sm flex items-center justify-between transition-colors ${
                       categoryId === cat.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'
                     }`}
@@ -289,26 +323,34 @@ export default function ProductList() {
 
               {/* Các khoảng giá nhanh */}
               <div className="space-y-1 mb-3">
-                {facets?.price_ranges.map((range, idx) => {
-                  const isSelected =
-                    (range.from === undefined || Number(priceMinParam) === range.from) &&
-                    (range.to === undefined || Number(priceMaxParam) === range.to) &&
-                    Boolean(priceMinParam || priceMaxParam);
+                {facets?.price_ranges
+                  .filter((range) => {
+                    const isSelected =
+                      (range.from === undefined || Number(priceMinParam) === range.from) &&
+                      (range.to === undefined || Number(priceMaxParam) === range.to) &&
+                      Boolean(priceMinParam || priceMaxParam);
+                    return range.count > 0 || isSelected;
+                  })
+                  .map((range, idx) => {
+                    const isSelected =
+                      (range.from === undefined || Number(priceMinParam) === range.from) &&
+                      (range.to === undefined || Number(priceMaxParam) === range.to) &&
+                      Boolean(priceMinParam || priceMaxParam);
 
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSelectPriceRange(range.from, range.to)}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                        isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span>{range.key}</span>
-                      <span className="text-gray-400 font-normal">({range.count})</span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectPriceRange(range.from, range.to)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>{range.key}</span>
+                        <span className="text-gray-400 font-normal">({range.count})</span>
+                      </button>
+                    );
+                  })}
               </div>
 
               {/* Nhập khoảng giá tùy chỉnh */}
@@ -449,7 +491,7 @@ export default function ProductList() {
               {/* Chip: Danh mục */}
               {categoryId && facets && (
                 <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-100">
-                  <span>DM: {facets.categories.find((c) => c.id === categoryId)?.name || 'Đã chọn'}</span>
+                  <span>DM: {activeCategoryName}</span>
                   <button type="button" onClick={() => removeFilter('category')} className="hover:text-red-500">
                     <X size={12} />
                   </button>

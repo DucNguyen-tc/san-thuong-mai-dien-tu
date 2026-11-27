@@ -141,7 +141,7 @@ export const NewTicket: React.FC = () => {
                 <option value="">-- Không chọn đơn hàng --</option>
                 {orders.map((order) => (
                   <option key={order.id} value={order.id}>
-                    Đơn #{order.order_number || order.id.slice(0, 8)}
+                    Đơn #{order.order_number || order.id}
                   </option>
                 ))}
               </select>

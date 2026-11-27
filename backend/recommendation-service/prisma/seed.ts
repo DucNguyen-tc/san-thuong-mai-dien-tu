@@ -1,46 +1,51 @@
 import { PrismaClient } from '@prisma/client';
+import { Client } from 'pg';
 
 const prisma = new PrismaClient();
+const catalogDb = new Client({
+  connectionString: process.env.CATALOG_DATABASE_URL || 'postgresql://admin:1234567@localhost:5432/catalog_db?schema=public'
+});
 
 /**
  * Seed dữ liệu hành vi giả lập cho Collaborative Filtering.
  * 
  * Chiến lược:
- * - Lấy danh sách product_id từ bảng product_vectors (đã được catalog seed tạo ra)
- * - Nhóm sản phẩm theo nhóm logic (phones, gaming, office, mice, keyboards, audio)
- * - Tạo các bản ghi CLICK giả lập trong cùng nhóm để CF nhận biết nhóm sản phẩm liên quan
- * 
- * QUAN TRỌNG: Chạy script này SAU KHI đã chạy catalog seed VÀ recommendation service
- * đã xử lý xong các event product.created (vectors đã được tính toán).
+ * - Đọc toàn bộ danh sách sản phẩm và phân loại category từ Catalog DB.
+ * - Tạo tương tác CLICK giả lập trong cùng category và giữa các category liên quan.
+ * - Tạo IMPRESSION và PURCHASE cho các sản phẩm tiêu biểu để phục vụ ranking và popular recommendations.
  */
 async function main() {
-  console.log('Fetching product vectors from database...');
-  
-  const vectors: { product_id: string }[] = await prisma.$queryRawUnsafe(`
-    SELECT product_id FROM product_vectors ORDER BY computed_at ASC;
+  console.log('Connecting to databases...');
+  await catalogDb.connect();
+
+  console.log('Fetching products from Catalog DB...');
+  const res = await catalogDb.query(`
+    SELECT p.id, p.name, c.id as category_id, c.name as category_name
+    FROM "products" p
+    LEFT JOIN "categories" c ON p.category_id = c.id
+    ORDER BY c.name, p.created_at DESC
   `);
 
-  if (vectors.length === 0) {
-    console.error('ERROR: Chua co product vectors nao. Hay chay catalog seed truoc va doi recommendation service xu ly xong.');
+  const products = res.rows;
+  console.log(`Fetched ${products.length} products from Catalog DB.`);
+
+  if (products.length === 0) {
+    console.error('ERROR: Chưa có sản phẩm nào trong Catalog DB.');
     process.exit(1);
   }
 
-  console.log(`Found ${vectors.length} product vectors.`);
+  // Phân nhóm theo danh mục
+  const categoryGroups = new Map<string, Array<{ id: string; name: string }>>();
+  for (const p of products) {
+    const catName = p.category_name || 'Khác';
+    if (!categoryGroups.has(catName)) {
+      categoryGroups.set(catName, []);
+    }
+    categoryGroups.get(catName)!.push({ id: p.id, name: p.name });
+  }
 
-  const allIds = vectors.map(v => v.product_id);
-  
-  // Phân chia sản phẩm theo thứ tự seed (catalog seed lần lượt: phones, gaming, office, mice, keyboards, audio)
-  // 15 phones + 10 gaming + 8 office + 8 mice + 8 keyboards + 8 audio = 57
-  const phones = allIds.slice(0, Math.min(15, allIds.length));
-  const gaming = allIds.slice(15, Math.min(25, allIds.length));
-  const office = allIds.slice(25, Math.min(33, allIds.length));
-  const mice = allIds.slice(33, Math.min(41, allIds.length));
-  const keyboards = allIds.slice(41, Math.min(49, allIds.length));
-  const audio = allIds.slice(49, Math.min(57, allIds.length));
+  console.log(`Grouped into ${categoryGroups.size} categories.`);
 
-  console.log(`Groups: phones=${phones.length}, gaming=${gaming.length}, office=${office.length}, mice=${mice.length}, keyboards=${keyboards.length}, audio=${audio.length}`);
-
-  // Helper: tạo CLICK log giả lập
   const logs: Array<{
     source_product_id: string;
     recommended_product_id: string;
@@ -48,67 +53,98 @@ async function main() {
     similarity_score: number;
   }> = [];
 
-  function addGroupInteractions(group: string[], clicksPerPair: number = 3) {
+  // Tương tác nội bộ danh mục (càng gần nhau độ liên quan càng cao)
+  function addGroupInteractions(group: Array<{ id: string; name: string }>, baseClicks: number = 3) {
     for (let i = 0; i < group.length; i++) {
       for (let j = 0; j < group.length; j++) {
         if (i === j) continue;
-        // Tạo nhiều click hơn cho các sản phẩm gần nhau trong list (càng gần = càng liên quan)
-        const proximity = Math.max(1, clicksPerPair - Math.abs(i - j));
-        for (let k = 0; k < proximity; k++) {
+        const dist = Math.abs(i - j);
+        if (dist > 6) continue;
+
+        const clicks = Math.max(1, baseClicks - Math.floor(dist / 2));
+        for (let k = 0; k < clicks; k++) {
           logs.push({
-            source_product_id: group[i],
-            recommended_product_id: group[j],
+            source_product_id: group[i].id,
+            recommended_product_id: group[j].id,
             event_type: 'CLICK',
-            similarity_score: 0.8 - Math.abs(i - j) * 0.05
+            similarity_score: Math.max(0.4, 0.9 - dist * 0.08)
           });
         }
       }
     }
   }
 
-  function addCrossGroupInteractions(groupA: string[], groupB: string[], count: number = 1) {
-    // Gaming laptop users cũng thường xem chuột gaming và bàn phím cơ
-    for (let i = 0; i < Math.min(count, groupA.length); i++) {
-      for (let j = 0; j < Math.min(count, groupB.length); j++) {
+  // Tương tác chéo giữa 2 danh mục liên quan
+  function addCrossGroupInteractions(
+    groupA?: Array<{ id: string; name: string }>,
+    groupB?: Array<{ id: string; name: string }>,
+    sampleCount: number = 4
+  ) {
+    if (!groupA || !groupB) return;
+    const aList = groupA.slice(0, Math.min(sampleCount, groupA.length));
+    const bList = groupB.slice(0, Math.min(sampleCount, groupB.length));
+    for (const a of aList) {
+      for (const b of bList) {
         logs.push({
-          source_product_id: groupA[i],
-          recommended_product_id: groupB[j],
+          source_product_id: a.id,
+          recommended_product_id: b.id,
           event_type: 'CLICK',
-          similarity_score: 0.5
+          similarity_score: 0.6
         });
       }
     }
   }
 
-  // Tạo interaction trong từng nhóm
-  if (phones.length >= 2) addGroupInteractions(phones, 4);
-  if (gaming.length >= 2) addGroupInteractions(gaming, 4);
-  if (office.length >= 2) addGroupInteractions(office, 3);
-  if (mice.length >= 2) addGroupInteractions(mice, 4);
-  if (keyboards.length >= 2) addGroupInteractions(keyboards, 4);
-  if (audio.length >= 2) addGroupInteractions(audio, 3);
+  // Sinh log tương tác cho từng danh mục
+  for (const [catName, prods] of categoryGroups.entries()) {
+    if (prods.length >= 2) {
+      const isHotCat = [
+        'Nước hoa cao cấp',
+        'Điện thoại',
+        'Laptop',
+        'Tai nghe & Âm thanh',
+        'Chăm sóc da',
+        'Thời trang nữ',
+        'Giày thể thao'
+      ].includes(catName);
 
-  // Cross-group interactions: Gaming laptop <-> Chuột gaming <-> Bàn phím cơ
-  if (gaming.length > 0 && mice.length > 0) addCrossGroupInteractions(gaming, mice, 3);
-  if (gaming.length > 0 && keyboards.length > 0) addCrossGroupInteractions(gaming, keyboards, 3);
-  if (mice.length > 0 && keyboards.length > 0) addCrossGroupInteractions(mice, keyboards, 3);
+      addGroupInteractions(prods, isHotCat ? 4 : 2);
 
-  // Thêm IMPRESSION và PURCHASE cho một số cặp để phong phú data
-  for (let i = 0; i < Math.min(5, phones.length - 1); i++) {
-    logs.push({ source_product_id: phones[i], recommended_product_id: phones[i + 1], event_type: 'IMPRESSION', similarity_score: 0.9 });
-    logs.push({ source_product_id: phones[i], recommended_product_id: phones[i + 1], event_type: 'PURCHASE', similarity_score: 0.9 });
+      // Thêm PURCHASE và IMPRESSION cho top sản phẩm nổi bật
+      const topCount = Math.min(5, prods.length);
+      for (let i = 0; i < topCount; i++) {
+        const nextIdx = (i + 1) % prods.length;
+        logs.push({
+          source_product_id: prods[i].id,
+          recommended_product_id: prods[nextIdx].id,
+          event_type: 'PURCHASE',
+          similarity_score: 0.95
+        });
+        logs.push({
+          source_product_id: prods[i].id,
+          recommended_product_id: prods[nextIdx].id,
+          event_type: 'IMPRESSION',
+          similarity_score: 0.9
+        });
+      }
+    }
   }
-  for (let i = 0; i < Math.min(3, gaming.length - 1); i++) {
-    logs.push({ source_product_id: gaming[i], recommended_product_id: gaming[i + 1], event_type: 'PURCHASE', similarity_score: 0.85 });
-  }
 
-  console.log(`Preparing to insert ${logs.length} behavior log records...`);
+  // Thiết lập liên kết danh mục chéo tự nhiên
+  addCrossGroupInteractions(categoryGroups.get('Điện thoại'), categoryGroups.get('Phụ kiện điện thoại'));
+  addCrossGroupInteractions(categoryGroups.get('Điện thoại'), categoryGroups.get('Tai nghe & Âm thanh'));
+  addCrossGroupInteractions(categoryGroups.get('Laptop'), categoryGroups.get('Phụ kiện công nghệ'));
+  addCrossGroupInteractions(categoryGroups.get('Nước hoa cao cấp'), categoryGroups.get('Chăm sóc da'));
+  addCrossGroupInteractions(categoryGroups.get('Thời trang nữ'), categoryGroups.get('Túi xách & Balo'));
+  addCrossGroupInteractions(categoryGroups.get('Máy ảnh chuyên nghiệp'), categoryGroups.get('Ống kính máy ảnh'));
 
-  // Xóa log cũ (nếu có) và insert mới
+  console.log(`Generated ${logs.length} behavior logs.`);
+
+  console.log('Clearing old recommendation_logs...');
   await prisma.recommendationLog.deleteMany();
-  
-  // Batch insert
-  const BATCH_SIZE = 100;
+
+  console.log('Inserting new recommendation_logs in batches...');
+  const BATCH_SIZE = 500;
   for (let i = 0; i < logs.length; i += BATCH_SIZE) {
     const batch = logs.slice(i, i + BATCH_SIZE);
     await prisma.recommendationLog.createMany({ data: batch });
@@ -117,7 +153,6 @@ async function main() {
 
   const total = await prisma.recommendationLog.count();
   console.log(`\nRecommendation seed completed! Total behavior logs: ${total}`);
-  console.log('Collaborative Filtering se hoat dong tot voi du lieu nay.');
 }
 
 main()
@@ -126,6 +161,7 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    await catalogDb.end();
     await prisma.$disconnect();
     process.exit(0);
   });

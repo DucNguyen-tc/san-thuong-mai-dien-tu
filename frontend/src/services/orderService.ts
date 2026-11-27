@@ -19,7 +19,7 @@ export interface Order {
   customer_id: string;
   status: 'PENDING_PAYMENT' | 'CONFIRMED' | 'SHIPPING' | 'COMPLETED' | 'CANCELLED';
   shipping_address: string;
-  payment_method: 'VNPAY' | 'MOMO' | 'CASH';
+  payment_method: 'VNPAY' | 'CASH';
   subtotal: number | string;
   discount_amount: number | string;
   shipping_fee: number | string;
@@ -37,7 +37,7 @@ export interface CreateOrderItemInput {
 
 export interface CreateOrderPayload {
   shipping_address: string;
-  payment_method: 'VNPAY' | 'MOMO' | 'CASH';
+  payment_method: 'VNPAY' | 'CASH';
   items?: CreateOrderItemInput[];
 }
 

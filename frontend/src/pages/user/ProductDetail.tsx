@@ -103,18 +103,27 @@ export default function ProductDetail() {
 
   let currentPrice = basePrice;
   if (product.promotions && product.promotions.length > 0) {
+    const now = new Date();
     let bestPrice = basePrice;
     for (const item of product.promotions) {
-      const promo = item.promotion;
-      if (promo.discount_type === "PERCENT") {
-        const p = basePrice * (1 - Number(promo.discount_value) / 100);
+      const promo = (item as any)?.promotion || item;
+      if (!promo || promo.is_active === false) continue;
+      if (promo.valid_from && new Date(promo.valid_from) > now) continue;
+      if (promo.valid_to && new Date(promo.valid_to) <= now) continue;
+
+      const discountType = String(promo.discount_type || 'PERCENT').toUpperCase();
+      const discountValue = Number(promo.discount_value ?? promo.discount_percent ?? 0);
+      if (discountValue <= 0) continue;
+
+      if (discountType === "PERCENT") {
+        const p = basePrice * (1 - discountValue / 100);
         if (p < bestPrice) bestPrice = p;
       } else {
-        const p = basePrice - Number(promo.discount_value);
+        const p = basePrice - discountValue;
         if (p < bestPrice) bestPrice = p;
       }
     }
-    currentPrice = Math.max(0, bestPrice);
+    currentPrice = Math.max(0, Math.round(bestPrice));
   }
   const availableStock = selectedVariant
     ? selectedVariant.stock_quantity - selectedVariant.stock_reserved

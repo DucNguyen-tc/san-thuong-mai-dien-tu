@@ -1,34 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ShoppingCart,
   User,
   Search,
   LogOut,
   ChevronRight,
+  ChevronDown,
+  Menu,
   History,
   X,
   TrendingUp,
   Loader2,
   Camera,
+  Headphones,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCartStore } from '@/store/useCartStore';
 import { useSearch } from '@/hooks/useSearch';
 import { formatPrice } from '@/utils/formatters';
 import VisualSearchModal from '@/components/search/VisualSearchModal';
+import CategoryMegaMenu from './CategoryMegaMenu';
 
 const POPULAR_SEARCHES = ['iPhone 15 Pro Max', 'MacBook Air M3', 'Samsung Galaxy', 'Giày thể thao Nam'];
 const RECENT_SEARCHES_KEY = 'vshop_recent_searches';
 
 export default function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isVisualSearchOpen, setIsVisualSearchOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const categoryMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { query, setQuery, keywords, products, isLoading } = useSearch({
@@ -40,8 +47,11 @@ export default function Header() {
   const { getCartCount, fetchCart } = useCartStore();
   const cartCount = getCartCount();
 
-  // Load recent searches from localStorage
+  // Load recent searches from localStorage & listen to custom open-visual-search event
   useEffect(() => {
+    const handleOpenVisual = () => setIsVisualSearchOpen(true);
+    window.addEventListener('open-visual-search', handleOpenVisual);
+
     try {
       const saved = localStorage.getItem(RECENT_SEARCHES_KEY);
       if (saved) {
@@ -50,6 +60,10 @@ export default function Header() {
     } catch {
       // Ignore JSON parse errors
     }
+
+    return () => {
+      window.removeEventListener('open-visual-search', handleOpenVisual);
+    };
   }, []);
 
   // Sync cart
@@ -59,15 +73,36 @@ export default function Header() {
     }
   }, [isAuthenticated, fetchCart]);
 
-  // Click outside to close dropdown
+  // Close dropdowns on route change
+  useEffect(() => {
+    setIsCategoryMenuOpen(false);
+    setIsSearchOpen(false);
+  }, [location.pathname, location.search]);
+
+  // Click outside & Escape key to close dropdowns
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setIsSearchOpen(false);
       }
+      if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target as Node)) {
+        setIsCategoryMenuOpen(false);
+      }
     }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsCategoryMenuOpen(false);
+        setIsSearchOpen(false);
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Save to recent searches
@@ -131,13 +166,42 @@ export default function Header() {
     <header className="bg-surface sticky top-0 z-50 shadow-sm border-b border-outline-variant/30">
       <div className="flex justify-between items-center w-full px-6 py-4 max-w-[1280px] mx-auto gap-6">
 
-        {/* Logo */}
-        <Link
-          to="/"
-          className="text-2xl font-bold text-primary shrink-0 tracking-tight hover:opacity-90 transition-opacity"
-        >
-          V-Shop
-        </Link>
+        {/* Logo & Category Mega Menu */}
+        <div ref={categoryMenuRef} className="flex items-center gap-3 shrink-0 relative">
+          <Link
+            to="/"
+            className="text-2xl font-bold text-primary shrink-0 tracking-tight hover:opacity-90 transition-opacity"
+          >
+            V-Shop
+          </Link>
+
+          {/* Dấu 3 gạch mở danh mục */}
+          <button
+            type="button"
+            onClick={() => setIsCategoryMenuOpen((prev) => !prev)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer border ${
+              isCategoryMenuOpen
+                ? 'bg-primary/10 text-primary border-primary/30 shadow-xs'
+                : 'text-gray-700 hover:text-primary hover:bg-gray-100/80 border-gray-200/60'
+            }`}
+            title="Xem danh mục sản phẩm"
+          >
+            <Menu size={18} className={isCategoryMenuOpen ? 'text-primary' : 'text-gray-600'} />
+            <span className="hidden sm:inline">Danh mục</span>
+            <ChevronDown
+              size={14}
+              className={`text-gray-400 transition-transform duration-200 ${
+                isCategoryMenuOpen ? 'rotate-180 text-primary' : ''
+              }`}
+            />
+          </button>
+
+          {/* Mega Menu Dropdown */}
+          <CategoryMegaMenu
+            isOpen={isCategoryMenuOpen}
+            onClose={() => setIsCategoryMenuOpen(false)}
+          />
+        </div>
 
         {/* Search Bar */}
         <div ref={searchContainerRef} className="flex-grow max-w-[42rem] relative">
@@ -373,7 +437,17 @@ export default function Header() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Hỗ trợ / Tickets */}
+          <Link
+            to="/support/my-tickets"
+            className="flex items-center gap-1.5 text-xs font-medium text-on-surface-variant hover:text-primary transition-colors p-2 rounded-lg hover:bg-surface-container"
+            title="Trung tâm hỗ trợ & Ticket khiếu nại"
+          >
+            <Headphones size={20} />
+            <span className="hidden sm:inline">Hỗ trợ</span>
+          </Link>
+
           {/* Cart */}
           <Link
             to="/cart"

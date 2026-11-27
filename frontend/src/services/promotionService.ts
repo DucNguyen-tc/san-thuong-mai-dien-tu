@@ -38,6 +38,17 @@ export async function getPromotions(): Promise<Promotion[]> {
   return data.data;
 }
 
+export async function getActivePromotions(): Promise<Promotion[]> {
+  const promotions = await getPromotions();
+  const now = Date.now();
+  return (promotions || []).filter((p) => {
+    if (!p.is_active) return false;
+    const validFrom = new Date(p.valid_from).getTime();
+    const validTo = new Date(p.valid_to).getTime();
+    return validFrom <= now && validTo > now;
+  });
+}
+
 export async function createPromotion(input: CreatePromotionInput): Promise<Promotion> {
   const { data } = await apiClient.post<ApiEnvelope<Promotion>>('/catalog/promotions', input);
   return data.data;

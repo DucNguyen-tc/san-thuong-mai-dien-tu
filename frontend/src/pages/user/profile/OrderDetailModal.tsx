@@ -41,7 +41,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const getPaymentMethodLabel = (method: string) => {
     switch (method) {
       case 'VNPAY': return 'Thanh toán qua VNPAY';
-      case 'MOMO': return 'Thanh toán qua Ví MoMo';
       case 'CASH': return 'Thanh toán khi nhận hàng (COD)';
       default: return method;
     }
@@ -52,7 +51,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-outline-variant bg-surface-container-light">
-          <h2 className="text-xl font-bold text-on-surface">Chi tiết đơn hàng #{order.id.split('-')[0].toUpperCase()}</h2>
+          <h2 className="text-xl font-bold text-on-surface">Chi tiết đơn hàng #{order.id}</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-on-surface-variant"

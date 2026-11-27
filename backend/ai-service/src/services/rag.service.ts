@@ -16,7 +16,7 @@ const STATIC_POLICIES: RagChunkResult[] = [
     document_id: 'doc-policy-refund',
     document_title: 'Chính sách đổi trả hàng',
     source_type: 'POLICY',
-    content: 'Điều 3: Trường hợp lỗi từ sàn hoặc người bán: Đối với sản phẩm bị lỗi do nhà sản xuất, bể vỡ trong quá trình vận chuyển hoặc giao sai mẫu mã, khách hàng được miễn phí 100% cước phí đổi trả hai chiều. Đơn hàng giao trễ quá 3 ngày so với cam kết, khách hàng được quyền yêu cầu hủy đơn và hoàn tiền 100%. Thời gian hoàn tiền: 3-5 ngày làm việc qua phương thức thanh toán ban đầu (VNPay, MoMo, ngân hàng).',
+    content: 'Điều 3: Trường hợp lỗi từ sàn hoặc người bán: Đối với sản phẩm bị lỗi do nhà sản xuất, bể vỡ trong quá trình vận chuyển hoặc giao sai mẫu mã, khách hàng được miễn phí 100% cước phí đổi trả hai chiều. Đơn hàng giao trễ quá 3 ngày so với cam kết, khách hàng được quyền yêu cầu hủy đơn và hoàn tiền 100%. Thời gian hoàn tiền: 3-5 ngày làm việc qua phương thức thanh toán ban đầu (VNPay, ngân hàng).',
     score: 0.92,
   },
   {
@@ -48,7 +48,7 @@ const STATIC_POLICIES: RagChunkResult[] = [
     document_id: 'doc-policy-payment',
     document_title: 'Hướng dẫn thanh toán & Xử lý sự cố',
     source_type: 'FAQ',
-    content: 'Điều 1: Hỗ trợ thanh toán qua VNPay, MoMo, Visa/Mastercard và COD. Nếu tài khoản đã trừ tiền mà đơn chưa cập nhật, hệ thống tự động đối soát hoàn tiền trong 24 giờ.',
+    content: 'Điều 1: Hỗ trợ thanh toán qua VNPay (QR Code, ứng dụng ngân hàng) và Thanh toán khi nhận hàng (COD). Nếu tài khoản đã trừ tiền mà đơn chưa cập nhật, hệ thống tự động đối soát hoàn tiền trong 24 giờ.',
     score: 0.82,
   },
 ];
@@ -87,6 +87,31 @@ export class RagService {
   }
 
   /**
+   * Chia nhỏ văn bản, tạo vector embedding và lưu vào bảng document_chunks
+   */
+  private async insertChunksForDocument(documentId: string, title: string, originalContent: string): Promise<number> {
+    const textChunks = this.splitIntoChunks(originalContent);
+    console.log(`[RAG Ingestion] Document "${title}" chia thành ${textChunks.length} chunks.`);
+
+    for (let i = 0; i < textChunks.length; i++) {
+      const chunkText = textChunks[i];
+      const vector = await embeddingService.generateEmbedding(chunkText);
+      const vectorString = `[${vector.join(',')}]`;
+
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO document_chunks (document_id, chunk_index, content, embedding, created_at)
+         VALUES ($1::uuid, $2, $3, $4::vector, NOW())`,
+        documentId,
+        i + 1,
+        chunkText,
+        vectorString
+      );
+    }
+
+    return textChunks.length;
+  }
+
+  /**
    * Nạp tài liệu vào Knowledge Base (Lưu document + chunks + embedding vector)
    */
   async ingestDocument(title: string, sourceType: string, originalContent: string) {
@@ -99,25 +124,101 @@ export class RagService {
       },
     });
 
-    const textChunks = this.splitIntoChunks(originalContent);
-    console.log(`[RAG Ingestion] Document "${title}" chia thành ${textChunks.length} chunks.`);
+    const chunkCount = await this.insertChunksForDocument(doc.id, title, originalContent);
+    return { ...doc, chunkCount };
+  }
 
-    for (let i = 0; i < textChunks.length; i++) {
-      const chunkText = textChunks[i];
-      const vector = await embeddingService.generateEmbedding(chunkText);
-      const vectorString = `[${vector.join(',')}]`;
+  /**
+   * Lấy danh sách toàn bộ tài liệu trong Knowledge Base kèm số lượng chunk
+   */
+  async listDocuments() {
+    const docs = await prisma.knowledgeDocument.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: {
+          select: { chunks: true },
+        },
+      },
+    });
 
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO document_chunks (document_id, chunk_index, content, embedding, created_at)
-         VALUES ($1::uuid, $2, $3, $4::vector, NOW())`,
-        doc.id,
-        i + 1,
-        chunkText,
-        vectorString
-      );
+    return docs.map(({ _count, ...doc }) => ({
+      ...doc,
+      chunkCount: _count.chunks,
+    }));
+  }
+
+  /**
+   * Cập nhật tài liệu; tự động re-chunk & re-embed nếu nội dung thay đổi
+   */
+  async updateDocument(
+    id: string,
+    input: { title?: string; sourceType?: string; originalContent?: string; isActive?: boolean }
+  ) {
+    const existing = await prisma.knowledgeDocument.findUnique({ where: { id } });
+    if (!existing) {
+      const err: any = new Error('Không tìm thấy tài liệu chính sách');
+      err.status = 404;
+      throw err;
     }
 
-    return doc;
+    const updated = await prisma.knowledgeDocument.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
+        ...(input.originalContent !== undefined ? { originalContent: input.originalContent } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+    });
+
+    const contentChanged =
+      input.originalContent !== undefined &&
+      input.originalContent.trim() !== existing.originalContent.trim();
+
+    if (contentChanged) {
+      await prisma.documentChunk.deleteMany({ where: { documentId: id } });
+      await this.insertChunksForDocument(id, updated.title, updated.originalContent);
+    }
+
+    const chunkCount = await prisma.documentChunk.count({ where: { documentId: id } });
+    return { ...updated, chunkCount };
+  }
+
+  /**
+   * Bật/tắt trạng thái kích hoạt của tài liệu
+   */
+  async toggleDocumentStatus(id: string) {
+    const existing = await prisma.knowledgeDocument.findUnique({ where: { id } });
+    if (!existing) {
+      const err: any = new Error('Không tìm thấy tài liệu chính sách');
+      err.status = 404;
+      throw err;
+    }
+
+    const updated = await prisma.knowledgeDocument.update({
+      where: { id },
+      data: { isActive: !existing.isActive },
+      include: {
+        _count: { select: { chunks: true } },
+      },
+    });
+
+    const { _count, ...doc } = updated;
+    return { ...doc, chunkCount: _count.chunks };
+  }
+
+  /**
+   * Xóa tài liệu (tự động xóa cascade các document_chunks)
+   */
+  async deleteDocument(id: string) {
+    const existing = await prisma.knowledgeDocument.findUnique({ where: { id } });
+    if (!existing) {
+      const err: any = new Error('Không tìm thấy tài liệu chính sách');
+      err.status = 404;
+      throw err;
+    }
+
+    await prisma.knowledgeDocument.delete({ where: { id } });
   }
 
   /**

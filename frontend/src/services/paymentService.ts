@@ -4,7 +4,7 @@ export interface PaymentRecord {
   id: string;
   order_id: string;
   amount: number | string;
-  method: 'VNPAY' | 'MOMO' | 'CASH';
+  method: 'VNPAY' | 'CASH';
   status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
   gateway_transaction_id?: string | null;
   payment_url?: string | null;
@@ -15,7 +15,7 @@ export interface PaymentRecord {
 export interface CreatePaymentPayload {
   order_id: string;
   amount: number;
-  method: 'VNPAY' | 'MOMO' | 'CASH';
+  method: 'VNPAY' | 'CASH';
 }
 
 interface ApiEnvelope<T> {

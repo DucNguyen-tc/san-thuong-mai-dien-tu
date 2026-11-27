@@ -1,0 +1,92 @@
+@startuml
+title Sơ đồ Tuần Tự: Tìm Kiếm Nâng Cao & Tìm Kiếm Bằng Hình Ảnh
+
+autonumber
+skinparam dpi 200
+skinparam defaultFontSize 13
+skinparam defaultFontName Arial
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 15
+skinparam ParticipantPadding 15
+skinparam ArrowThickness 1.2
+
+' Màu sắc trực quan, độ tương phản cao cho bản in báo cáo
+skinparam actor {
+    BackgroundColor #EBF8FF
+    BorderColor #2B6CB0
+    FontStyle bold
+}
+skinparam participant {
+    BackgroundColor #FFFFFF
+    BorderColor #2B6CB0
+    FontStyle bold
+}
+skinparam database {
+    BackgroundColor #FEFCBF
+    BorderColor #B7791F
+    FontStyle bold
+}
+
+' ==========================================
+' CÁC ĐỐI TƯỢNG CHÍNH (TỐI GIẢN CHO BÁO CÁO)
+' ==========================================
+actor "Người dùng\n(User / Customer)" as User #BEE3F8
+participant "Giao diện Web\n(Frontend)" as FE #EDF2F7
+participant "Dịch vụ Tìm kiếm\n(Search Service)" as SearchSvc #EBF8FF
+participant "Mô hình AI Thị giác\n(CLIP Model)" as CLIP #E6FFFA
+database "Elasticsearch\n(Vector & Text Index)" as ES #FEFCBF
+
+' ==========================================
+' PHẦN 1: TÌM KIẾM BẰNG HÌNH ẢNH (VISUAL SEARCH)
+' ==========================================
+== 1. Luồng Tìm kiếm bằng hình ảnh (Visual Search) ==
+
+User -> FE: Tải ảnh sản phẩm lên từ thiết bị hoặc chụp từ Camera
+activate User
+activate FE
+
+FE -> SearchSvc: POST /api/search/visual (Gửi file ảnh)
+activate SearchSvc
+
+SearchSvc -> CLIP: Trích xuất đặc trưng thị giác từ ảnh đầu vào
+activate CLIP
+CLIP --> SearchSvc: Trả về Image Vector 512 chiều (Float32Array[512])
+deactivate CLIP
+
+SearchSvc -> ES: Truy vấn kNN Vector Search trên trường image_vector (Cosine Similarity)
+activate ES
+ES --> SearchSvc: Trả về Top 12 sản phẩm có vector ảnh tương đồng nhất (< 50ms)
+deactivate ES
+
+SearchSvc -> SearchSvc: Tính toán % độ tương đồng & sắp xếp giảm dần (Lọc score >= 50%)
+SearchSvc --> FE: Trả về danh sách sản phẩm tương đồng kèm % Similarity Score
+FE --> User: Hiển thị lưới sản phẩm tương tự (kèm huy hiệu 92%, 85% khớp)
+deactivate User
+deactivate FE
+
+' ==========================================
+' PHẦN 2: TÌM KIẾM VĂN BẢN & BỘ LỌC ĐỘNG
+' ==========================================
+== 2. Luồng Tìm kiếm văn bản nâng cao & Bộ lọc đa chiều (Faceted Search) ==
+
+User -> FE: Nhập từ khóa (hỗ trợ gõ sai/không dấu) hoặc tích chọn bộ lọc giá, danh mục
+activate User
+activate FE
+
+FE -> SearchSvc: GET /api/search/products?q=...&category=...&price=...
+
+SearchSvc -> ES: Truy vấn Multi-match (Fuzzy Search sửa lỗi chính tả) + Aggregations (Đếm Facets)
+activate ES
+ES --> SearchSvc: Trả về danh sách sản phẩm khớp + Số lượng đếm theo từng bộ lọc
+deactivate ES
+
+SearchSvc --> FE: Trả về kết quả sản phẩm kèm thông tin bộ lọc động (Facet counts)
+FE --> User: Hiển thị sản phẩm tìm thấy & cập nhật danh sách bộ lọc theo thời gian thực
+deactivate User
+deactivate FE
+deactivate SearchSvc
+
+@enduml
+

@@ -28,22 +28,49 @@ export async function mapProductToDocument(
   );
   const imageUrl = primaryImage?.url || (product.images?.[0]?.url ?? "");
 
-  // Kiểm tra khuyến mãi đang hoạt động
+  // Kiểm tra khuyến mãi đang hoạt động (hỗ trợ cả cấu trúc Prisma promotion lẫn raw reindex)
+  const now = new Date();
   const activePromotions = (product.promotions || []).filter((p: any) => {
-    const promo = p.promotion;
-    if (!promo || !promo.is_active) return false;
-    const now = new Date();
-    return new Date(promo.valid_from) <= now && new Date(promo.valid_to) > now;
+    const promo = p.promotion || p;
+    if (!promo || promo.is_active === false) return false;
+    if (promo.valid_from && new Date(promo.valid_from) > now) return false;
+    if (promo.valid_to && new Date(promo.valid_to) <= now) return false;
+    return true;
   });
 
-  const hasDiscount = activePromotions.length > 0;
-  const discountPercent = hasDiscount
-    ? Math.max(
-        ...activePromotions.map(
-          (p: any) => Number(p.promotion.discount_percent) || 0,
-        ),
-      )
-    : 0;
+  let bestDiscountedPrice = minPrice;
+  let maxDiscountPercent = 0;
+
+  for (const item of activePromotions) {
+    const promo = item.promotion || item;
+    const discountType = String(promo.discount_type || 'PERCENT').toUpperCase();
+    const discountValue = Number(promo.discount_value ?? promo.discount_percent ?? 0);
+
+    if (discountValue <= 0) continue;
+
+    let discountedPrice = minPrice;
+    let pct = 0;
+
+    if (discountType === 'PERCENT') {
+      discountedPrice = minPrice * (1 - discountValue / 100);
+      pct = Math.round(discountValue);
+    } else {
+      // FIXED discount (giảm số tiền cố định)
+      discountedPrice = Math.max(0, minPrice - discountValue);
+      pct = minPrice > 0 ? Math.round(((minPrice - discountedPrice) / minPrice) * 100) : 0;
+    }
+
+    if (discountedPrice < bestDiscountedPrice) {
+      bestDiscountedPrice = discountedPrice;
+    }
+    if (pct > maxDiscountPercent) {
+      maxDiscountPercent = pct;
+    }
+  }
+
+  const hasDiscount = minPrice > 0 && bestDiscountedPrice < minPrice && maxDiscountPercent > 0;
+  const finalPrice = hasDiscount ? Math.round(bestDiscountedPrice) : minPrice;
+  const discountPercent = hasDiscount ? maxDiscountPercent : 0;
 
   // Lấy thuộc tính từ variants (color, brand, size)
   const allAttributes: Record<string, string[]> = {};
@@ -83,8 +110,8 @@ export async function mapProductToDocument(
     category_slug: product.category?.slug || "",
     parent_category_id: product.category?.parent_id || null,
 
-    price: minPrice,
-    original_price: minPrice, // Giai đoạn 1 chưa tính giá gốc riêng
+    price: finalPrice,
+    original_price: minPrice,
     has_discount: hasDiscount,
     discount_percent: discountPercent,
 
@@ -133,7 +160,27 @@ export async function indexProduct(
   product: any,
   options?: IndexOptions,
 ): Promise<void> {
-  const doc = await mapProductToDocument(product, options);
+  // Tái sử dụng image_vector đã có trong ES nếu có để tăng tốc index (nhất là khi cập nhật giá/khuyến mãi)
+  let vectorToUse = options?.imageVector;
+  if (vectorToUse === undefined && !options?.skipVector) {
+    try {
+      const existing = await esClient.get({
+        index: env.ELASTICSEARCH_INDEX,
+        id: product.id,
+        _source_includes: ["image_vector"],
+      }).catch(() => null);
+      if (existing && (existing._source as any)?.image_vector) {
+        vectorToUse = (existing._source as any).image_vector;
+      }
+    } catch {
+      // Bỏ qua lỗi nếu chưa có document
+    }
+  }
+
+  const doc = await mapProductToDocument(product, {
+    ...options,
+    imageVector: vectorToUse !== undefined ? vectorToUse : options?.imageVector,
+  });
 
   await esClient.index({
     index: env.ELASTICSEARCH_INDEX,

@@ -153,15 +153,49 @@ export class CatalogTool {
       } else if (Array.isArray(resData.data)) {
         rawProducts = resData.data;
       }
+
+      // Nếu catalog-service trả về rỗng do từ khóa quá cụ thể (ví dụ: "chụp ảnh đẹp"), thử tìm theo từ khóa chính
+      if (rawProducts.length === 0) {
+        const lowerQ = query.toLowerCase();
+        let fallbackKeyword = '';
+        if (lowerQ.includes('điện thoại') || lowerQ.includes('phone') || lowerQ.includes('chụp ảnh') || lowerQ.includes('smartphone')) {
+          fallbackKeyword = 'iPhone';
+        } else if (lowerQ.includes('laptop') || lowerQ.includes('máy tính') || lowerQ.includes('macbook')) {
+          fallbackKeyword = 'MacBook';
+        } else if (lowerQ.includes('tai nghe') || lowerQ.includes('loa') || lowerQ.includes('âm thanh')) {
+          fallbackKeyword = 'Sony';
+        }
+
+        if (fallbackKeyword) {
+          try {
+            const retryRes = await axios.get(`${env.CATALOG_SERVICE_URL}/api/catalog/products`, {
+              params: { search: fallbackKeyword, limit },
+              timeout: 1500,
+            });
+            const rData = retryRes.data;
+            if (rData?.data?.products && Array.isArray(rData.data.products) && rData.data.products.length > 0) {
+              rawProducts = rData.data.products;
+            } else if (Array.isArray(rData?.data) && rData.data.length > 0) {
+              rawProducts = rData.data;
+            }
+          } catch {}
+        }
+      }
     } catch (err: any) {
       console.warn(`[CatalogTool] Không thể kết nối catalog-service (${err.message}). Sử dụng kho dữ liệu mẫu chuẩn...`);
-      // Fallback tìm kiếm trong kho mẫu
+    }
+
+    // Nếu vẫn rỗng (do catalog chưa seed hoặc không khớp), lấy từ SAMPLE_PRODUCTS
+    if (rawProducts.length === 0) {
       const lowerQ = query.toLowerCase();
       rawProducts = SAMPLE_PRODUCTS.filter((p) => {
         const matchName = p.name.toLowerCase().includes(lowerQ);
         const matchDesc = (p.description || '').toLowerCase().includes(lowerQ);
         const matchCat = (p.category?.name || '').toLowerCase().includes(lowerQ);
-        return lowerQ === '' || matchName || matchDesc || matchCat;
+        const matchKeyword =
+          (lowerQ.includes('điện thoại') || lowerQ.includes('ảnh') || lowerQ.includes('chụp')) &&
+          (p.category?.name === 'Điện thoại' || p.name.includes('iPhone') || p.name.includes('Galaxy'));
+        return matchName || matchDesc || matchCat || matchKeyword;
       });
 
       if (rawProducts.length === 0) {

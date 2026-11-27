@@ -10,7 +10,7 @@ const POLICIES = [
     originalContent: `Điều 1: Thời hạn đổi trả: Khách hàng được quyền yêu cầu đổi trả sản phẩm trong vòng 07 ngày kể từ ngày nhận hàng thành công theo ghi nhận của đơn vị vận chuyển.
 Điều 2: Điều kiện đổi trả: Sản phẩm phải còn nguyên vẹn tem mác, hộp đóng gói ban đầu, chưa qua sử dụng, giặt ủi và có đầy đủ phụ kiện, quà tặng kèm theo nếu có.
 Điều 3: Trường hợp lỗi từ sàn hoặc người bán: Đối với sản phẩm bị lỗi do nhà sản xuất, bể vỡ trong quá trình vận chuyển hoặc giao sai mẫu mã, chủng loại, số lượng, khách hàng được miễn phí 100% cước phí đổi trả hai chiều. Đặc biệt, nếu đơn hàng giao trễ quá 3 ngày so với thời gian cam kết ban đầu, khách hàng có toàn quyền yêu cầu hủy đơn và được hoàn tiền 100% giá trị đơn hàng.
-Điều 4: Quy trình và thời gian hoàn tiền: Sau khi nhận lại và kiểm tra hàng hoàn thành công trong vòng 24 đến 48 giờ, sàn sẽ tiến hành hoàn tiền cho khách qua phương thức thanh toán ban đầu (Ví VNPay, MoMo trong 1-3 ngày làm việc; Thẻ ngân hàng trong 3-5 ngày làm việc; với đơn COD hoàn tiền qua số tài khoản ngân hàng do khách hàng cung cấp).`,
+Điều 4: Quy trình và thời gian hoàn tiền: Sau khi nhận lại và kiểm tra hàng hoàn thành công trong vòng 24 đến 48 giờ, sàn sẽ tiến hành hoàn tiền cho khách qua phương thức thanh toán ban đầu (Ví VNPay trong 1-3 ngày làm việc; Thẻ ngân hàng trong 3-5 ngày làm việc; với đơn COD hoàn tiền qua số tài khoản ngân hàng do khách hàng cung cấp).`,
   },
   {
     title: 'Chính sách bảo hành sản phẩm',
@@ -30,7 +30,7 @@ const POLICIES = [
   {
     title: 'Hướng dẫn thanh toán & Xử lý lỗi giao dịch',
     sourceType: 'FAQ',
-    originalContent: `Điều 1: Các phương thức thanh toán được hỗ trợ: Sàn TMĐT hỗ trợ đa dạng phương thức bao gồm: Thanh toán qua Ví điện tử VNPay, Ví MoMo, Thẻ thanh toán quốc tế Visa/Mastercard, Thẻ ATM nội địa (Internet Banking) và Thanh toán khi nhận hàng (COD).
+    originalContent: `Điều 1: Các phương thức thanh toán được hỗ trợ: Sàn TMĐT hỗ trợ đa dạng phương thức bao gồm: Thanh toán qua cổng VNPay (ứng dụng ngân hàng, QR Code) và Thanh toán khi nhận hàng (COD).
 Điều 2: Bảo mật thông tin thanh toán: Toàn bộ thông tin giao dịch thẻ được mã hóa theo tiêu chuẩn quốc tế PCI-DSS cấp độ 1, sàn không lưu trữ thông tin thẻ của người dùng.
 Điều 3: Xử lý sự cố thanh toán: Trong trường hợp tài khoản đã bị trừ tiền nhưng hệ thống chưa ghi nhận đơn hàng thành công, hệ thống sẽ tự động đối soát trong vòng 24 giờ. Khách hàng vui lòng chụp lại biên lai trừ tiền và liên hệ Hotline 1900-6868 hoặc chat với Trợ lý AI để được nhân viên hỗ trợ kích hoạt đơn hoặc hoàn tiền ngay lập tức.`,
   },
@@ -39,7 +39,7 @@ const POLICIES = [
     sourceType: 'FAQ',
     originalContent: `Điều 1: Hủy đơn hàng tự động: Khách hàng có thể tự thao tác bấm 'Hủy đơn hàng' trực tiếp trên ứng dụng/website nếu đơn hàng đang ở trạng thái CHỜ XÁC NHẬN (PENDING) hoặc ĐANG XỬ LÝ (PROCESSING).
 Điều 2: Khi đơn hàng đã chuyển sang ĐANG GIAO HÀNG (SHIPPING): Khách hàng không thể tự hủy đơn trên hệ thống. Khách hàng cần liên hệ CSKH hoặc thông báo từ chối nhận hàng khi nhân viên giao hàng (shipper) gọi điện thoại giao bưu phẩm.
-Điều 3: Thời gian và quy định hoàn tiền khi hủy: Đối với đơn đã thanh toán trước (Online payment qua VNPay, MoMo, Visa/Mastercard), tiền sẽ được hoàn trả tự động vào tài khoản hoặc ví gốc của quý khách trong vòng 3 đến 5 ngày làm việc kể từ thời điểm hủy đơn được xác nhận.`,
+Điều 3: Thời gian và quy định hoàn tiền khi hủy: Đối với đơn đã thanh toán trước (Online payment qua VNPay), tiền sẽ được hoàn trả tự động vào tài khoản hoặc ví gốc của quý khách trong vòng 3 đến 5 ngày làm việc kể từ thời điểm hủy đơn được xác nhận.`,
   },
   {
     title: 'Quy chế hoạt động sàn TMĐT',

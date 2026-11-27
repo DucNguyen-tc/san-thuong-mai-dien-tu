@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const createOrderSchema = z.object({
   shipping_address: z.string().trim().min(5, 'Địa chỉ giao hàng phải có tối thiểu 5 ký tự'),
-  payment_method: z.enum(['VNPAY', 'MOMO', 'CASH'], {
-    message: 'Phương thức thanh toán phải là VNPAY, MOMO hoặc CASH',
+  payment_method: z.enum(['VNPAY', 'CASH'], {
+    message: 'Phương thức thanh toán phải là VNPAY hoặc CASH',
   }),
   items: z
     .array(

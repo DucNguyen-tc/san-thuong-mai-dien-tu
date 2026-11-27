@@ -143,9 +143,17 @@ export default function ChatWidget() {
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    const handleOpenWidget = () => {
+      setIsOpen(true);
+      setIsClosing(false);
+    };
+    window.addEventListener('open-ai-chat', handleOpenWidget);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('open-ai-chat', handleOpenWidget);
     };
   }, []);
 

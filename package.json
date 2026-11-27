@@ -13,7 +13,8 @@
     "start:recommendation": "cd backend/recommendation-service && npm run dev",
     "start:ai": "cd backend/ai-service && npm run dev",
     "dev:ai": "cd backend/ai-service && npm run dev",
-    "start:frontend": "cd frontend && npm run dev"
+    "start:frontend": "cd frontend && npm run dev",
+    "sync:recommendation": "npm --prefix backend/recommendation-service run sync:vectors && npm --prefix backend/recommendation-service run seed"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

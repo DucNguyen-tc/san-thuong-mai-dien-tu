@@ -10,10 +10,10 @@ const aboutLinks = [
 ];
 
 const supportLinks = [
-  { label: 'Trung tâm trợ giúp', href: '/help' },
-  { label: 'Hướng dẫn mua hàng', href: '/guide' },
+  { label: 'Gửi yêu cầu hỗ trợ', href: '/support/new-ticket' },
+  { label: 'Yêu cầu của tôi', href: '/support/my-tickets' },
   { label: 'Trả hàng & Hoàn tiền', href: '/returns' },
-  { label: 'Liên hệ', href: '/contact' },
+  { label: 'Điều khoản dịch vụ', href: '/terms' },
 ];
 
 export default function Footer() {

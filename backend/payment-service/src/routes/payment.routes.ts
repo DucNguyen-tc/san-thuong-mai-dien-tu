@@ -24,12 +24,6 @@ router.get('/', paymentController.getPayments.bind(paymentController));
 // GET /api/payments/vnpay/return - VNPAY Return URL (xử lý kết quả & redirect Option A)
 router.get('/vnpay/return', paymentController.vnpayReturn.bind(paymentController));
 
-// GET /api/payments/momo/return - MoMo Return URL (xử lý kết quả & redirect Option A)
-router.get('/momo/return', paymentController.momoReturn.bind(paymentController));
-
-// GET /api/payments/momo/simulator - Trang giả lập MoMo dành cho sinh viên test đồ án
-router.get('/momo/simulator', paymentController.momoSimulator.bind(paymentController));
-
 // GET /api/payments/order/:orderId - Lấy thông tin thanh toán của đơn hàng
 router.get(
   '/order/:orderId',
@@ -54,9 +48,6 @@ router.put(
 
 // GET /api/payments/callback/vnpay - IPN/Callback từ VNPAY
 router.get('/callback/vnpay', paymentController.vnpayCallback.bind(paymentController));
-
-// POST /api/payments/callback/momo - IPN/Callback từ MOMO
-router.post('/callback/momo', paymentController.momoCallback.bind(paymentController));
 
 // POST /api/payments/:id/refund - Hoàn tiền giao dịch
 router.post(

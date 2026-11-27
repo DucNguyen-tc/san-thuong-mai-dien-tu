@@ -76,6 +76,7 @@ export class TicketTool {
 
     try {
       console.log(`[TicketTool] Đang chuyển tiếp ticket sang support-service:`, payload.subject);
+      console.log(`[TicketTool] Payload:`, JSON.stringify(payload));
       const response = await axios.post(`${env.SUPPORT_SERVICE_URL}/api/support/tickets/escalate`, payload, {
         timeout: 3000,
       });
@@ -91,7 +92,7 @@ export class TicketTool {
         data: resData,
       };
     } catch (err: any) {
-      console.warn(`[TicketTool] Không kết nối được support-service (${err.message}). Tạo ticket giả lập cho môi trường dev.`);
+      console.warn(`[TicketTool] Không kết nối được support-service (${err.message}):`, err.response?.data);
       const mockTicketNum = `TK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-015`;
 
       return {

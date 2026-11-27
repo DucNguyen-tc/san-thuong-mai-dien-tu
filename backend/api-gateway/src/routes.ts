@@ -17,7 +17,15 @@ const proxyOptions = (target: string) => ({
   onProxyReq: (proxyReq: any, req: any, res: any) => {
     if (req.headers['x-user-id']) {
       proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
+    }
+    if (req.headers['x-user-role']) {
       proxyReq.setHeader('x-user-role', req.headers['x-user-role']);
+    }
+    if (req.headers['x-user-email']) {
+      proxyReq.setHeader('x-user-email', req.headers['x-user-email']);
+    }
+    if (req.headers['x-user-name']) {
+      proxyReq.setHeader('x-user-name', encodeURIComponent(req.headers['x-user-name']));
     }
   }
 });
@@ -63,6 +71,13 @@ router.use(
   createProxyMiddleware(proxyOptions(env.SUPPORT_SERVICE_URL)),
 );
 
+// Admin RAG Knowledge Base Management (JWT Token required; ai-service enforces ADMIN role)
+router.use(
+  "/ai/rag/documents",
+  verifyToken,
+  createProxyMiddleware(proxyOptions(env.AI_SERVICE_URL)),
+);
+
 // AI Shopping Assistant routes (Public for Guest & carries x-user-id if token present)
 router.use(
   "/ai",
@@ -73,14 +88,6 @@ router.use(
 // Payment Return & Callback routes (Public - Browser/Gateway Redirects don't carry JWT Authorization headers)
 router.use(
   "/payments/vnpay/return",
-  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
-);
-router.use(
-  "/payments/momo/return",
-  createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
-);
-router.use(
-  "/payments/momo/simulator",
   createProxyMiddleware(proxyOptions(env.PAYMENT_SERVICE_URL))
 );
 router.use(

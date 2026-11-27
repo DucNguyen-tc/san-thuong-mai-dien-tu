@@ -3,7 +3,6 @@ import { prismaMock } from '../setup/prismaMock';
 import axios from 'axios';
 import { NotFoundError, BadRequestError, ConflictError } from '../../src/exceptions/AppError';
 import { vnpay } from '../../src/config/vnpay.config';
-import { verifyMoMoResponseSignature, requestMoMoPayment } from '../../src/utils/momo.util';
 import { PaymentMethod, PaymentStatus } from '../../src/types/payment.types';
 
 jest.mock('axios');
@@ -16,11 +15,6 @@ jest.mock('../../src/config/vnpay.config', () => ({
     verifyIpnCall: jest.fn(),
   },
   VNP_RETURNURL: 'http://mock.return',
-}));
-
-jest.mock('../../src/utils/momo.util', () => ({
-  requestMoMoPayment: jest.fn(),
-  verifyMoMoResponseSignature: jest.fn(),
 }));
 
 describe('PaymentService', () => {

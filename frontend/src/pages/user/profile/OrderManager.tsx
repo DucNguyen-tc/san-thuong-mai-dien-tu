@@ -151,7 +151,7 @@ const OrderManager: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between px-5 py-4 border-b border-outline-variant/60 bg-gray-50/50 gap-2">
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-primary text-xl">local_mall</span>
-                  <span className="text-sm font-bold text-gray-900 tracking-wide uppercase">#{order.id.split('-')[0]}</span>
+                  <span className="text-sm font-bold text-gray-900 font-mono">#{order.id}</span>
                   <span className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></span>
                   <span className="text-sm text-gray-500 hidden sm:inline-block">
                     {new Date(order.created_at).toLocaleString('vi-VN')}

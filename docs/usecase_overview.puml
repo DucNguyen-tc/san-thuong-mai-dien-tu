@@ -1,0 +1,203 @@
+@startuml
+title Sơ đồ Use Case Tổng Quát - Sàn Thương Mại Điện Tử
+
+skinparam dpi 150
+skinparam defaultFontName Arial
+skinparam roundCorner 8
+skinparam shadowing false
+
+' Khoảng cách giữa các cột (ranksep) và các hàng (nodesep) giúp sơ đồ thoáng, không bị dài ngoằng
+skinparam ranksep 45
+skinparam nodesep 20
+
+' Tùy biến màu sắc
+skinparam actor {
+    BackgroundColor #EDF2F7
+    BorderColor #2B6CB0
+}
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #2B6CB0
+    ArrowColor #4A5568
+}
+skinparam rectangle {
+    BackgroundColor #F7FAFC
+    BorderColor #CBD5E0
+    FontColor #2D3748
+}
+
+left to right direction
+
+' ==========================================
+' TÁC NHÂN CHÍNH (PRIMARY ACTORS - BÊN TRÁI)
+' ==========================================
+actor "Khách vãng lai\n(Guest)" as Guest #EBF8FF
+actor "Khách hàng\n(Customer)" as Customer #BEE3F8
+actor "Quản trị viên\n(Admin)" as Admin #FEFCBF
+
+' Quan hệ kế thừa
+Guest <|-- Customer
+
+' ==========================================
+' TÁC NHÂN BÊN NGOÀI (SECONDARY ACTORS - BÊN PHẢI)
+' ==========================================
+actor "Google OAuth\n<<Hệ thống ngoài>>" as OAuth #EDF2F7
+actor "Cổng thanh toán\n(VNPay / MoMo)\n<<Hệ thống ngoài>>" as Payment #EDF2F7
+actor "Email Service (SMTP)\n<<Hệ thống ngoài>>" as SMTP #EDF2F7
+actor "Cloudinary API\n<<Hệ thống ngoài>>" as Cloudinary #EDF2F7
+actor "AI / LLM API\n(Gemini / OpenAI)\n<<Hệ thống ngoài>>" as LLM #EDF2F7
+actor "Telegram Bot API\n<<Hệ thống ngoài>>" as Telegram #EDF2F7
+
+' ==========================================
+' BIÊN HỆ THỐNG CHÍNH (SYSTEM BOUNDARY)
+' ==========================================
+rectangle "HỆ THỐNG SÀN THƯƠNG MẠI ĐIỆN TỬ" as System {
+
+    ' ==========================================
+    ' CỘT 1 (BÊN TRÁI): KHÁM PHÁ, TÀI KHOẢN & CSKH
+    ' ==========================================
+
+    ' --- PHÂN HỆ 1: XÁC THỰC & TÀI KHOẢN ---
+    rectangle "1. Xác thực & Tài khoản" as PK1 {
+        usecase "Đăng nhập / Đăng ký" as UC_Auth
+        usecase "Xác thực bằng Google" as UC_OAuth
+        usecase "Quản lý Hồ sơ & Sổ địa chỉ" as UC_Profile
+        usecase "Đổi mật khẩu / Quên mật khẩu" as UC_Password
+
+        UC_Auth -[hidden]right- UC_OAuth
+        UC_Profile -[hidden]right- UC_Password
+        UC_Auth -[hidden]down- UC_Profile
+    }
+
+    ' --- PHÂN HỆ 2: SẢN PHẨM & KHÁM PHÁ ---
+    rectangle "2. Khám phá & Sản phẩm" as PK2 {
+        usecase "Tìm kiếm & Lọc sản phẩm" as UC_Search
+        usecase "Xem chi tiết Sản phẩm" as UC_Detail
+        usecase "Hỏi đáp với Trợ lý mua sắm AI" as UC_AIChat
+        usecase "Hiển thị Gợi ý (AI)" as UC_Recommend
+
+        UC_Search -[hidden]right- UC_Detail
+        UC_AIChat -[hidden]right- UC_Recommend
+        UC_Search -[hidden]down- UC_AIChat
+    }
+
+    ' --- PHÂN HỆ 4: HỖ TRỢ KHÁCH HÀNG (TICKET CSKH) ---
+    rectangle "4. Hỗ trợ khách hàng (CSKH & Ticket)" as PK4 {
+        usecase "Gửi & Theo dõi Ticket hỗ trợ" as UC_CreateTicket
+        usecase "Xử lý & Phản hồi Ticket (HITL)" as UC_ManageTicket
+
+        UC_CreateTicket -[hidden]right- UC_ManageTicket
+    }
+
+    ' ==========================================
+    ' CỘT 2 (BÊN PHẢI): ĐẶT HÀNG & QUẢN TRỊ
+    ' ==========================================
+
+    ' --- PHÂN HỆ 3: GIỎ HÀNG & ĐẶT HÀNG ---
+    rectangle "3. Giỏ hàng & Đơn hàng" as PK3 {
+        usecase "Quản lý Giỏ hàng" as UC_Cart
+        usecase "Kiểm tra & Giữ Tồn kho" as UC_HoldStock
+        usecase "Đặt hàng & Checkout" as UC_Checkout
+        usecase "Thanh toán Trực tuyến" as UC_OnlinePay
+        usecase "Xem & Hủy đơn hàng của tôi" as UC_MyOrders
+        usecase "Áp dụng Mã giảm giá" as UC_Coupon
+
+        UC_Cart -[hidden]right- UC_HoldStock
+        UC_Checkout -[hidden]right- UC_OnlinePay
+        UC_MyOrders -[hidden]right- UC_Coupon
+        UC_Cart -[hidden]down- UC_Checkout
+        UC_Checkout -[hidden]down- UC_MyOrders
+    }
+
+    ' --- PHÂN HỆ 5: QUẢN TRỊ HỆ THỐNG & VẬN HÀNH ---
+    rectangle "5. Quản trị Hệ thống & Vận hành" as PK5 {
+        usecase "Quản lý Sản phẩm & Danh mục" as UC_AdminProd
+        usecase "Upload hình ảnh" as UC_Upload
+        usecase "Quản lý Đơn hàng" as UC_AdminOrder
+        usecase "Gửi Email Thông báo" as UC_Email
+        usecase "Quản lý Khuyến mãi" as UC_AdminCoupon
+        usecase "Quản lý Người dùng" as UC_AdminUser
+        usecase "Quản lý Tri thức RAG (Policies)" as UC_AdminRAG
+        usecase "Xem Báo cáo & Thống kê" as UC_Dashboard
+        usecase "Báo cáo & Cảnh báo qua Telegram" as UC_TeleAlert
+
+        UC_AdminProd -[hidden]right- UC_Upload
+        UC_AdminOrder -[hidden]right- UC_Email
+        UC_Dashboard -[hidden]right- UC_TeleAlert
+        UC_AdminCoupon -[hidden]right- UC_AdminUser
+        UC_AdminProd -[hidden]down- UC_AdminOrder
+        UC_AdminOrder -[hidden]down- UC_AdminCoupon
+        UC_AdminCoupon -[hidden]down- UC_AdminRAG
+        UC_AdminRAG -[hidden]down- UC_Dashboard
+    }
+}
+
+' ==========================================
+' BỐ CỤC 2 CỘT CHO CÁC PHÂN HỆ (GRID LAYOUT)
+' ==========================================
+' Cột trái: PK1 -> PK2 -> PK4
+PK1 -[hidden]down- PK2
+PK2 -[hidden]down- PK4
+
+' Cột phải: PK3 -> PK5
+PK3 -[hidden]down- PK5
+
+' Căn 2 cột ngang hàng nhau
+PK1 -[hidden]right- PK3
+PK2 -[hidden]right- PK5
+
+' ==========================================
+' QUAN HỆ GIỮA CÁC USE CASE (INCLUDE / EXTEND)
+' ==========================================
+' Mở rộng (<<extend>>)
+UC_OAuth .> UC_Auth : <<extend>>
+UC_Recommend .> UC_Detail : <<extend>>
+UC_OnlinePay .> UC_Checkout : <<extend>>
+UC_Coupon .> UC_Checkout : <<extend>>
+
+' Bắt buộc bao gồm (<<include>>)
+UC_Checkout .> UC_HoldStock : <<include>>
+UC_Checkout .> UC_Email : <<include>>
+UC_AdminOrder .> UC_Email : <<include>>
+UC_ManageTicket .> UC_Email : <<include>>
+UC_AdminProd .> UC_Upload : <<include>>
+UC_Dashboard .> UC_TeleAlert : <<include>>
+
+' ==========================================
+' TƯƠNG TÁC TÁC NHÂN CHÍNH (PRIMARY ACTORS)
+' ==========================================
+' Khách vãng lai (Guest)
+Guest --> UC_Auth
+Guest --> UC_Search
+Guest --> UC_Detail
+Guest --> UC_AIChat
+
+' Khách hàng (Customer)
+Customer --> UC_Profile
+Customer --> UC_Password
+Customer --> UC_Cart
+Customer --> UC_Checkout
+Customer --> UC_MyOrders
+Customer --> UC_CreateTicket
+
+' Quản trị viên (Admin)
+Admin --> UC_AdminProd
+Admin --> UC_AdminOrder
+Admin --> UC_AdminCoupon
+Admin --> UC_AdminUser
+Admin --> UC_AdminRAG
+Admin --> UC_ManageTicket
+Admin --> UC_Dashboard
+
+' ==========================================
+' TƯƠNG TÁC TÁC NHÂN BÊN NGOÀI (EXTERNAL SYSTEMS)
+' ==========================================
+UC_OAuth --> OAuth
+UC_OnlinePay --> Payment
+UC_Upload --> Cloudinary
+UC_Email --> SMTP
+UC_AIChat --> LLM
+UC_ManageTicket --> LLM
+UC_TeleAlert --> Telegram
+
+@enduml

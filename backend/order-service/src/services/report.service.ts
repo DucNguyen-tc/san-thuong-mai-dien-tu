@@ -257,7 +257,7 @@ export class ReportService {
     } else {
       paymentHtml = data.paymentBreakdown
         .map(pm => {
-          const icon = pm.method === PaymentMethod.VNPAY ? '💳 VNPAY' : pm.method === PaymentMethod.MOMO ? '👛 MOMO' : '💵 Tiền mặt (COD)';
+          const icon = pm.method === PaymentMethod.VNPAY ? '💳 VNPAY' : '💵 Tiền mặt (COD)';
           return `• ${icon}: <b>${pm.count}</b> đơn (<code>${this.formatCurrency(pm.totalAmount)}</code>)`;
         })
         .join('\n');

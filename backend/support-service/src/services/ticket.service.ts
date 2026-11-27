@@ -174,14 +174,16 @@ export class TicketService {
    * Lấy chi tiết ticket theo ID (kèm messages và responses đã được duyệt)
    */
   static async getTicketById(ticketId: string, customerId: string, userRole: string) {
+    const isCustomer = userRole === "CUSTOMER";
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
       include: {
         messages: {
+          where: isCustomer ? { sender_type: { not: SenderType.SYSTEM } } : undefined,
           orderBy: { created_at: "asc" }
         },
         responses: {
-          where: userRole === "CUSTOMER" ? { review_status: "APPROVED" } : undefined,
+          where: isCustomer ? { review_status: "APPROVED" } : undefined,
           orderBy: { created_at: "asc" }
         }
       }
@@ -192,8 +194,18 @@ export class TicketService {
     }
 
     // Nếu là Customer thì chỉ được xem ticket của chính mình
-    if (userRole === "CUSTOMER" && ticket.customer_id !== customerId) {
+    if (isCustomer && ticket.customer_id !== customerId) {
       throw new Error("Bạn không có quyền truy cập ticket này");
+    }
+
+    // Lọc phụ trợ cho Customer để đảm bảo tuyệt đối không lọt các ghi chú AI/Hệ thống nội bộ
+    if (isCustomer && ticket.messages) {
+      ticket.messages = ticket.messages.filter(
+        (m) =>
+          m.sender_type !== SenderType.SYSTEM &&
+          !m.content.startsWith("[AI") &&
+          !m.content.startsWith("[RAG")
+      );
     }
 
     return ticket;

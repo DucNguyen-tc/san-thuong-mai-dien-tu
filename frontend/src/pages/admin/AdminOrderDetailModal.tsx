@@ -174,7 +174,7 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
             </span>
             <div>
               <h3 className="text-lg font-bold text-gray-900">
-                Chi tiết đơn hàng #{order.id.split("-")[0].toUpperCase()}
+                Chi tiết đơn hàng #{order.id}
               </h3>
               <p className="text-xs text-gray-500">Mã đầy đủ: {order.id}</p>
             </div>

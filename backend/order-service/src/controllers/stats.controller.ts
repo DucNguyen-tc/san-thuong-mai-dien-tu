@@ -146,7 +146,6 @@ export class StatsController {
       // 3. Cơ cấu phương thức thanh toán
       const paymentMap: Record<string, { count: number; totalAmount: number }> = {
         VNPAY: { count: 0, totalAmount: 0 },
-        MOMO: { count: 0, totalAmount: 0 },
         CASH: { count: 0, totalAmount: 0 },
       };
 

@@ -25,14 +25,21 @@ export async function getProducts(query: ListProductsQuery = {}): Promise<Produc
  * Hỗ trợ cả UUID lẫn slug (`/product/:slug` từ AI Product Action Cards).
  */
 export async function getProductById(idOrSlug: string): Promise<CatalogProduct> {
-  if (UUID_REGEX.test(idOrSlug)) {
+  try {
     const { data } = await apiClient.get<ApiEnvelope<CatalogProduct>>(
       `/catalog/products/${idOrSlug}`
     );
-    return data.data;
+    if (data.data) {
+      return data.data;
+    }
+  } catch (err) {
+    // Nếu gọi trực tiếp không được và tham số là slug, fallback tìm kiếm
+    if (!UUID_REGEX.test(idOrSlug)) {
+      return getProductBySlug(idOrSlug);
+    }
+    throw err;
   }
 
-  // Nếu tham số trên URL là slug (VD: /product/iphone-15-pro-max-256gb)
   return getProductBySlug(idOrSlug);
 }
 

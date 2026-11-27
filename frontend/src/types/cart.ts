@@ -5,4 +5,4 @@ export interface CheckoutFormData {
   addressId?: string;
 }
 
-export type PaymentMethodType = 'cod' | 'vnpay' | 'momo';
+export type PaymentMethodType = 'cod' | 'vnpay';

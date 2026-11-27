@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import ProfileInfo from "./ProfileInformation";
 import ChangePassword from "./ChangePassword";
 import AddressManager from "./AddressManager";
@@ -68,6 +68,15 @@ const ProfileLayout: React.FC = () => {
               <span>{label}</span>
             </button>
           ))}
+
+          {/* Support / Ticket */}
+          <Link
+            to="/support/my-tickets"
+            className="flex items-center gap-4 w-full p-4 rounded-lg transition-all text-sm font-semibold text-on-surface-variant hover:bg-surface-container"
+          >
+            <span className="material-symbols-outlined">support_agent</span>
+            <span>Hỗ trợ & Khiếu nại</span>
+          </Link>
 
           {/* Divider + Logout */}
           <div className="pt-6 mt-6 border-t border-outline-variant">

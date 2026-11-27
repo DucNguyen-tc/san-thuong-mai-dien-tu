@@ -7,7 +7,7 @@ import {
   UpdateProductInput,
 } from "../schemas/product.schema";
 
-const productInclude = {
+export const productInclude = {
   category: true,
   variants: true,
   images: true,
@@ -146,9 +146,10 @@ export class ProductService {
     };
   }
 
-  async getById(id: string) {
+  async getById(idOrSlug: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
     const product = await prisma.product.findUnique({
-      where: { id },
+      where: isUuid ? { id: idOrSlug } : { slug: idOrSlug },
       include: productInclude,
     });
     if (!product) throw new NotFoundError("Không tìm thấy sản phẩm");

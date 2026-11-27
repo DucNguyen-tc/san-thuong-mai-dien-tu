@@ -10,6 +10,7 @@ import AdminOrderManagement from "@/pages/admin/AdminOrderManagement";
 import TelegramMonitoring from "@/pages/admin/TelegramMonitoring";
 import AdminTickets from "@/pages/admin/AdminTickets";
 import AdminTicketDetail from "@/pages/admin/AdminTicketDetail";
+import KnowledgeManagement from "@/pages/admin/KnowledgeManagement";
 
 /**
  * AdminRoutes — Tập hợp tất cả routes dành cho khu vực admin
@@ -25,6 +26,7 @@ export const AdminRoutes = (
       <Route path="/admin" element={<Dashboard />} />
       <Route path="/admin/tickets" element={<AdminTickets />} />
       <Route path="/admin/tickets/:id" element={<AdminTicketDetail />} />
+      <Route path="/admin/knowledge" element={<KnowledgeManagement />} />
       <Route path="/admin/customers" element={<UsersList />} />
       <Route path="/admin/products" element={<ProductManagement />} />
       <Route path="/admin/categories" element={<CategoryManagement />} />

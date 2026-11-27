@@ -4,8 +4,8 @@ import { PaymentMethod, PaymentStatus } from '@prisma/client';
 export const createPaymentSchema = z.object({
   order_id: z.string().uuid('order_id phải là định dạng UUID'),
   amount: z.number().positive('Số tiền thanh toán phải lớn hơn 0'),
-  method: z.nativeEnum(PaymentMethod, {
-    errorMap: () => ({ message: 'Phương thức thanh toán phải là VNPAY, MOMO hoặc CASH' }),
+  method: z.enum(['VNPAY', 'CASH'], {
+    errorMap: () => ({ message: 'Phương thức thanh toán phải là VNPAY hoặc CASH' }),
   }),
 });
 

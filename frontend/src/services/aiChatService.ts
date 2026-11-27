@@ -40,6 +40,9 @@ function getAuthenticatedUserHeaders(): Record<string, string> {
       if (user?.email && typeof user.email === 'string') {
         headers['x-user-email'] = user.email;
       }
+      if (user?.full_name || user?.name) {
+        headers['x-user-name'] = encodeURIComponent(user.full_name || user.name);
+      }
     }
   } catch {
     // Ignore parse error
@@ -793,6 +796,12 @@ export async function streamChatMessage(
 
   callbacks.onStateChange?.('connecting');
 
+  let userInfo: any = null;
+  try {
+    const raw = localStorage.getItem('user_data');
+    if (raw) userInfo = JSON.parse(raw);
+  } catch {}
+
   const requestInit: RequestInit = {
     method: 'POST',
     headers: {
@@ -803,6 +812,9 @@ export async function streamChatMessage(
     body: JSON.stringify({
       message,
       session_token: sessionToken || undefined,
+      customer_id: userInfo?.id || undefined,
+      customer_email: userInfo?.email || undefined,
+      customer_name: userInfo?.full_name || userInfo?.name || undefined,
     }),
     signal: options?.signal,
   };

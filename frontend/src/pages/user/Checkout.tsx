@@ -50,12 +50,7 @@ export default function Checkout() {
 
     try {
       // 1. Ánh xạ phương thức thanh toán chuẩn Backend
-      const backendPaymentMethod =
-        paymentMethod === "vnpay"
-          ? "VNPAY"
-          : paymentMethod === "momo"
-            ? "MOMO"
-            : "CASH";
+      const backendPaymentMethod = paymentMethod === "vnpay" ? "VNPAY" : "CASH";
 
       const shippingAddress = `${formData.fullName} - ${formData.phone} - ${formData.detailAddress}`;
       const orderItems = items.map((item) => ({
@@ -94,7 +89,7 @@ export default function Checkout() {
           `/payment-result?status=success&orderId=${order.id}&method=CASH`,
         );
       } else if (paymentRecord.payment_url) {
-        // Chuyển hướng sang cổng VNPAY / MoMo Sandbox (hoặc Simulator)
+        // Chuyển hướng sang cổng VNPAY Sandbox
         window.location.href = paymentRecord.payment_url;
       } else {
         navigate(

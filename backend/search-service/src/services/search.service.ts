@@ -46,11 +46,21 @@ export class SearchService {
     // 2. Post-Filter Clauses (Áp dụng cho hits hiển thị mà không triệt tiêu các facet buckets khác)
     const postFilterClauses: any[] = [];
 
-    // Lọc theo Danh mục
-    if (params.category_id) {
-      postFilterClauses.push({
-        term: { category_id: params.category_id },
-      });
+    // Lọc theo Danh mục (hỗ trợ cả danh mục cha lẫn danh mục con)
+    const categoryFilter = params.category_id
+      ? {
+          bool: {
+            should: [
+              { term: { category_id: params.category_id } },
+              { term: { parent_category_id: params.category_id } },
+            ],
+            minimum_should_match: 1,
+          },
+        }
+      : null;
+
+    if (categoryFilter) {
+      postFilterClauses.push(categoryFilter);
     }
 
     // Lọc theo khoảng giá tùy chỉnh
@@ -118,21 +128,8 @@ export class SearchService {
     }
 
     // 4. Định nghĩa Aggregations (Faceted Search)
-    const aggsConfig: any = {
-      categories: {
-        terms: {
-          field: "category_id",
-          size: 50,
-        },
-        aggs: {
-          category_name: {
-            terms: {
-              field: "category_name.raw",
-              size: 1,
-            },
-          },
-        },
-      },
+    // Khi có category_id, các facet thuộc tính (giá, thương hiệu, màu, giảm giá) được tính riêng trong danh mục đó
+    const attributeAggs = {
       price_ranges: {
         range: {
           field: "price",
@@ -167,6 +164,31 @@ export class SearchService {
           term: { has_discount: true },
         },
       },
+    };
+
+    const aggsConfig: any = {
+      categories: {
+        terms: {
+          field: "category_id",
+          size: 50,
+        },
+        aggs: {
+          category_name: {
+            terms: {
+              field: "category_name.raw",
+              size: 1,
+            },
+          },
+        },
+      },
+      ...(categoryFilter
+        ? {
+            scoped_facets: {
+              filter: categoryFilter,
+              aggs: attributeAggs,
+            },
+          }
+        : attributeAggs),
     };
 
     // 5. Gửi truy vấn đến Elasticsearch
@@ -235,6 +257,7 @@ export class SearchService {
 
     // 7. Chuẩn hóa kết quả Facets
     const rawAggs: any = response.aggregations || {};
+    const scopedAggs: any = rawAggs.scoped_facets || rawAggs;
 
     const categories = (rawAggs.categories?.buckets || []).map((b: any) => ({
       id: String(b.key),
@@ -242,7 +265,7 @@ export class SearchService {
       count: b.doc_count,
     }));
 
-    const price_ranges = (rawAggs.price_ranges?.buckets || []).map((b: any) => ({
+    const price_ranges = (scopedAggs.price_ranges?.buckets || []).map((b: any) => ({
       key: b.key,
       from: b.from,
       to: b.to,
@@ -250,21 +273,21 @@ export class SearchService {
     }));
 
     const price_stats = {
-      min: rawAggs.price_stats?.min ?? 0,
-      max: rawAggs.price_stats?.max ?? 0,
+      min: scopedAggs.price_stats?.min ?? 0,
+      max: scopedAggs.price_stats?.max ?? 0,
     };
 
-    const colors = (rawAggs.colors?.buckets || []).map((b: any) => ({
+    const colors = (scopedAggs.colors?.buckets || []).map((b: any) => ({
       key: String(b.key),
       count: b.doc_count,
     }));
 
-    const brands = (rawAggs.brands?.buckets || []).map((b: any) => ({
+    const brands = (scopedAggs.brands?.buckets || []).map((b: any) => ({
       key: String(b.key),
       count: b.doc_count,
     }));
 
-    const discount_count = rawAggs.discount_count?.doc_count || 0;
+    const discount_count = scopedAggs.discount_count?.doc_count || 0;
 
     const facets: SearchFacets = {
       categories,

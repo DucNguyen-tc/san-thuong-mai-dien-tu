@@ -25,16 +25,6 @@ export interface VnpayCallbackInput {
   status?: PaymentStatus;
 }
 
-export interface MomoCallbackInput {
-  orderId?: string;
-  requestId?: string;
-  amount?: number;
-  transId?: string;
-  resultCode?: number;
-  message?: string;
-  status?: PaymentStatus;
-}
-
 export interface ListPaymentsQuery {
   page?: number;
   limit?: number;

@@ -6,7 +6,7 @@ const recommendationDb = new PrismaClient();
 // Connect to catalog_db manually
 const { Client } = require('pg');
 const catalogDb = new Client({
-  connectionString: 'postgresql://admin:1234567@localhost:5432/catalog_db?schema=public'
+  connectionString: process.env.CATALOG_DATABASE_URL || 'postgresql://admin:1234567@localhost:5432/catalog_db?schema=public'
 });
 
 async function main() {

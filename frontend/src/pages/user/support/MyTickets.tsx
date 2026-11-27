@@ -148,7 +148,14 @@ export const MyTickets: React.FC = () => {
 
             {/* Message List */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/50">
-              {selectedTicket.messages?.map((msg) => (
+              {selectedTicket.messages
+                ?.filter(
+                  (msg) =>
+                    msg.sender_type !== "SYSTEM" &&
+                    !msg.content.startsWith("[AI") &&
+                    !msg.content.startsWith("[RAG")
+                )
+                .map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex flex-col ${msg.sender_type === "CUSTOMER" ? "items-end" : "items-start"}`}

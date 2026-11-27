@@ -21,22 +21,31 @@ export const streamChat = async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering for Nginx/Proxies
   res.flushHeaders?.();
 
   let isClientConnected = true;
-  req.on('close', () => {
+  res.on('close', () => {
     isClientConnected = false;
   });
 
   const sendEvent = (event: string, data: any) => {
-    if (!isClientConnected) return;
-    res.write(`event: ${event}\n`);
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (!isClientConnected || res.writableEnded) return;
+    try {
+      res.write(`event: ${event}\n`);
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+    } catch (writeErr) {
+      console.warn('[Chat Controller] Failed to write SSE chunk:', writeErr);
+    }
   };
 
   try {
-    const { message, session_token } = req.body;
-    const customerId = (req.headers['x-user-id'] as string) || null;
+    const { message, session_token, customer_id, customer_email, customer_name } = req.body;
+    const rawUserId = (req.headers['x-user-id'] as string) || customer_id || null;
+    const customerId = rawUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawUserId) ? rawUserId : null;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       sendEvent('error', { message: 'Message is required and must be a non-empty string' });
@@ -112,8 +121,15 @@ export const streamChat = async (req: Request, res: Response) => {
     // 6. Stream LLM response & Execute Tools (search_products, get_product_details, compare_products)
     let capturedMetadata: ToolMetadataPayload | null = null;
 
-    const customerEmail = (req.headers['x-user-email'] as string) || null;
-    const customerName = (req.headers['x-user-name'] as string) || null;
+    const customerEmail = (req.headers['x-user-email'] as string) || customer_email || null;
+    let customerName = customer_name || null;
+    if (!customerName && req.headers['x-user-name']) {
+      try {
+        customerName = decodeURIComponent(req.headers['x-user-name'] as string);
+      } catch {
+        customerName = req.headers['x-user-name'] as string;
+      }
+    }
 
     const orchestratorResult = await llmOrchestrator.streamResponse({
       messages: conversationHistory,

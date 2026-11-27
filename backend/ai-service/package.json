@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:db:push": "prisma db push",
-    "seed:policies": "ts-node prisma/seed.ts"
+    "seed:policies": "ts-node prisma/seed.ts",
+    "test:day12-13": "ts-node src/scripts/test-day12-13.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

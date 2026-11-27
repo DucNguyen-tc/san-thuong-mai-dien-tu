@@ -65,6 +65,8 @@ async function reindex(): Promise<void> {
               'is_active', pr.is_active,
               'valid_from', pr.valid_from,
               'valid_to', pr.valid_to,
+              'discount_type', pr.discount_type,
+              'discount_value', pr.discount_value,
               'discount_percent', pr.discount_value
             )
           )) FILTER (WHERE pr.id IS NOT NULL AND pr.is_active = true), '[]') AS promotions

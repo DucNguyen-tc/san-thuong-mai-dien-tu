@@ -126,27 +126,10 @@ export class TicketAnalyzerPipeline {
             review_status: ReviewStatus.PENDING
           }
         });
-
-        // Ghi lại tin nhắn hệ thống ghi nhận kết quả phân tích & draft
-        await tx.ticketMessage.create({
-          data: {
-            ticket_id: ticketId,
-            sender_type: SenderType.SYSTEM,
-            content: `[AI Sentiment Analyzer] Phân tích hoàn tất: ${sentimentResult.sentiment} (Điểm: ${sentimentResult.sentiment_score}/100) | Ưu tiên: ${sentimentResult.priority} | Danh mục: ${sentimentResult.category}\nTóm tắt: ${sentimentResult.summary}`
-          }
-        });
-
-        await tx.ticketMessage.create({
-          data: {
-            ticket_id: ticketId,
-            sender_type: SenderType.SYSTEM,
-            content: `[RAG Auto-Draft] Đã tạo nháp email phản hồi dựa trên ${ragChunks.length} chunk chính sách (Độ tự tin: ${draftResult.confidence}%, Tone: ${draftResult.tone}). Trạng thái: Chờ nhân viên CSKH duyệt.`
-          }
-        });
       });
 
       console.log(
-        `[TicketAnalyzerPipeline] Hoàn tất trọn vẹn pipeline cho ticket ${ticketId}. Trạng thái: PENDING_REVIEW.`
+        `[TicketAnalyzerPipeline] Hoàn tất trọn vẹn pipeline cho ticket ${ticketId}. Trạng thái: PENDING_REVIEW (Kết quả phân tích đã lưu vào ticket & ticket_responses).`
       );
     } catch (error: any) {
       console.error(
@@ -159,14 +142,6 @@ export class TicketAnalyzerPipeline {
         await prisma.ticket.update({
           where: { id: ticketId },
           data: { status: TicketStatus.OPEN }
-        });
-
-        await prisma.ticketMessage.create({
-          data: {
-            ticket_id: ticketId,
-            sender_type: SenderType.SYSTEM,
-            content: `[AI Pipeline Cảnh báo] Xử lý tự động gặp sự cố (${error?.message || "Lỗi không xác định"}). Trạng thái ticket được đưa về OPEN để nhân viên CSKH xử lý thủ công.`
-          }
         });
       } catch (fallbackErr) {
         console.error(

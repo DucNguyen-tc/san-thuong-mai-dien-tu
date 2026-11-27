@@ -511,13 +511,10 @@ export default function Dashboard() {
                 {stats?.paymentBreakdown && stats.paymentBreakdown.length > 0 ? (
                   stats.paymentBreakdown.map((pm) => {
                     const isVnPay = pm.method === 'VNPAY';
-                    const isMoMo = pm.method === 'MOMO';
                     const badgeColor = isVnPay
                       ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/60 dark:text-blue-400'
-                      : isMoMo
-                      ? 'bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-950/60 dark:text-pink-400'
                       : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400';
-                    const barColor = isVnPay ? 'bg-blue-500' : isMoMo ? 'bg-pink-500' : 'bg-emerald-500';
+                    const barColor = isVnPay ? 'bg-blue-500' : 'bg-emerald-500';
 
                     return (
                       <div

@@ -501,8 +501,6 @@ export default function TelegramMonitoring() {
                           <span className="text-xs font-semibold text-on-surface">
                             {item.method === 'VNPAY'
                               ? '💳 Cổng VNPAY'
-                              : item.method === 'MOMO'
-                              ? '📱 Ví MoMo'
                               : '💵 Tiền mặt (COD)'}
                           </span>
                           <div className="text-right">

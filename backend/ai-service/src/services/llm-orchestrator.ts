@@ -534,6 +534,22 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     const contextInfo = { customerEmail, customerName, sessionId };
     const LLM_TIMEOUT_MS = 15000;
 
+    // 0. Nhận diện ý định gọi công cụ trước (Catalog, Cart, Order, Compare, Ticket)
+    const { toolName, args } = this.detectIntent(lastMessage);
+    let toolResult: ToolExecutionResult | null = null;
+    if (toolName) {
+      try {
+        toolResult = await this.executeTool(toolName, args, customerId, contextInfo);
+        toolCallsRecord.push({ name: toolName, args, result: toolResult });
+        if (toolResult.metadata) {
+          executedMetadata = toolResult.metadata;
+          onMetadata?.(toolResult.metadata);
+        }
+      } catch (toolErr: any) {
+        console.warn(`[LLM Orchestrator] Tool execution error for ${toolName}:`, toolErr.message);
+      }
+    }
+
     // 1. Thử dùng Google Gemini SDK với Function Calling (có Timeout bảo vệ)
     if (this.geminiClient && env.GEMINI_API_KEY) {
       try {
@@ -559,15 +575,15 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           const functionCalls = chunk.functionCalls();
           if (functionCalls && functionCalls.length > 0) {
             for (const call of functionCalls) {
-              const toolResult = await this.executeTool(call.name, call.args, customerId, contextInfo);
-              toolCallsRecord.push({ name: call.name, args: call.args, result: toolResult });
-              if (toolResult.metadata) {
-                executedMetadata = toolResult.metadata;
-                onMetadata?.(toolResult.metadata);
+              const res = await this.executeTool(call.name, call.args, customerId, contextInfo);
+              toolCallsRecord.push({ name: call.name, args: call.args, result: res });
+              if (res.metadata) {
+                executedMetadata = res.metadata;
+                onMetadata?.(res.metadata);
               }
-              if (toolResult.text) {
-                fullResponse += toolResult.text;
-                onChunk(toolResult.text);
+              if (res.text) {
+                fullResponse += res.text;
+                onChunk(res.text);
               }
             }
           }
@@ -590,13 +606,22 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     // 2. Thử dùng OpenAI SDK (gpt-4o-mini) (có Timeout bảo vệ)
     if (this.openaiClient && env.OPENAI_API_KEY) {
       try {
+        const openAiMessages: any[] = [
+          { role: 'system', content: systemPrompt },
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+        ];
+
+        if (toolResult && toolResult.text) {
+          openAiMessages.push({
+            role: 'system',
+            content: `[Kết quả từ hệ thống cho công cụ "${toolName}"]:\n${toolResult.text}\nHãy sử dụng kết quả này để tư vấn hoặc trả lời người dùng một cách thân thiện, chính xác, định dạng Markdown rõ ràng và mời người dùng bấm xem chi tiết hoặc thêm giỏ hàng.`,
+          });
+        }
+
         const stream = await this.withTimeout(
           this.openaiClient.chat.completions.create({
             model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...messages.map((m) => ({ role: m.role, content: m.content })),
-            ],
+            messages: openAiMessages,
             stream: true,
           }),
           LLM_TIMEOUT_MS,
@@ -617,6 +642,20 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       } catch (err: any) {
         console.warn('[LLM Orchestrator] OpenAI streaming failed or timed out:', err.message);
       }
+    }
+
+    // Nếu toolResult đã có kết quả nhưng LLM bên ngoài bị lỗi hoặc không có key -> stream trực tiếp toolResult.text
+    if (toolResult && toolResult.text) {
+      const words = toolResult.text.split(' ');
+      for (const word of words) {
+        onChunk(word + ' ');
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return {
+        fullText: toolResult.text,
+        metadata: executedMetadata,
+        toolCalls: toolCallsRecord,
+      };
     }
 
     // 3. Fallback Smart Tool Execution & Streaming (khi chạy offline / dev không có API key)

@@ -141,8 +141,6 @@ export default function AdminOrderManagement() {
     let methodBg = "bg-gray-100 text-gray-800 border-gray-200";
     if (method === "VNPAY")
       methodBg = "bg-blue-50 text-blue-700 border-blue-200";
-    if (method === "MOMO")
-      methodBg = "bg-pink-50 text-pink-700 border-pink-200";
     if (method === "CASH")
       methodBg = "bg-emerald-50 text-emerald-700 border-emerald-200";
 
@@ -344,7 +342,6 @@ export default function AdminOrderManagement() {
             >
               <option value="ALL">Tất cả cổng</option>
               <option value="VNPAY">VNPAY</option>
-              <option value="MOMO">MoMo</option>
               <option value="CASH">Tiền mặt (CASH)</option>
             </select>
           </div>
@@ -467,8 +464,8 @@ export default function AdminOrderManagement() {
                   >
                     {/* Order ID & Date */}
                     <td className="py-4 px-4">
-                      <div className="font-bold text-gray-900 uppercase">
-                        #{order.id.split("-")[0]}
+                      <div className="font-bold text-gray-900 font-mono text-xs">
+                        #{order.id}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5">
                         {new Date(order.created_at).toLocaleString("vi-VN")}
