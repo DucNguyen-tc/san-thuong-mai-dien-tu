@@ -37,12 +37,10 @@ api.interceptors.response.use(
           localStorage.removeItem('refresh_token');
           localStorage.removeItem('user_data');
           window.location.href = '/login?session_expired=true';
+          return Promise.reject(e);
         }
-      } else {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user_data');
-        window.location.href = '/login?session_expired=true';
       }
+      // Khách vãng lai (Guest) chưa đăng nhập -> Không có refresh_token -> Không redirect để cho phép xem web tự do
     }
     return Promise.reject(error);
   }

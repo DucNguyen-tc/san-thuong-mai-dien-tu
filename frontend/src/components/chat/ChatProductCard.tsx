@@ -11,7 +11,7 @@ interface ChatProductCardListProps {
 }
 
 const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=400&q=80';
+  'https://placehold.co/400x400/f3f4f6/6b7280?text=V-Shop';
 
 export default function ChatProductCardList({
   products,

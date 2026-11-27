@@ -132,13 +132,21 @@ export default function Header() {
     <header className="bg-surface sticky top-0 z-50 shadow-sm border-b border-outline-variant/30">
       <div className="flex justify-between items-center w-full px-6 py-4 max-w-[1280px] mx-auto gap-6">
 
-        {/* Logo */}
-        <Link
-          to="/"
-          className="text-2xl font-bold text-primary shrink-0 tracking-tight hover:opacity-90 transition-opacity"
-        >
-          V-Shop
-        </Link>
+        {/* Logo & Navigation */}
+        <div className="flex items-center gap-5 shrink-0">
+          <Link
+            to="/"
+            className="text-2xl font-bold text-primary tracking-tight hover:opacity-90 transition-opacity"
+          >
+            V-Shop
+          </Link>
+          <Link
+            to="/products"
+            className="hidden sm:inline-flex items-center text-sm font-semibold text-gray-700 hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-gray-100/60"
+          >
+            Sản phẩm
+          </Link>
+        </div>
 
         {/* Search Bar */}
         <div ref={searchContainerRef} className="flex-grow max-w-[42rem] relative">
@@ -411,6 +419,14 @@ export default function Header() {
                   </span>
                 </Link>
               )}
+              <Link
+                to="/support/my-tickets"
+                title="Hỗ trợ & Khiếu nại"
+                className="hidden md:inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 hover:text-primary transition-colors px-2.5 py-1.5 rounded-full hover:bg-gray-100 border border-gray-200 mr-1"
+              >
+                <Headphones size={15} className="text-primary" />
+                <span>Hỗ trợ</span>
+              </Link>
               <Link to="/profile" className="hidden md:block text-sm font-medium text-on-surface hover:text-primary transition-colors">
                 {user?.full_name}
               </Link>

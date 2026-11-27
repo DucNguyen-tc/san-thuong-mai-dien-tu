@@ -61,14 +61,20 @@ export class DailyReportCron {
       this.cronExpression = '0 23 * * *';
     }
 
-    this.task = cron.schedule(this.cronExpression, async () => {
-      console.log(`[DailyReportCron] ⏰ Kích hoạt tác vụ gửi báo cáo định kỳ (${new Date().toISOString()})...`);
-      try {
-        await reportService.sendDailyReport();
-      } catch (error: any) {
-        console.error('[DailyReportCron] Lỗi khi thực thi báo cáo tự động:', error.message);
+    this.task = cron.schedule(
+      this.cronExpression,
+      async () => {
+        console.log(`[DailyReportCron] ⏰ Kích hoạt tác vụ gửi báo cáo định kỳ (${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })})...`);
+        try {
+          await reportService.sendDailyReport();
+        } catch (error: any) {
+          console.error('[DailyReportCron] Lỗi khi thực thi báo cáo tự động:', error.message);
+        }
+      },
+      {
+        timezone: 'Asia/Ho_Chi_Minh',
       }
-    });
+    );
 
     console.log(`[DailyReportCron] 📅 Đã lập lịch gửi báo cáo tự động qua Telegram với biểu thức: "${this.cronExpression}"`);
   }

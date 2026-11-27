@@ -5,16 +5,20 @@ export const createTicketSchema = z.object({
   subject: z
     .string({ required_error: "Tiêu đề không được để trống" })
     .trim()
-    .min(5, "Tiêu đề phải có ít nhất 5 ký tự")
+    .min(2, "Tiêu đề phải có ít nhất 2 ký tự")
     .max(500, "Tiêu đề tối đa 500 ký tự"),
   content: z
     .string({ required_error: "Nội dung không được để trống" })
     .trim()
-    .min(10, "Mô tả chi tiết phải có ít nhất 10 ký tự"),
+    .min(2, "Mô tả chi tiết phải có ít nhất 2 ký tự"),
   category: z
     .enum(["REFUND", "WARRANTY", "SHIPPING", "PAYMENT", "PRODUCT", "ORDER", "OTHER"])
     .default("OTHER"),
-  related_order_id: z.string().uuid("ID đơn hàng không hợp lệ").optional().nullable(),
+  related_order_id: z
+    .union([z.string().uuid("ID đơn hàng không hợp lệ"), z.literal("")])
+    .optional()
+    .nullable()
+    .transform((val) => (val === "" ? null : val)),
   customer_email: z.string().email("Email không hợp lệ").optional(),
   customer_name: z.string().optional(),
   attachments: z

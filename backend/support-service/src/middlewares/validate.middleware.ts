@@ -8,9 +8,10 @@ export function validateBody(schema: ZodSchema) {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
+        const errorDetails = error.errors.map((e) => e.message).join(". ");
         return res.status(400).json({
           success: false,
-          message: "Dữ liệu không hợp lệ",
+          message: errorDetails || "Dữ liệu không hợp lệ",
           errors: error.errors.map((e) => ({
             field: e.path.join("."),
             message: e.message

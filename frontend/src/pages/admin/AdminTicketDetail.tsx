@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -60,32 +60,50 @@ export const AdminTicketDetail: React.FC = () => {
 
   // Accordion state for RAG chunks
   const [expandedChunks, setExpandedChunks] = useState<Record<number, boolean>>({});
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [ticket?.messages?.length]);
 
   // Fetch Ticket Data
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (silent = false) => {
     if (!id) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await supportService.getAdminTicketDetail(id);
       setTicket(data);
 
       // Latest response (AI draft or saved response)
-      const latestResp = data.responses && data.responses.length > 0 ? data.responses[0] : null;
-      if (latestResp) {
-        setEditorText(latestResp.final_response || latestResp.ai_draft || "");
-        setStaffNotes(latestResp.staff_notes || "");
+      if (!silent) {
+        const latestResp = data.responses && data.responses.length > 0 ? data.responses[0] : null;
+        if (latestResp) {
+          setEditorText(latestResp.final_response || latestResp.ai_draft || "");
+          setStaffNotes(latestResp.staff_notes || "");
+        }
       }
     } catch (err: any) {
-      console.error("Lỗi khi tải chi tiết ticket:", err);
-      toast.error(err?.response?.data?.message || "Không thể tải thông tin ticket");
+      if (!silent) {
+        console.error("Lỗi khi tải chi tiết ticket:", err);
+        toast.error(err?.response?.data?.message || "Không thể tải thông tin ticket");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
+
+  // Real-time auto-polling tin nhắn mới mỗi 3 giây
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(() => {
+      fetchDetail(true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [id, fetchDetail]);
 
   const latestResponse: TicketResponse | undefined =
     ticket?.responses && ticket.responses.length > 0 ? ticket.responses[0] : undefined;
@@ -175,15 +193,30 @@ export const AdminTicketDetail: React.FC = () => {
     e.preventDefault();
     if (!id || !newMessage.trim()) return;
 
+    const sendingText = newMessage.trim();
+    setNewMessage("");
+
+    // Cập nhật giao diện tức thì (Optimistic UI Update) - không giật hay reload trang
+    const tempMsg: TicketMessage = {
+      id: Date.now(),
+      ticket_id: id,
+      sender_type: "STAFF",
+      content: sendingText,
+      created_at: new Date().toISOString()
+    };
+    setTicket((prev) => prev ? {
+      ...prev,
+      messages: [...(prev.messages || []), tempMsg]
+    } : prev);
+
     try {
       setSendingMessage(true);
-      await supportService.addMessage(id, newMessage.trim());
-      setNewMessage("");
-      toast.success("Đã gửi tin nhắn!");
-      fetchDetail();
+      await supportService.addMessage(id, sendingText);
+      fetchDetail(true);
     } catch (err: any) {
       console.error("Lỗi gửi tin nhắn:", err);
       toast.error(err?.response?.data?.message || "Không thể gửi tin nhắn");
+      fetchDetail(true);
     } finally {
       setSendingMessage(false);
     }
@@ -632,6 +665,7 @@ export const AdminTicketDetail: React.FC = () => {
                   );
                 })
               )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Quick reply message form */}

@@ -45,6 +45,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_data');
+      localStorage.removeItem('ai_chat_session_token');
+      localStorage.removeItem('ai_chat_messages_cache');
       set({ user: null, isAuthenticated: false });
     }
   },

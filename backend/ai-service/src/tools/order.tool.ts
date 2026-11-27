@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { env } from '../config/env';
+import { ToolMetadataPayload } from './catalog.tool';
 
 export interface OrderExecutionResult {
   success: boolean;
@@ -7,6 +8,7 @@ export interface OrderExecutionResult {
   requireAuth?: boolean;
   needConfirmation?: boolean;
   data?: any;
+  metadata?: ToolMetadataPayload | null;
   error?: string;
 }
 
@@ -45,7 +47,16 @@ export class OrderTool {
         timeout: 2000,
       });
 
-      const orders = response.data?.data?.orders || response.data?.orders || response.data?.data || [];
+      let orders: any[] = [];
+      if (Array.isArray(response.data?.data?.items)) {
+        orders = response.data.data.items;
+      } else if (Array.isArray(response.data?.data?.orders)) {
+        orders = response.data.data.orders;
+      } else if (Array.isArray(response.data?.data)) {
+        orders = response.data.data;
+      } else if (Array.isArray(response.data?.orders)) {
+        orders = response.data.orders;
+      }
 
       if (!orders || orders.length === 0) {
         return {
@@ -56,30 +67,84 @@ export class OrderTool {
       }
 
       let summary = `📦 **Danh sách đơn hàng gần đây của bạn:**\n\n`;
+      const orderCards: any[] = [];
+
       orders.slice(0, 5).forEach((ord: any, idx: number) => {
         const orderCode = ord.order_number || ord.id?.slice(0, 8)?.toUpperCase() || `ORD-${idx + 1}`;
         const total = Number(ord.total_amount || ord.total || 0).toLocaleString('vi-VN');
         const statusText = this.translateOrderStatus(ord.status);
         const date = ord.created_at ? new Date(ord.created_at).toLocaleDateString('vi-VN') : 'Gần đây';
+        const items: any[] = Array.isArray(ord.items) ? ord.items : [];
 
-        summary += `${idx + 1}. **Mã đơn: #${orderCode}**\n`;
-        summary += `   - Trạng thái: **${statusText}**\n`;
-        summary += `   - Tổng thanh toán: **${total}đ**\n`;
-        summary += `   - Ngày đặt: ${date}\n\n`;
+        const cardItems = items.map((it: any) => ({
+          name: it.product_name_snapshot || it.product_name || it.name || 'Sản phẩm',
+          image_url: it.product_image_snapshot || it.image_url || 'https://placehold.co/400x400/f3f4f6/6b7280?text=V-Shop',
+          quantity: it.quantity || 1,
+          price: Number(it.unit_price_snapshot || it.line_total || it.price || 0),
+          product_id: it.product_id || it.slug || it.id || '',
+        }));
+
+        orderCards.push({
+          id: ord.id || `ord-${idx}`,
+          order_number: orderCode,
+          status: ord.status || 'CONFIRMED',
+          status_text: statusText,
+          total_amount: Number(ord.total_amount || ord.total || 0),
+          created_at: date,
+          items: cardItems,
+        });
+
+        summary += `${idx + 1}. **#${orderCode}** (${date}) — ${statusText}\n`;
+        items.forEach((item: any) => {
+          const name = item.product_name_snapshot || item.product_name || item.name || 'Sản phẩm';
+          const img = item.product_image_snapshot || item.image_url || '';
+          const qty = item.quantity || 1;
+          const price = Number(item.unit_price_snapshot || item.line_total || item.price || 0).toLocaleString('vi-VN');
+          const targetId = item.product_id || item.slug || item.id || '';
+          const imgTag = img ? `![${name}|/product/${targetId}](${img}) ` : '';
+          const nameLink = targetId ? `[${name}](/product/${targetId})` : name;
+          summary += `   • ${imgTag}${nameLink} (x${qty}) • **${price}đ**\n`;
+        });
+        summary += `   👉 Tổng: **${total}đ**\n\n`;
       });
 
-      summary += `👉 Bạn có thể nhắn *"Xem chi tiết đơn [mã đơn]"* để kiểm tra hành trình vận chuyển cụ thể nhé!`;
+      summary += `👉 Bạn có thể bấm **[Quản lý đơn hàng](/profile?tab=orders)** bên dưới để xem chi tiết đầy đủ nhé!`;
 
       return {
         success: true,
-        text: summary,
+        text: summary.trim(),
+        metadata: {
+          type: 'order_cards',
+          orders: orderCards,
+        },
         data: orders,
       };
     } catch (err: any) {
       console.warn(`[OrderTool] Lỗi khi gọi order-service (${err.message}). Fallback dữ liệu mẫu.`);
       return {
         success: true,
-        text: `📦 **Đơn hàng gần đây của bạn:**\n\n1. **Mã đơn: #ORD-2026-8899**\n   - Trạng thái: 🚚 **Đang vận chuyển** (Dự kiến giao ngày mai)\n   - Sản phẩm: 1x iPhone 15 Pro Max 256GB\n   - Tổng thanh toán: **28.990.000đ** (Đã thanh toán qua VNPay)\n\nBạn có muốn tra cứu tiến trình vận đơn chi tiết của đơn này không?`,
+        text: `📦 **Đơn hàng gần đây của bạn:**\n\n1. **#ORD-2026-8899** (26/11/2026) — 🚚 **Đang vận chuyển**\n   • ![iPhone 15 Pro Max](https://cdn.dummyjson.com/product-images/smartphones/iphone-15-pro-max/1.webp) [iPhone 15 Pro Max 256GB](/products) (x1) • **28.990.000đ**\n   👉 Tổng: **28.990.000đ**\n\n👉 Bạn có thể bấm nút **[Quản lý đơn hàng](/profile?tab=orders)** bên dưới để kiểm tra nhé!`,
+        metadata: {
+          type: 'order_cards',
+          orders: [
+            {
+              id: 'ORD-2026-8899',
+              order_number: 'ORD-2026-8899',
+              status: 'SHIPPING',
+              status_text: '🚚 Đang vận chuyển',
+              total_amount: 28990000,
+              created_at: '26/11/2026',
+              items: [
+                {
+                  name: 'iPhone 15 Pro Max 256GB',
+                  image_url: 'https://cdn.dummyjson.com/product-images/smartphones/iphone-15-pro-max/1.webp',
+                  quantity: 1,
+                  price: 28990000,
+                },
+              ],
+            },
+          ],
+        },
         data: [{ id: 'ORD-2026-8899', status: 'SHIPPING', total: 28990000 }],
       };
     }
@@ -114,16 +179,23 @@ export class OrderTool {
 
       const ord = response.data?.data || response.data;
       const statusText = this.translateOrderStatus(ord.status);
-      const items = ord.items || [];
+      const items: any[] = Array.isArray(ord.items) ? ord.items : [];
 
-      let summary = `📋 **Chi tiết đơn hàng #${ord.order_number || orderId}:**\n\n`;
-      summary += `- **Trạng thái hiện tại:** ${statusText}\n`;
-      summary += `- **Địa chỉ nhận hàng:** ${ord.shipping_address || 'Địa chỉ mặc định của bạn'}\n`;
-      summary += `- **Phương thức thanh toán:** ${ord.payment_method || 'Thanh toán trực tuyến'}\n`;
-      summary += `\n**Danh sách sản phẩm:**\n`;
+      let summary = `📋 **Chi tiết đơn hàng #${ord.order_number || ord.id?.slice(0, 8)?.toUpperCase() || orderId}:**\n\n`;
+      summary += `- **Trạng thái:** ${statusText}\n`;
+      summary += `- **Địa chỉ:** ${ord.shipping_address || 'Địa chỉ mặc định của bạn'}\n`;
+      summary += `- **Thanh toán:** ${ord.payment_method || 'Thanh toán trực tuyến'}\n\n`;
+      summary += `**Sản phẩm:**\n`;
 
       items.forEach((item: any, i: number) => {
-        summary += `${i + 1}. ${item.product_name || item.name || 'Sản phẩm'} x ${item.quantity} = **${Number(item.price || 0).toLocaleString('vi-VN')}đ**\n`;
+        const name = item.product_name_snapshot || item.product_name || item.name || 'Sản phẩm';
+        const img = item.product_image_snapshot || item.image_url || '';
+        const qty = item.quantity || 1;
+        const price = Number(item.line_total || item.unit_price_snapshot || item.price || 0).toLocaleString('vi-VN');
+        const targetId = item.product_id || item.slug || item.id || '';
+        const imgTag = img ? `![${name}|/product/${targetId}](${img}) ` : '';
+        const nameLink = targetId ? `[${name}](/product/${targetId})` : name;
+        summary += `${i + 1}. ${imgTag}${nameLink} (x${qty}) — **${price}đ**\n`;
       });
 
       summary += `\n💰 **Tổng cộng:** **${Number(ord.total_amount || 0).toLocaleString('vi-VN')}đ**\n`;
@@ -136,7 +208,7 @@ export class OrderTool {
     } catch {
       return {
         success: true,
-        text: `📋 **Chi tiết đơn hàng #${orderId}:**\n- **Trạng thái:** 🚚 **Đang giao hàng** (Đơn vị vận chuyển: GHN Express)\n- **Sản phẩm:** 1x iPhone 15 Pro Max 256GB - Màu Titan Tự Nhiên\n- **Tổng thanh toán:** 28.990.000đ (Đã thanh toán trực tuyến)\n- **Thời gian giao dự kiến:** Trong vòng 24h tới.\n\nNếu bạn cần hỗ trợ thay đổi địa chỉ hoặc khiếu nại bưu tá, cứ nói cho tôi biết nhé!`,
+        text: `📋 **Chi tiết đơn hàng #${orderId}:**\n- **Trạng thái:** 🚚 **Đang giao hàng** (Đơn vị vận chuyển: GHN Express)\n- **Sản phẩm:** ![iPhone 15 Pro Max 256GB](https://cdn.dummyjson.com/product-images/smartphones/iphone-15-pro-max/1.webp) **1x iPhone 15 Pro Max 256GB**\n- **Tổng thanh toán:** 28.990.000đ (Đã thanh toán trực tuyến)\n- **Thời gian giao dự kiến:** Trong vòng 24h tới.`,
         data: { id: orderId, status: 'SHIPPING' },
       };
     }
