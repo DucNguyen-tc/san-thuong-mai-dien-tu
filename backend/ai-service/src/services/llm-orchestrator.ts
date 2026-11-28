@@ -96,7 +96,17 @@ ${
    - Sàn cấm kinh doanh vũ khí, chất cấm, tiền giả, hàng lậu. Nếu khách hỏi những thứ này, từ chối lịch sự và nêu rõ quy định pháp luật.
 
 5. PHẢN HỒI THÂN THIỆN:
-   - Luôn trả lời bằng Tiếng Việt, lịch sự, chuyên nghiệp, thấu cảm và định dạng Markdown rõ ràng.`;
+   - Luôn trả lời bằng Tiếng Việt, lịch sự, chuyên nghiệp, thấu cảm và định dạng Markdown rõ ràng.
+
+6. QUY TẮC XỬ LÝ KHIẾU NẠI, BỨC XÚC HOẶC YÊU CẦU GẶP NGƯỜI THẬT:
+   - Khi khách hàng tức giận, bức xúc, khó chịu, chửi bới (ví dụ: "mày rất ngu", "tao rất bực", "làm ăn như hạch", "thất vọng") hoặc yêu cầu gặp người thật/nhân viên CSKH:
+     + BẮT BUỘC GỌI CÔNG CỤ escalate_to_ticket ngay lập tức.
+     + Tuyệt đối không chỉ xin lỗi suông qua loa, phải tạo ticket để nhân viên hỗ trợ kịp thời.
+
+7. QUY TẮC TÌM KIẾM SẢN PHẨM KHÔNG CÓ TRÊN SÀN (ANTI-HALLUCINATION):
+   - Khi công cụ search_products trả về thông báo không tìm thấy sản phẩm (success: false hoặc không có danh sách sản phẩm):
+     + TUYỆT ĐỐI KHÔNG tự bịa đặt hoặc đề xuất các sản phẩm không liên quan (ví dụ: khách tìm đồ ăn "trứng rán", "sói cô độc" mà lại hiển thị điện thoại, laptop là vi phạm nghiêm trọng).
+     + Hãy thông báo lịch sự là sàn hiện chưa kinh doanh sản phẩm này và gợi ý 5 ngành hàng chính của sàn (Điện tử, Gia dụng, Thời trang, Sức khỏe làm đẹp, Thể thao).`;
 
     if (contextChunks && contextChunks.length > 0) {
       basePrompt += `\n\n--- DƯỚI ĐÂY LÀ CÁC ĐIỀU KHOẢN CHÍNH SÁCH CHÍNH THỨC CỦA SÀN (HÃY TRẢ LỜI DỰA TRÊN ĐÂY): ---\n`;
@@ -244,6 +254,54 @@ ${
   }
 
   /**
+   * Nhận diện cảm xúc tiêu cực, bức xúc, giận dữ, xúc phạm hoặc yêu cầu gặp nhân viên CSKH
+   */
+  public isEscalationOrAngry(message: string): boolean {
+    if (!message || typeof message !== 'string') return false;
+    const lower = message.toLowerCase().trim();
+    const unaccented = removeVietnameseTones(lower);
+
+    // 1. Nhóm từ khóa bức xúc, bực tức, giận dữ, xúc phạm
+    const angryPatterns = [
+      /\b(bực|rất bực|quá bực|bực mình|bực cả mình|bực bội|phát bực)\b/i,
+      /\b(tức|rất tức|quá tức|tức mình|tức cả mình|tức điên|phát tức)\b/i,
+      /\b(bức xúc|phát điên|điên tiết|điên người|khó chịu)\b/i,
+      /\b(ngu|rất ngu|quá ngu|mày ngu|đồ ngu|óc chó|con bot ngu|ai ngu|ngu ngốc|ngu dốt|dốt)\b/i,
+      /\b(vớ vẩn|tào lao|nhảm nhí|xàm|vô dụng|vô tích sự)\b/i,
+      /\b(tệ quá|quá tệ|tệ hại|dở quá|chán quá|thất vọng|quá thất vọng)\b/i,
+      /\b(làm ăn kiểu gì|làm ăn như|như hạch|như cc|như cặc|như l|như loz)\b/i,
+      /\b(lừa đảo|gian dối|treo đầu dê|trả tiền đây|đòi tiền|báo công an|kiện|tố cáo)\b/i,
+    ];
+
+    if (angryPatterns.some((pattern) => pattern.test(lower) || pattern.test(unaccented))) {
+      return true;
+    }
+
+    // 2. Nhóm yêu cầu gặp nhân viên / người thật / CSKH
+    const agentRequestKeywords = [
+      'gặp người thật', 'gap nguoi that',
+      'gặp nhân viên', 'gap nhan vien',
+      'nói chuyện với người', 'noi chuyen voi nguoi',
+      'tổng đài viên', 'tong dai vien',
+      'cskh', 'chăm sóc khách hàng', 'cham soc khach hang',
+      'nhân viên tư vấn', 'nhan vien tu van',
+      'khiếu nại', 'khieu nai',
+      'yêu cầu hỗ trợ', 'yeu cau ho tro',
+      'gặp trực tiếp', 'gap truc tiep',
+      'cho tôi gặp người', 'cho gap nguoi',
+      'chuyển máy', 'chuyen may',
+      'gọi điện thoại cho tôi', 'goi dien cho toi',
+      'kết nối nhân viên', 'ket noi nhan vien'
+    ];
+
+    if (agentRequestKeywords.some((kw) => lower.includes(kw) || unaccented.includes(kw))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Phân tích ý định thông minh để gọi tool khi ở chế độ fallback hoặc API không hỗ trợ Function Calling
    */
   public detectIntent(message: string): { toolName: string | null; args: any } {
@@ -257,17 +315,12 @@ ${
     }
 
     // 0. Ý định khiếu nại, bức xúc hoặc yêu cầu gặp người thật -> Escalate sang Ticket CSKH (Mục 6.2)
-    const escalateKeywords = [
-      'gặp người thật', 'gặp nhân viên', 'nói chuyện với người', 'tổng đài viên', 'cskh',
-      'lừa đảo', 'khiếu nại', 'bức xúc', 'tệ quá', 'làm ăn kiểu gì', 'kiện', 'báo công an',
-      'tại sao chưa giao', 'trả tiền đây', 'không hài lòng'
-    ];
-    if (escalateKeywords.some((kw) => lower.includes(kw))) {
+    if (this.isEscalationOrAngry(message)) {
       return {
         toolName: 'escalate_to_ticket',
         args: {
           reason: message,
-          chat_summary: `Khách hàng gửi phản ánh: "${message}"`,
+          chat_summary: `Khách hàng phản ánh bức xúc qua chat: "${message}"`,
         },
       };
     }
@@ -796,6 +849,35 @@ ${
     const toolCallsRecord: Array<{ name: string; args: any; result: any }> = [];
     const contextInfo = { customerEmail, customerName, sessionId };
     const LLM_TIMEOUT_MS = 15000;
+
+    // 0. Nhận diện khẩn cấp: Khách hàng bức xúc, bực tức, xúc phạm hoặc yêu cầu gặp nhân viên CSKH
+    // Ngay lập tức gọi escalate_to_ticket tạo Ticket P1 trong support-service, phản hồi thấu cảm tức thì
+    if (this.isEscalationOrAngry(lastMessage)) {
+      console.log(`[LlmOrchestrator] Phát hiện cảm xúc bức xúc / khiếu nại / yêu cầu CSKH: "${lastMessage}" -> Tự động chuyển tiếp Ticket P1`);
+      const toolResult = await this.executeTool(
+        'escalate_to_ticket',
+        {
+          reason: lastMessage,
+          chat_summary: `Khách hàng phản ánh bức xúc qua chat: "${lastMessage}"`,
+        },
+        customerId,
+        contextInfo
+      );
+      toolCallsRecord.push({ name: 'escalate_to_ticket', args: { reason: lastMessage }, result: toolResult });
+
+      if (onChunk && toolResult.text) {
+        const words = toolResult.text.split(' ');
+        for (const w of words) {
+          onChunk(w + ' ');
+          await new Promise((r) => setTimeout(r, 20));
+        }
+      }
+      return {
+        fullText: toolResult.text,
+        metadata: null,
+        toolCalls: toolCallsRecord,
+      };
+    }
 
     // 1. Thử dùng Google Gemini SDK với Function Calling (có Timeout bảo vệ)
     if (this.geminiClient && env.GEMINI_API_KEY) {
