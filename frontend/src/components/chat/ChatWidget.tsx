@@ -56,10 +56,10 @@ import ChatOrderCardList from './ChatOrderCard';
 const QUICK_PROMPTS = [
   '📱 Tìm điện thoại dưới 15 triệu',
   '⚖️ So sánh iPhone 15 và Samsung S24',
-  '🛒 Thêm iPhone 15 vào giỏ',
-  '😡 Đơn hàng 5 ngày chưa giao, các bạn lừa đảo à?',
+  '🛒 Xem giỏ hàng của tôi',
+  '📦 Kiểm tra đơn hàng của tôi',
   '🔄 Chính sách đổi trả hàng như thế nào?',
-  '🚫 Sàn có bán vũ khí không?',
+  '🏷️ Voucher & Khuyến mãi hôm nay',
 ];
 
 const WELCOME_MESSAGE: ChatMessage = {

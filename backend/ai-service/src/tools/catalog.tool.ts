@@ -610,15 +610,22 @@ export class CatalogTool {
 
       // Fallback thông minh từ SAMPLE_PRODUCTS nếu database trả về rỗng
       if (rawProducts.length === 0) {
-        if (targetCategoryId) {
-          rawProducts = SAMPLE_PRODUCTS.filter((p) => {
-            const matchName = p.name.toLowerCase().includes(lowerQ);
-            const matchDesc = (p.description || '').toLowerCase().includes(lowerQ);
-            return matchName || matchDesc;
-          });
-        }
-        if (rawProducts.length === 0) {
+        // Chỉ lấy từ SAMPLE_PRODUCTS nếu thật sự có sản phẩm khớp với từ khóa hoặc danh mục được nhận diện
+        const matchingSample = SAMPLE_PRODUCTS.filter((p) => {
+          const matchName = p.name.toLowerCase().includes(lowerQ) || removeVietnameseTones(p.name).includes(unaccentedQ);
+          const matchDesc = (p.description || '').toLowerCase().includes(lowerQ) || removeVietnameseTones(p.description || '').includes(unaccentedQ);
+          const matchCat = targetCategoryId && p.category?.name && (p.category.name.toLowerCase().includes(lowerQ) || removeVietnameseTones(p.category.name).includes(unaccentedQ));
+          return matchName || matchDesc || matchCat;
+        });
+
+        if (matchingSample.length > 0) {
+          rawProducts = matchingSample;
+        } else if (!query || query.trim() === '' || lowerQ.includes('gợi ý') || lowerQ.includes('sản phẩm hot') || lowerQ.includes('bán chạy')) {
+          // Chỉ lấy danh sách mẫu khi người dùng yêu cầu gợi ý chung chung không có từ khóa cụ thể
           rawProducts = SAMPLE_PRODUCTS.slice(0, Math.max(limit, 6));
+        } else {
+          // Người dùng tìm từ khóa cụ thể nhưng sàn không có -> Giữ mảng rỗng để thông báo chính xác, chống hallucination
+          rawProducts = [];
         }
       }
     }
@@ -638,10 +645,41 @@ export class CatalogTool {
     }
 
     const effectiveLimit = isRootCat || isBothPhoneAndLaptop ? Math.max(limit, 8) : Math.max(limit, 5);
-    let sliced = rawProducts.slice(0, effectiveLimit);
+    const sliced = rawProducts.slice(0, effectiveLimit);
 
+    // XỬ LÝ KHI KHÔNG TÌM THẤY SẢN PHẨM PHÙ HỢP (ANTI-HALLUCINATION)
     if (sliced.length === 0) {
-      sliced = SAMPLE_PRODUCTS.slice(0, 6);
+      if (query && query.trim() !== '') {
+        // Trường hợp do lọc giá
+        if (min_price !== undefined || max_price !== undefined) {
+          let priceMsg = '';
+          if (min_price !== undefined && max_price !== undefined) {
+            priceMsg = `trong khoảng giá từ ${min_price.toLocaleString('vi-VN')}đ đến ${max_price.toLocaleString('vi-VN')}đ`;
+          } else if (max_price !== undefined) {
+            priceMsg = `với mức giá dưới ${max_price.toLocaleString('vi-VN')}đ`;
+          } else if (min_price !== undefined) {
+            priceMsg = `với mức giá trên ${min_price.toLocaleString('vi-VN')}đ`;
+          }
+          return {
+            success: false,
+            text: `Dạ rất tiếc, sàn V-Shop không tìm thấy sản phẩm nào khớp với từ khóa **"${query}"** ${priceMsg}. Bạn có thể thử điều chỉnh lại mức giá hoặc tìm kiếm sản phẩm khác nhé! 😊`,
+            metadata: null,
+          };
+        }
+
+        // Trường hợp không có sản phẩm này trên sàn
+        return {
+          success: false,
+          text: `Dạ rất tiếc, hiện tại sàn V-Shop chưa kinh doanh hoặc không tìm thấy sản phẩm nào khớp với từ khóa **"${query}"**.\n\nSàn V-Shop hiện tập trung vào 5 ngành hàng chính:\n- 📱 **Đồ điện tử & Công nghệ** (Điện thoại, Laptop, Máy tính bảng, Tai nghe, Smartwatch)\n- 🏠 **Đồ gia dụng & Đời sống** (Nội thất bàn ghế, Thiết bị bếp nồi chảo, Đồ trang trí)\n- 💄 **Sức khỏe & Làm đẹp** (Mỹ phẩm, Nước hoa Chanel/Dior, Chăm sóc da)\n- 👕 **Thời trang & Phụ kiện** (Áo sơ mi, Giày thể thao, Túi xách, Đồng hồ)\n- 🏍️ **Thể thao & Xe** (Xe mô tô phân khối lớn, Dụng cụ thể thao)\n\nBạn có muốn mình tư vấn hoặc tìm kiếm sản phẩm nào thuộc các ngành hàng trên không ạ? 😊`,
+          metadata: null,
+        };
+      } else {
+        return {
+          success: false,
+          text: `Dạ hiện tại chưa có sản phẩm nào phù hợp với yêu cầu này. Bạn có thể cho mình biết rõ hơn về sản phẩm cần tìm nhé!`,
+          metadata: null,
+        };
+      }
     }
 
     // 3. Format dữ liệu trả về cho Frontend (ProductCardItem[])

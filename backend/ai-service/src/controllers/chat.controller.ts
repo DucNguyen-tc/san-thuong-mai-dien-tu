@@ -140,7 +140,15 @@ export const streamChat = async (req: Request, res: Response) => {
     let capturedMetadata: ToolMetadataPayload | null = null;
 
     const customerEmail = (req.headers['x-user-email'] as string) || null;
-    const customerName = (req.headers['x-user-name'] as string) || null;
+    const rawCustomerName = (req.headers['x-user-name'] as string) || null;
+    let customerName: string | null = null;
+    if (rawCustomerName) {
+      try {
+        customerName = decodeURIComponent(rawCustomerName);
+      } catch {
+        customerName = rawCustomerName;
+      }
+    }
 
     const orchestratorResult = await llmOrchestrator.streamResponse({
       messages: conversationHistory,
