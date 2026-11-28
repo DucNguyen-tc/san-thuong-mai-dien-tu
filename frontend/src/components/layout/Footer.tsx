@@ -10,8 +10,9 @@ const aboutLinks = [
 ];
 
 const supportLinks = [
-  { label: 'Gửi yêu cầu hỗ trợ', href: '/support/new-ticket' },
-  { label: 'Yêu cầu của tôi', href: '/support/my-tickets' },
+  { label: 'Trung tâm trợ giúp (Tickets)', href: '/support/my-tickets' },
+  { label: 'Gửi yêu cầu hỗ trợ / Khiếu nại', href: '/support/new-ticket' },
+  { label: 'Hướng dẫn mua hàng', href: '/guide' },
   { label: 'Trả hàng & Hoàn tiền', href: '/returns' },
   { label: 'Điều khoản dịch vụ', href: '/terms' },
 ];

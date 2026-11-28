@@ -97,7 +97,11 @@ export default function AdminLayout() {
           </div>
           <nav className="flex-1 px-2 space-y-1 overflow-y-auto custom-scrollbar">
             {navItems.map(({ label, href, icon: Icon }) => {
-              const isActive = location.pathname === href;
+              const isActive =
+                href === "/admin"
+                  ? location.pathname === "/admin"
+                  : location.pathname === href ||
+                    location.pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={href}

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuthStore } from '@/store/useAuthStore';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '@/lib/axios';
 
 
@@ -19,6 +19,10 @@ const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname
+    ? `${(location.state as any).from.pathname}${(location.state as any).from.search || ''}`
+    : '/';
 
   const {
     register,
@@ -39,7 +43,7 @@ const Login: React.FC = () => {
       if (user.role === 'ADMIN') {
         navigate('/admin');
       } else {
-        navigate('/');
+        navigate(from, { replace: true });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.');

@@ -10,48 +10,78 @@ export interface RagChunkResult {
   score: number;
 }
 
-const STATIC_POLICIES: RagChunkResult[] = [
+export const STATIC_POLICIES: RagChunkResult[] = [
   {
     chunk_id: 1,
     document_id: 'doc-policy-refund',
-    document_title: 'Chính sách đổi trả hàng',
+    document_title: 'Chính sách đổi trả & hoàn tiền',
     source_type: 'POLICY',
-    content: 'Điều 3: Trường hợp lỗi từ sàn hoặc người bán: Đối với sản phẩm bị lỗi do nhà sản xuất, bể vỡ trong quá trình vận chuyển hoặc giao sai mẫu mã, khách hàng được miễn phí 100% cước phí đổi trả hai chiều. Đơn hàng giao trễ quá 3 ngày so với cam kết, khách hàng được quyền yêu cầu hủy đơn và hoàn tiền 100%. Thời gian hoàn tiền: 3-5 ngày làm việc qua phương thức thanh toán ban đầu (VNPay, ngân hàng).',
-    score: 0.92,
+    content: `Điều 1: Thời hạn đổi trả: Khách hàng được quyền yêu cầu đổi trả sản phẩm trong vòng 07 ngày kể từ ngày nhận hàng thành công theo ghi nhận của đơn vị vận chuyển.
+Điều 2: Điều kiện đổi trả: Sản phẩm phải còn nguyên vẹn tem mác, hộp đóng gói ban đầu, chưa qua sử dụng, có đầy đủ phụ kiện và hóa đơn mua hàng trên sàn.
+Điều 3: Trường hợp lỗi từ sàn hoặc người bán: Đối với sản phẩm bị lỗi do nhà sản xuất, bể vỡ trong quá trình vận chuyển hoặc giao sai mẫu mã, chủng loại, số lượng, khách hàng được miễn phí 100% cước phí đổi trả hai chiều. Nếu đơn hàng giao trễ quá 3 ngày so với cam kết ban đầu, khách hàng có toàn quyền yêu cầu hủy đơn và được hoàn tiền 100% giá trị đơn hàng.
+Điều 4: Quy trình và thời gian hoàn tiền: Sau khi kho nhận lại và kiểm tra hàng hoàn thành công (trong vòng 24 đến 48 giờ), tiền sẽ được hoàn qua ví điện tử VNPay/MoMo trong 1-3 ngày làm việc hoặc qua thẻ ngân hàng trong 3-5 ngày làm việc.`,
+    score: 0.95,
   },
   {
     chunk_id: 2,
     document_id: 'doc-policy-warranty',
     document_title: 'Chính sách bảo hành sản phẩm',
     source_type: 'WARRANTY',
-    content: 'Điều 1: Thời hạn bảo hành: Mọi sản phẩm điện tử, phụ kiện công nghệ được bảo hành chính hãng từ 12 đến 24 tháng theo đúng tiêu chuẩn của nhà sản xuất. Điều kiện: tem bảo hành còn nguyên, có hóa đơn điện tử mua hàng tại sàn.',
-    score: 0.88,
+    content: `Điều 1: Thời hạn bảo hành: Mọi sản phẩm điện thoại, máy tính, thiết bị điện tử gia dụng được bảo hành chính hãng từ 12 đến 24 tháng theo đúng tiêu chuẩn công bố của từng thương hiệu.
+Điều 2: Điều kiện bảo hành hợp lệ: Sản phẩm phải còn nguyên tem bảo hành của nhà phân phối, số Serial hoặc IMEI trùng khớp với hóa đơn điện tử được lưu trong hệ thống đơn hàng của sàn. Sản phẩm không bị rơi vỡ, cấn móp, ngấm nước hoặc có dấu hiệu can thiệp, tự ý tháo lắp sửa chữa bởi bên thứ ba không được ủy quyền.
+Điều 3: Địa điểm và quy trình tiếp nhận: Khách hàng có thể mang sản phẩm trực tiếp đến các Trung tâm Bảo hành ủy quyền tại Hà Nội và TP.HCM hoặc gửi bảo hành qua đường bưu điện. Sàn hỗ trợ miễn phí vận chuyển 2 chiều nếu phát sinh lỗi kỹ thuật của nhà sản xuất trong vòng 30 ngày đầu tiên kể từ ngày nhận hàng.`,
+    score: 0.92,
   },
   {
     chunk_id: 3,
     document_id: 'doc-policy-shipping',
     document_title: 'Chi phí và thời gian vận chuyển',
     source_type: 'SHIPPING',
-    content: 'Điều 1: Nội thành Hà Nội và TP.HCM: 1-2 ngày, phí tiêu chuẩn 20.000đ. Ngoại thành và các tỉnh khác: 2-4 ngày, phí 35.000đ. Đơn hàng từ 500.000đ trở lên được miễn phí vận chuyển toàn quốc (Freeship).',
-    score: 0.85,
+    content: `Điều 1: Khu vực nội thành (Hà Nội, TP.HCM): Thời gian giao hàng dự kiến từ 1 đến 2 ngày làm việc. Cước phí vận chuyển tiêu chuẩn là 20.000 VNĐ.
+Điều 2: Khu vực ngoại thành và các tỉnh thành khác: Thời gian giao hàng dự kiến từ 2 đến 4 ngày làm việc. Cước phí vận chuyển tiêu chuẩn là 35.000 VNĐ.
+Điều 3: Chính sách Miễn phí vận chuyển (Freeship): Đơn hàng có tổng giá trị thanh toán thực tế từ 500.000 VNĐ trở lên được miễn phí vận chuyển 100% trên phạm vi toàn quốc.`,
+    score: 0.90,
   },
   {
     chunk_id: 4,
     document_id: 'doc-policy-cancel',
-    document_title: 'Hướng dẫn hủy đơn & Hoàn tiền',
+    document_title: 'Hướng dẫn hủy đơn hàng & hoàn tiền',
     source_type: 'FAQ',
-    content: 'Điều 1: Khách hàng có thể tự hủy đơn hàng trực tiếp trên hệ thống khi đơn đang ở trạng thái CHỜ XÁC NHẬN (PENDING) hoặc ĐANG XỬ LÝ (PROCESSING). Khi đơn đã chuyển sang ĐANG GIAO HÀNG (SHIPPING), khách hàng vui lòng từ chối nhận hàng hoặc liên hệ CSKH.',
-    score: 0.87,
+    content: `Điều 1: Khách hàng có thể tự hủy đơn hàng trực tiếp trên hệ thống khi đơn đang ở trạng thái Chờ xác nhận (PENDING), Chờ thanh toán hoặc Đang chuẩn bị hàng tại trang Quản lý đơn hàng (đường dẫn /profile?tab=orders).
+Điều 2: Để đảm bảo an toàn tài khoản và quyền lợi khách hàng, Chatbot không thực hiện thao tác hủy đơn trực tiếp.
+Điều 3: Khi đơn đã chuyển sang trạng thái Đang giao hàng (SHIPPING), khách hàng vui lòng từ chối nhận hàng khi shipper giao hoặc liên hệ CSKH. Tiền sẽ được hoàn tự động trong 3-5 ngày làm việc sau khi đơn hủy được xác nhận.`,
+    score: 0.88,
   },
   {
     chunk_id: 5,
     document_id: 'doc-policy-payment',
-    document_title: 'Hướng dẫn thanh toán & Xử lý sự cố',
+    document_title: 'Hướng dẫn thanh toán & bảo mật',
     source_type: 'FAQ',
-    content: 'Điều 1: Hỗ trợ thanh toán qua VNPay (QR Code, ứng dụng ngân hàng) và Thanh toán khi nhận hàng (COD). Nếu tài khoản đã trừ tiền mà đơn chưa cập nhật, hệ thống tự động đối soát hoàn tiền trong 24 giờ.',
-    score: 0.82,
+    content: `Điều 1: Phương thức thanh toán hỗ trợ: Ví điện tử (VNPay, MoMo), Thẻ quốc tế Visa/Mastercard/JCB, Thẻ ATM nội địa (Internet Banking) và Thanh toán khi nhận hàng (COD).
+Điều 2: An toàn bảo mật: Toàn bộ thông tin thanh toán trực tuyến được mã hóa theo tiêu chuẩn quốc tế PCI-DSS.
+Điều 3: Xử lý sự cố: Nếu tài khoản của quý khách đã bị trừ tiền nhưng đơn hàng chưa cập nhật thành công, hệ thống sẽ tự động đối soát và hoàn tiền trong vòng 24 giờ.`,
+    score: 0.85,
+  },
+  {
+    chunk_id: 6,
+    document_id: 'doc-policy-rules',
+    document_title: 'Quy chế hoạt động sàn TMĐT & giải quyết khiếu nại',
+    source_type: 'POLICY',
+    content: `Điều 1: Nguyên tắc hoạt động chung: Sàn Thương Mại Điện Tử V-Shop cam kết 100% sản phẩm chính hãng, xuất xứ rõ ràng. Sàn nghiêm cấm tuyệt đối các hành vi buôn bán vũ khí, hàng lậu, chất cấm, tiền giả theo quy định của pháp luật.
+Điều 2: Quyền lợi người mua: Người mua được đảm bảo nhận hàng đúng mô tả, được kiểm tra hàng trước khi nhận, bảo vệ thanh toán an toàn và hỗ trợ đổi trả hàng theo quy định.
+Điều 3: Cơ chế giải quyết khiếu nại: Khi có tranh chấp phát sinh giữa người mua và người bán, ban quản trị sàn sẽ đóng vai trò trọng tài trung gian tiếp nhận phản ánh qua hệ thống Ticket Hỗ trợ hoặc Hotline CSKH 1900-6868 trong vòng 48 giờ để giải quyết thấu đáo và bảo vệ quyền lợi chính đáng cho người tiêu dùng.`,
+    score: 0.85,
   },
 ];
+
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
 
 export class RagService {
   /**
@@ -225,7 +255,37 @@ export class RagService {
    * Truy vấn tìm kiếm ngữ nghĩa các chunk chính sách liên quan nhất
    * Phục vụ endpoint POST /api/ai/rag/query
    */
-  async queryKnowledgeBase(query: string, topK = 3, threshold = 0.65): Promise<RagChunkResult[]> {
+  async queryKnowledgeBase(query: string, topK = 3, threshold = 0.45): Promise<RagChunkResult[]> {
+    const unaccentedQ = removeVietnameseTones(query);
+
+    // Xác định các nhóm chính sách cốt lõi của sàn để luôn có thông tin đầy đủ nhất
+    const staticMatches = STATIC_POLICIES.filter((p) => {
+      if (unaccentedQ.includes('doi tra') || unaccentedQ.includes('tra hang') || unaccentedQ.includes('hoan tien')) {
+        return p.document_id === 'doc-policy-refund';
+      }
+      if (unaccentedQ.includes('bao hanh')) {
+        return p.document_id === 'doc-policy-warranty';
+      }
+      if (
+        unaccentedQ.includes('van chuyen') ||
+        unaccentedQ.includes('giao hang') ||
+        unaccentedQ.includes('phi ship') ||
+        unaccentedQ.includes('freeship')
+      ) {
+        return p.document_id === 'doc-policy-shipping';
+      }
+      if (unaccentedQ.includes('huy don')) {
+        return p.document_id === 'doc-policy-cancel';
+      }
+      if (unaccentedQ.includes('thanh toan') || unaccentedQ.includes('vnpay') || unaccentedQ.includes('momo') || unaccentedQ.includes('cod')) {
+        return p.document_id === 'doc-policy-payment';
+      }
+      if (unaccentedQ.includes('quy che') || unaccentedQ.includes('khieu nai') || unaccentedQ.includes('chinh sach')) {
+        return p.document_id === 'doc-policy-rules' || p.document_id === 'doc-policy-refund';
+      }
+      return false;
+    });
+
     try {
       // 1. Sinh vector embedding cho câu hỏi
       const queryVector = await embeddingService.generateEmbedding(query);
@@ -250,7 +310,7 @@ export class RagService {
       );
 
       // 3. Lọc theo ngưỡng tin cậy (threshold)
-      const filtered = rawResults
+      const filtered: RagChunkResult[] = rawResults
         .filter((r) => Number(r.score) >= threshold)
         .map((r) => ({
           chunk_id: Number(r.chunk_id),
@@ -261,8 +321,23 @@ export class RagService {
           score: Math.round(Number(r.score) * 100) / 100,
         }));
 
+      // Nếu có staticMatches chính sách chuẩn, ưu tiên kết hợp để đảm bảo đầy đủ các điều khoản
+      if (staticMatches.length > 0) {
+        const combined = [...staticMatches, ...filtered];
+        const unique = combined.filter((item, index, self) =>
+          index === self.findIndex((t) => t.document_title === item.document_title || t.document_id === item.document_id)
+        );
+        return unique.slice(0, topK);
+      }
+
+      if (filtered.length === 0) {
+        return this.fallbackKeywordSearch(query, topK);
+      }
       return filtered;
     } catch (err: any) {
+      if (staticMatches.length > 0) {
+        return staticMatches.slice(0, topK);
+      }
       // Fallback tìm kiếm theo từ khóa nếu DB chưa cài pgvector hoặc offline
       return this.fallbackKeywordSearch(query, topK);
     }
@@ -272,13 +347,18 @@ export class RagService {
    * Fallback tìm kiếm từ khóa khi pgvector chưa kích hoạt hoặc DB offline
    */
   private async fallbackKeywordSearch(query: string, topK = 3): Promise<RagChunkResult[]> {
-    const keywords = query
-      .toLowerCase()
+    const unaccentedQ = removeVietnameseTones(query);
+    const keywords = unaccentedQ
       .split(/\s+/)
       .filter((w) => w.length > 2);
 
+    if (keywords.length === 0) {
+      return STATIC_POLICIES.slice(0, topK);
+    }
+
+    let chunks: any[] = [];
     try {
-      const allChunks = await prisma.documentChunk.findMany({
+      const dbChunks = await prisma.documentChunk.findMany({
         where: {
           document: { isActive: true },
         },
@@ -288,43 +368,42 @@ export class RagService {
         take: 20,
       });
 
-      const scored = allChunks.map((c) => {
-        let hits = 0;
-        const lower = c.content.toLowerCase();
-        keywords.forEach((k) => {
-          if (lower.includes(k)) hits++;
-        });
-        const score = keywords.length > 0 ? Math.min(0.95, hits / keywords.length) : 0.5;
-        return {
+      if (dbChunks && dbChunks.length > 0) {
+        chunks = dbChunks.map((c) => ({
           chunk_id: Number(c.id),
           document_id: c.documentId,
           document_title: c.document.title,
           source_type: c.document.sourceType,
           content: c.content,
-          score: Math.round(score * 100) / 100,
-        };
-      });
+        }));
+      }
+    } catch {}
 
-      scored.sort((a, b) => b.score - a.score);
-      return scored.slice(0, topK);
-    } catch {
-      // In-memory fallback policies when database is not running
-      const scored = STATIC_POLICIES.map((c) => {
+    // Luôn bổ sung STATIC_POLICIES để đảm bảo có đầy đủ chính sách của sàn
+    chunks = [...STATIC_POLICIES, ...chunks];
+
+    const scored = chunks
+      .map((c) => {
         let hits = 0;
-        const lower = (c.document_title + ' ' + c.content).toLowerCase();
+        const normalized = removeVietnameseTones((c.document_title || '') + ' ' + (c.content || ''));
         keywords.forEach((k) => {
-          if (lower.includes(k)) hits++;
+          if (normalized.includes(k)) hits++;
         });
-        const calculatedScore = keywords.length > 0 ? Math.min(0.95, 0.4 + (hits / keywords.length) * 0.55) : 0.6;
+        const calculatedScore = hits > 0 ? Math.min(0.98, 0.45 + (hits / keywords.length) * 0.53) : 0;
         return {
           ...c,
           score: Math.round(calculatedScore * 100) / 100,
         };
-      });
+      })
+      .filter((c) => c.score >= 0.45);
 
-      scored.sort((a, b) => b.score - a.score);
-      return scored.slice(0, topK);
-    }
+    // Loại bỏ trùng lặp tiêu đề
+    const unique = scored.filter((item, index, self) =>
+      index === self.findIndex((t) => t.document_title === item.document_title)
+    );
+
+    unique.sort((a, b) => b.score - a.score);
+    return unique.slice(0, topK);
   }
 }
 

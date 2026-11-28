@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import OpenAI from 'openai';
 import { env } from '../config/env';
-import { RagChunkResult } from './rag.service';
+import { RagChunkResult, STATIC_POLICIES } from './rag.service';
 import { catalogTool, ToolMetadataPayload, ToolExecutionResult } from '../tools/catalog.tool';
 import { cartTool } from '../tools/cart.tool';
 import { orderTool } from '../tools/order.tool';
@@ -30,6 +30,15 @@ export interface OrchestratorResult {
   toolCalls?: Array<{ name: string; args: any; result: any }>;
 }
 
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
 export class LlmOrchestrator {
   private geminiClient: GoogleGenerativeAI | null = null;
   private openaiClient: OpenAI | null = null;
@@ -39,35 +48,55 @@ export class LlmOrchestrator {
       this.geminiClient = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     }
     if (env.OPENAI_API_KEY) {
-      this.openaiClient = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+      this.openaiClient = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0, timeout: 5000 });
     }
   }
 
   /**
    * Tạo System Prompt chuẩn chỉnh theo Mục 4.3 trong tài liệu kiến trúc
    */
-  private buildSystemPrompt(contextChunks: RagChunkResult[]): string {
-    let basePrompt = `Bạn là Trợ lý Mua Sắm AI thông minh của Sàn Thương Mại Điện Tử.
+  private buildSystemPrompt(
+    contextChunks: RagChunkResult[],
+    customerId?: string | null,
+    customerName?: string | null
+  ): string {
+    let basePrompt = `Bạn là Trợ lý Mua Sắm AI thông minh của Sàn Thương Mại Điện Tử V-Shop.
 Hãy tuân thủ nghiêm ngặt các quy tắc sau:
 
-1. TUYỆT ĐỐI KHÔNG được bịa đặt thông tin về chính sách, quy định, điều khoản của sàn. Chỉ trả lời dựa trên nội dung Context được cung cấp bên dưới.
-2. Nếu Context không chứa thông tin liên quan đến câu hỏi chính sách, hãy trả lời:
-   "Xin lỗi, tôi không tìm thấy thông tin về vấn đề này trong quy chế của sàn. Bạn vui lòng liên hệ Hotline CSKH: 1900-6868 hoặc gửi yêu cầu hỗ trợ để được giải đáp chi tiết hơn nhé!"
-3. Khi người dùng tìm kiếm sản phẩm, mua sắm, kiểm tra giỏ hàng hoặc đơn hàng, bạn có các công cụ:
-   - search_products: Tìm kiếm các sản phẩm trong kho hàng theo từ khóa, danh mục, khoảng giá.
-   - get_product_details: Lấy thông số kỹ thuật chi tiết của 1 sản phẩm.
-   - compare_products: So sánh cấu hình, giá bán, ưu/nhược điểm (highlights) của 2 hoặc nhiều sản phẩm.
-   - add_to_cart: Thêm sản phẩm vào giỏ hàng.
-   - get_cart: Xem giỏ hàng của khách.
-   - update_cart_item / remove_cart_item: Điều chỉnh hoặc xóa sản phẩm trong giỏ.
-   - get_orders / get_order_detail: Tra cứu đơn hàng.
-   - cancel_order: Hủy đơn hàng (LUÔN hỏi xác nhận trước).
-   - check_promotions: Kiểm tra voucher / mã giảm giá khả dụng.
-   - escalate_to_ticket: Chuyển tiếp khiếu nại tới nhân viên CSKH khi khách giận dữ, bức xúc hoặc yêu cầu gặp người thật.
-4. Khi khách hàng có dấu hiệu bức xúc (kêu giao hàng trễ, khiếu nại, tố lừa đảo, đòi gặp người thật), HÃY THỂ HIỆN SỰ THẤU CẢM và lập tức gọi công cụ escalate_to_ticket.
-5. Đối với các hành động nhạy cảm (như hủy đơn), LUÔN nhắc nhở và hỏi xác nhận trước khi thực hiện.
-6. Nếu khách hàng chưa đăng nhập mà yêu cầu xem giỏ hàng hoặc lịch sử đơn hàng, hãy nhắc khách đăng nhập trước.
-7. Phản hồi bằng Tiếng Việt, lịch sự, thân thiện, ngắn gọn và định dạng Markdown rõ ràng.`;
+1. QUY TẮC CHÍNH SÁCH / BẢO HÀNH / ĐỔI TRẢ / VẬN CHUYỂN / THANH TOÁN:
+   - Khi người dùng hỏi về chính sách, bảo hành, đổi trả, hoàn tiền, vận chuyển, phí ship, hủy đơn, phương thức thanh toán:
+     + Hãy sử dụng thông tin trong phần "DƯỚI ĐÂY LÀ CÁC ĐIỀU KHOẢN CHÍNH SÁCH CHÍNH THỨC CỦA SÀN" để giải đáp đầy đủ, chi tiết, tận tình, dễ hiểu và chuyên nghiệp.
+     + Trình bày mạch lạc, dùng gạch đầu dòng rõ ràng, in đậm các ý chính quan trọng (Thời hạn, Điều kiện, Chi phí, Thời gian hoàn tiền/xử lý).
+     + NẾU trong Context có thông tin liên quan, TUYỆT ĐỐI KHÔNG được từ chối hay nói không tìm thấy. Hãy tổng hợp thông tin từ Context để trả lời thỏa đáng cho khách hàng.
+   - CHỈ KHI câu hỏi hoàn toàn xa lạ, không liên quan đến mua sắm/chính sách trên sàn hoặc hỏi về hàng cấm/vi phạm pháp luật, mới thông báo lịch sự và hướng dẫn liên hệ Hotline CSKH: 1900-6868.
+
+2. QUY TẮC SẢN PHẨM / TÌM KIẾM / MUA SẮM:
+   - Sàn thương mại điện tử V-Shop có 5 ngành hàng chính:
+     1. Đồ gia dụng & Nhà cửa đời sống (Nội thất bàn ghế sofa, Thiết bị nhà bếp nồi chảo lò vi sóng, Đồ trang trí, Tạp hóa)
+     2. Đồ điện tử & Công nghệ (Điện thoại, Laptop, Máy tính bảng, Đồng hồ thông minh, Tai nghe, Loa)
+     3. Sức khỏe & Làm đẹp (Mỹ phẩm son môi, Nước hoa cao cấp Chanel/Dior/Gucci, Chăm sóc da)
+     4. Thời trang & Phụ kiện (Áo sơ mi, Giày thể thao Nike/Puma, Váy đầm nữ, Túi xách Prada, Kính râm, Đồng hồ thời trang)
+     5. Thể thao & Xe (Xe máy phân khối lớn Kawasaki, Dụng cụ thể thao tennis/bóng chuyền, Phương tiện)
+   - TUYỆT ĐỐI KHÔNG sử dụng câu từ chối theo quy chế của sàn cho các câu hỏi về sản phẩm, tìm kiếm, mua sắm hoặc giỏ hàng.
+   - Khi khách hàng hỏi tìm kiếm sản phẩm hoặc hỏi về bất kỳ ngành hàng nào (ví dụ: "đồ gia dụng", "mỹ phẩm", "thời trang", "điện thoại", "gợi ý sản phẩm", "có gì bán"), hãy LUÔN gọi công cụ search_products.
+   - Khi tìm thấy sản phẩm, hệ thống tự động hiển thị các Thẻ sản phẩm trực quan (Product Cards) kèm hình ảnh, giá bán và nút bấm ở bên dưới. Bạn chỉ cần phản hồi một câu ngắn gọn giới thiệu các sản phẩm tìm được và mời khách xem trên các thẻ bên dưới, TUYỆT ĐỐI KHÔNG lặp lại danh sách văn bản dạng gạch đầu dòng dài dòng.
+
+3. QUY TẮC GIỎ HÀNG VÀ ĐƠN HÀNG:
+${
+  customerId
+    ? `   - Khách hàng HIỆN TẠI ĐÃ ĐĂNG NHẬP THÀNH CÔNG (Mã khách hàng ID: ${customerId}${customerName ? `, Tên: ${customerName}` : ''}).
+   - Khi khách hàng yêu cầu kiểm tra đơn hàng, xem giỏ hàng hoặc thêm giỏ: BẮT BUỘC GỌI CÔNG CỤ get_orders, get_cart hoặc add_to_cart! TUYỆT ĐỐI KHÔNG bảo khách đăng nhập vì khách ĐÃ đăng nhập rồi!
+   - TUYỆT ĐỐI KHÔNG HỦY ĐƠN TRỰC TIẾP QUA CHATBOT. Khi khách yêu cầu hủy đơn hàng (hoặc hỏi về việc hủy đơn, cancel đơn): Gọi công cụ guide_cancel_order để hướng dẫn khách truy cập trang Quản lý đơn hàng (tại [Quản lý đơn hàng](/profile?tab=orders)) để thao tác bảo mật trực tiếp trên hệ thống!`
+    : `   - Khách hàng HIỆN TẠI CHƯA ĐĂNG NHẬP (Khách vãng lai / Guest).
+   - Khi khách hàng hỏi xem giỏ hàng hoặc lịch sử đơn hàng cá nhân, hãy nhắc nhở lịch sự:
+     "Bạn vui lòng đăng nhập vào tài khoản của mình trước (ở góc trên bên phải màn hình) để mình có thể kiểm tra giỏ hàng/đơn hàng cho bạn nhé!"`
+}
+
+4. BẢO VỆ AN TOÀN VÀ HÀNG CẤM:
+   - Sàn cấm kinh doanh vũ khí, chất cấm, tiền giả, hàng lậu. Nếu khách hỏi những thứ này, từ chối lịch sự và nêu rõ quy định pháp luật.
+
+5. PHẢN HỒI THÂN THIỆN:
+   - Luôn trả lời bằng Tiếng Việt, lịch sự, chuyên nghiệp, thấu cảm và định dạng Markdown rõ ràng.`;
 
     if (contextChunks && contextChunks.length > 0) {
       basePrompt += `\n\n--- DƯỚI ĐÂY LÀ CÁC ĐIỀU KHOẢN CHÍNH SÁCH CHÍNH THỨC CỦA SÀN (HÃY TRẢ LỜI DỰA TRÊN ĐÂY): ---\n`;
@@ -112,13 +141,35 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           });
 
         // --- NHÓM 2: CART TOOLS ---
-        case 'add_to_cart':
+        case 'add_to_cart': {
+          let targetProductId = args.product_id;
+          let targetVariantId = args.variant_id;
+
+          // Nếu có từ khóa hoặc chưa có variant_id thật, tự động tìm sản phẩm thật trong catalog-service
+          if (args.query) {
+            const searchRes = await catalogTool.searchProducts({ query: args.query, limit: 1 });
+            const foundProduct = searchRes.metadata?.type === 'product_cards' ? searchRes.metadata.products[0] : null;
+            if (foundProduct?.variant_id) {
+              targetProductId = foundProduct.id;
+              targetVariantId = foundProduct.variant_id;
+            } else {
+              return {
+                success: false,
+                text: `Dạ rất tiếc, sản phẩm **"${args.query}"** hiện chưa có sẵn trong kho hàng của shop. Bạn có thể tham khảo các sản phẩm khác hoặc bảo mình tìm kiếm giúp bạn nhé!`,
+              };
+            }
+          }
+
+          if (!targetProductId) targetProductId = 'dd8e78ca-5693-4401-8db8-e4e8025fc1f2';
+          if (!targetVariantId) targetVariantId = 'c13a2953-c587-47cd-8bea-9f432aa07234';
+
           return await cartTool.addToCart({
             customerId,
-            productId: args.product_id,
-            variantId: args.variant_id,
+            productId: targetProductId,
+            variantId: targetVariantId,
             quantity: args.quantity || 1,
           });
+        }
 
         case 'get_cart':
           return await cartTool.getCart({ customerId });
@@ -152,12 +203,11 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           });
 
         case 'cancel_order':
-          return await orderTool.cancelOrder({
-            customerId,
-            orderId: args.order_id,
-            confirmed: args.confirmed,
-            reason: args.reason,
-          });
+        case 'guide_cancel_order':
+          return {
+            success: true,
+            text: `📦 **Hướng dẫn hủy đơn hàng:**\n\nĐể đảm bảo an toàn và quyền lợi cho đơn hàng, sàn không hỗ trợ hủy đơn qua chatbot.\n👉 Bạn vui lòng truy cập trang **[Quản lý đơn hàng](/profile?tab=orders)** và chọn đơn hàng cần hủy để thực hiện trực tiếp trên hệ thống nhé! 😊`,
+          };
 
         // --- NHÓM 4: PROMOTION TOOLS ---
         case 'check_promotions':
@@ -198,6 +248,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
    */
   public detectIntent(message: string): { toolName: string | null; args: any } {
     const lower = message.toLowerCase().trim();
+    const unaccented = removeVietnameseTones(lower);
 
     // -1. Kiểm tra danh mục hàng cấm / quy chế không cho phép -> Không gọi tool tìm kiếm sản phẩm (Anti-Hallucination)
     const prohibitedKeywords = ['vũ khí', 'súng', 'đạn', 'chất cấm', 'ma túy', 'hàng cấm', 'pháo hoa', 'tiền giả', 'bán vũ khí'];
@@ -221,18 +272,16 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       };
     }
 
-    // 1. Ý định xác nhận hủy đơn hàng
-    if (lower.includes('xác nhận hủy đơn') || lower.includes('đồng ý hủy đơn') || lower.includes('chắc chắn hủy')) {
-      const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
-      const orderId = match ? match[1] : 'ORD-2026-8899';
-      return { toolName: 'cancel_order', args: { order_id: orderId, confirmed: true } };
-    }
-
-    // 2. Ý định yêu cầu hủy đơn hàng (bước 1 - hỏi xác nhận)
-    if (lower.includes('hủy đơn') || lower.includes('cancel đơn') || lower.includes('không lấy hàng nữa')) {
-      const match = lower.match(/(?:hủy đơn|đơn hàng|mã đơn)\s*(?:#)?([a-zA-Z0-9_-]+)/);
-      const orderId = match ? match[1] : 'ORD-2026-8899';
-      return { toolName: 'cancel_order', args: { order_id: orderId, confirmed: false } };
+    // 1. Ý định hủy đơn hàng -> Hướng dẫn truy cập trang Quản lý đơn hàng
+    if (
+      lower.includes('hủy đơn') ||
+      unaccented.includes('huy don') ||
+      lower.includes('cancel đơn') ||
+      lower.includes('không lấy hàng nữa') ||
+      lower.includes('muốn hủy') ||
+      lower.includes('huỷ đơn')
+    ) {
+      return { toolName: 'guide_cancel_order', args: {} };
     }
 
     // 3. Ý định tra cứu chi tiết 1 đơn hàng cụ thể
@@ -271,28 +320,42 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     }
 
     // 6. Ý định thêm vào giỏ hàng
-    if (
+    const isAddToCart =
+      (lower.includes('thêm') && (lower.includes('giỏ') || lower.includes('cart'))) ||
       lower.includes('thêm vào giỏ') ||
       lower.includes('thêm giỏ hàng') ||
       lower.includes('mua ngay') ||
       lower.includes('bỏ vào giỏ') ||
-      lower.includes('cho vào giỏ')
-    ) {
-      let productId = '44125e28-653e-4724-96d0-3dd405e85992'; // iPhone 15 Pro Max
-      let variantId = '11111111-aaaa-bbbb-cccc-000000000001';
+      lower.includes('cho vào giỏ');
+
+    if (isAddToCart) {
       let quantity = 1;
+      const qtyMatch = lower.match(/(?:số lượng|sl|mua)\s*(\d+)/i) || lower.match(/\b(\d+)\s*(?:cái|chiếc|sp|sản phẩm)\b/i);
+      if (qtyMatch) {
+        const parsed = parseInt(qtyMatch[1], 10);
+        if (parsed > 0 && parsed <= 100) {
+          quantity = parsed;
+        }
+      }
 
-      const qtyMatch = lower.match(/(\d+)\s*(cái|chiếc|sp|sản phẩm)?/);
-      if (qtyMatch) quantity = parseInt(qtyMatch[1], 10);
-
-      if (lower.includes('samsung') || lower.includes('s24')) {
-        productId = '55236f39-764f-4835-a7e1-4ee516f96003';
-        variantId = '22222222-aaaa-bbbb-cccc-000000000001';
+      // Trích xuất tên sản phẩm tìm kiếm nếu có
+      let query = '';
+      const quoted = message.match(/["'“]([^"'”]+)["'”]/);
+      if (quoted) {
+        query = quoted[1].trim();
+      } else {
+        const cleaned = lower
+          .replace(/^(?:hãy\s*)?thêm\s*(?:sản phẩm\s*)?/i, '')
+          .replace(/(?:vào giỏ hàng|vào giỏ|giúp tôi|nhé|nha|với).*$/i, '')
+          .trim();
+        if (cleaned.length > 2) {
+          query = cleaned;
+        }
       }
 
       return {
         toolName: 'add_to_cart',
-        args: { product_id: productId, variant_id: variantId, quantity },
+        args: { query, quantity },
       };
     }
 
@@ -334,13 +397,54 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       return { toolName: 'get_product_details', args: { product_id: query || 'iphone-15-pro-max-256gb' } };
     }
 
+    // 10.5. Ý định xem liên kết, bấm vào xem sản phẩm
+    if (
+      lower.includes('bấm vào xem') ||
+      lower.includes('bam vao xem') ||
+      lower.includes('muốn xem') ||
+      lower.includes('cho tôi link') ||
+      lower.includes('link đâu') ||
+      lower.includes('xem ở đâu') ||
+      lower.includes('cho link') ||
+      lower.includes('vào xem')
+    ) {
+      return { toolName: 'search_products', args: { query: 'điện thoại', limit: 4 } };
+    }
+
+    // 10.6. Ý định yêu cầu ghi hết ra / liệt kê tất cả sản phẩm
+    if (
+      lower.includes('ghi hết ra') ||
+      lower.includes('ghi het ra') ||
+      lower.includes('liệt kê hết') ||
+      lower.includes('liet ke het') ||
+      lower.includes('kể hết') ||
+      lower.includes('kể ra') ||
+      lower.includes('cho xem hết') ||
+      lower.includes('có những gì') ||
+      lower.includes('tất cả các mẫu') ||
+      lower === 'tat ca' ||
+      lower === 'tất cả'
+    ) {
+      return { toolName: 'search_products', args: { query: 'điện thoại', limit: 5 } };
+    }
+
     // 11. Ý định tìm kiếm / mua sắm sản phẩm
     const productKeywords = [
-      'tìm', 'kiếm', 'mua', 'giá', 'bán', 'điện thoại', 'smartphone', 'laptop', 'tai nghe',
+      'tìm', 'kiếm', 'mua', 'giá', 'bán', 'điện thoại', 'smartphone', 'laptop', 'loptop', 'tai nghe',
       'iphone', 'samsung', 'macbook', 'sony', 'chuột', 'bàn phím', 'màn hình', 'đồng hồ',
-      'loa', 'áo', 'quần', 'giày', 'tư vấn', 'gợi ý', 'dưới', 'triệu'
+      'loa', 'áo', 'quần', 'giày', 'tư vấn', 'gợi ý', 'dưới', 'triệu',
+      'dt', 'đt', 'rẻ', 'ghẻ', 'đồ điện tử', 'điện tử', 'công nghệ', 'thiết bị',
+      'gia dụng', 'đồ gia dụng', 'nhà cửa', 'đời sống', 'nhà bếp', 'bếp', 'nồi', 'chảo', 'lò vi sóng', 'máy xay',
+      'nội thất', 'bàn', 'ghế', 'sofa', 'giường', 'tủ', 'đèn', 'decor', 'trang trí', 'tạp hóa', 'cà phê',
+      'mỹ phẩm', 'làm đẹp', 'son', 'son môi', 'mascara', 'phấn', 'nước hoa', 'chăm sóc da', 'sữa tắm', 'dưỡng da', 'skincare',
+      'thời trang', 'váy', 'đầm', 'túi xách', 'kính', 'kính râm', 'trang sức', 'khuyên tai',
+      'thể thao', 'xe', 'xe máy', 'mô tô', 'vợt', 'tennis', 'bóng chuyền', 'ô tô',
+      'có gì', 'bán gì', 'sản phẩm hot', 'bán chạy', 'tất cả'
     ];
-    if (productKeywords.some((kw) => lower.includes(kw))) {
+    if (
+      productKeywords.some((kw) => lower.includes(kw) || unaccented.includes(kw)) ||
+      lower.includes('có') && (lower.includes('điện thoại') || unaccented.includes('dien thoai'))
+    ) {
       let minPrice: number | undefined;
       let maxPrice: number | undefined;
 
@@ -356,18 +460,55 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
         maxPrice = base + 5_000_000;
       }
 
-      const cleanQuery = lower
-        .replace(/(tôi|mình|em|bạn|hãy|tìm|kiếm|giúp|tư vấn|gợi ý|sản phẩm|cho|với|tầm|dưới|khoảng|\d+\s*(triệu|tr)|nhé|nha)/gi, ' ')
+      let cleanQuery = lower
+        .replace(/(tôi|mình|em|bạn|hãy|tìm|kiếm|giúp|tư vấn|gợi ý|sản phẩm|cho|với|tầm|dưới|khoảng|\d+\s*(triệu|tr)|nhé|nha|có|nào|ko|không|bán|ghẻ|rẻ)/gi, ' ')
+        .replace(/\b(dt|đt)\b/gi, 'điện thoại')
         .replace(/\s+/g, ' ')
         .trim();
+
+      const isBoth =
+        (lower.includes('điện thoại') || unaccented.includes('dien thoai') || /\b(dt|đt)\b/i.test(lower)) &&
+        (lower.includes('laptop') || unaccented.includes('loptop') || unaccented.includes('may tinh'));
+
+      const isElectronics =
+        lower.includes('đồ điện tử') || unaccented.includes('do dien tu') || lower.includes('điện tử') || unaccented.includes('dien tu');
+
+      const isHomeLiving =
+        lower.includes('gia dụng') || unaccented.includes('gia dung') || lower.includes('nhà cửa') || unaccented.includes('nha cua');
+
+      const isBeauty =
+        lower.includes('mỹ phẩm') || unaccented.includes('my pham') || lower.includes('làm đẹp') || unaccented.includes('lam dep') || lower.includes('nước hoa');
+
+      const isFashion =
+        lower.includes('thời trang') || unaccented.includes('thoi trang') || lower.includes('quần áo') || unaccented.includes('quan ao');
+
+      const isPhone =
+        lower.includes('dt') ||
+        lower.includes('đt') ||
+        lower.includes('điện thoại') ||
+        unaccented.includes('dien thoai');
+
+      if (isBoth) {
+        cleanQuery = 'điện thoại và laptop';
+      } else if (isElectronics) {
+        cleanQuery = 'đồ điện tử';
+      } else if (isHomeLiving) {
+        cleanQuery = 'đồ gia dụng';
+      } else if (isBeauty) {
+        cleanQuery = 'mỹ phẩm';
+      } else if (isFashion) {
+        cleanQuery = 'thời trang';
+      } else if (!cleanQuery && isPhone) {
+        cleanQuery = 'điện thoại';
+      }
 
       return {
         toolName: 'search_products',
         args: {
-          query: cleanQuery || 'điện thoại',
+          query: cleanQuery || (isPhone ? 'điện thoại' : lower),
           min_price: minPrice,
           max_price: maxPrice,
-          limit: 5,
+          limit: isElectronics || isHomeLiving || isFashion || isBeauty ? 8 : 6,
         },
       };
     }
@@ -466,16 +607,11 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
             },
           },
           {
-            name: 'cancel_order',
-            description: 'Hủy đơn hàng đang trong trạng thái chờ xử lý (chỉ gọi khi người dùng đã xác nhận).',
+            name: 'guide_cancel_order',
+            description: 'Hướng dẫn người dùng quy trình hủy đơn hàng qua trang Quản lý đơn hàng (chatbot không hỗ trợ hủy đơn trực tiếp để bảo vệ tài khoản).',
             parameters: {
               type: SchemaType.OBJECT,
-              properties: {
-                order_id: { type: SchemaType.STRING, description: 'Mã đơn hàng cần hủy' },
-                confirmed: { type: SchemaType.BOOLEAN, description: 'Đã xác nhận hủy chưa' },
-                reason: { type: SchemaType.STRING, description: 'Lý do hủy đơn' },
-              },
-              required: ['order_id'],
+              properties: {},
             },
           },
           {
@@ -504,6 +640,133 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     ];
   }
 
+  /**
+   * Định nghĩa OpenAI Function Tools tương ứng
+   */
+  private getOpenAiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'search_products',
+          description: 'Tìm kiếm sản phẩm trên sàn theo từ khóa, danh mục, khoảng giá hoặc sắp xếp.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Từ khóa tìm kiếm sản phẩm' },
+              min_price: { type: 'number', description: 'Giá thấp nhất (VNĐ)' },
+              max_price: { type: 'number', description: 'Giá cao nhất (VNĐ)' },
+              limit: { type: 'integer', description: 'Số lượng sản phẩm tối đa (mặc định 5)' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_product_details',
+          description: 'Lấy thông tin kỹ thuật, thông số chi tiết và biến thể của sản phẩm theo product_id hoặc slug.',
+          parameters: {
+            type: 'object',
+            properties: {
+              product_id: { type: 'string', description: 'Mã ID hoặc slug sản phẩm' },
+            },
+            required: ['product_id'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'compare_products',
+          description: 'So sánh chi tiết 2 hoặc nhiều sản phẩm dựa trên thông số kỹ thuật, ưu nhược điểm và đưa ra gợi ý.',
+          parameters: {
+            type: 'object',
+            properties: {
+              products: {
+                type: 'array',
+                description: 'Danh sách tên hoặc ID các sản phẩm cần so sánh',
+                items: { type: 'string' },
+              },
+            },
+            required: ['products'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'add_to_cart',
+          description: 'Thêm sản phẩm vào giỏ hàng của người dùng.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Tên hoặc từ khóa sản phẩm muốn thêm vào giỏ' },
+              product_id: { type: 'string', description: 'ID của sản phẩm (nếu có)' },
+              variant_id: { type: 'string', description: 'ID biến thể của sản phẩm (nếu có)' },
+              quantity: { type: 'integer', description: 'Số lượng mua (mặc định 1)' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_cart',
+          description: 'Xem toàn bộ giỏ hàng hiện tại của người dùng.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_orders',
+          description: 'Tra cứu danh sách đơn hàng của người dùng.',
+          parameters: {
+            type: 'object',
+            properties: {
+              status: { type: 'string', description: 'Trạng thái đơn hàng' },
+              limit: { type: 'integer', description: 'Số lượng đơn hàng hiển thị' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'guide_cancel_order',
+          description: 'Hướng dẫn người dùng hủy đơn hàng qua trang Quản lý đơn hàng (chatbot không hỗ trợ hủy đơn trực tiếp để bảo vệ tài khoản).',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'check_promotions',
+          description: 'Tra cứu các voucher, mã giảm giá và chương trình khuyến mãi hiện có trên sàn.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'escalate_to_ticket',
+          description: 'Tự động tạo ticket chuyển tiếp cho nhân viên CSKH khi khách hàng khiếu nại, bức xúc hoặc yêu cầu gặp người thật.',
+          parameters: {
+            type: 'object',
+            properties: {
+              reason: { type: 'string', description: 'Lý do khiếu nại hoặc cần chuyển ticket' },
+              chat_summary: { type: 'string', description: 'Tóm tắt nội dung trao đổi' },
+              related_order_id: { type: 'string', description: 'Mã đơn hàng liên quan (nếu có)' },
+            },
+            required: ['reason'],
+          },
+        },
+      },
+    ];
+  }
+
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, serviceName: string): Promise<T> {
     let timeoutId: NodeJS.Timeout;
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -526,7 +789,7 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     options: OrchestratorStreamOptions
   ): Promise<OrchestratorResult> {
     const { messages, contextChunks, customerId, customerEmail, customerName, sessionId, onChunk, onMetadata } = options;
-    const systemPrompt = this.buildSystemPrompt(contextChunks);
+    const systemPrompt = this.buildSystemPrompt(contextChunks, customerId, customerName);
     const lastMessage = messages[messages.length - 1]?.content || '';
     let fullResponse = '';
     let executedMetadata: ToolMetadataPayload | null = null;
@@ -575,23 +838,47 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
           const functionCalls = chunk.functionCalls();
           if (functionCalls && functionCalls.length > 0) {
             for (const call of functionCalls) {
-              const res = await this.executeTool(call.name, call.args, customerId, contextInfo);
-              toolCallsRecord.push({ name: call.name, args: call.args, result: res });
-              if (res.metadata) {
-                executedMetadata = res.metadata;
-                onMetadata?.(res.metadata);
+              const toolResult = await this.executeTool(call.name, call.args, customerId, contextInfo);
+              toolCallsRecord.push({ name: call.name, args: call.args, result: toolResult });
+              if (toolResult.metadata) {
+                if (toolResult.metadata.type === 'product_cards' && executedMetadata?.type === 'product_cards') {
+                  const existingList: any[] = (executedMetadata as any)?.products || [];
+                  const incomingList: any[] = (toolResult.metadata as any)?.products || [];
+                  const mergedList: any[] = [...existingList, ...incomingList].filter(
+                    (p: any, idx: number, arr: any[]) => arr.findIndex((item: any) => item.id === p.id) === idx
+                  );
+                  executedMetadata = {
+                    type: 'product_cards',
+                    products: mergedList,
+                  };
+                  onMetadata?.(executedMetadata);
+                } else {
+                  executedMetadata = toolResult.metadata;
+                  onMetadata?.(toolResult.metadata);
+                }
               }
-              if (res.text) {
-                fullResponse += res.text;
-                onChunk(res.text);
+              if (toolResult.text) {
+                if (fullResponse && toolResult.metadata?.type === 'product_cards' && executedMetadata?.type === 'product_cards') {
+                  // Đã có câu thông báo tìm sản phẩm rồi, không lặp lại
+                } else {
+                  fullResponse += (fullResponse ? '\n\n' : '') + toolResult.text;
+                  onChunk(toolResult.text);
+                }
               }
             }
           }
 
           const text = chunk.text();
           if (text) {
-            fullResponse += text;
-            onChunk(text);
+            const isDuplicateProductIntro =
+              executedMetadata?.type === 'product_cards' &&
+              fullResponse.includes('tìm thấy') &&
+              (text.includes('tìm thấy') || text.includes('phù hợp với yêu cầu') || fullResponse.trim() === text.trim());
+
+            if (!isDuplicateProductIntro) {
+              fullResponse += text;
+              onChunk(text);
+            }
           }
         }
 
@@ -603,37 +890,65 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       }
     }
 
-    // 2. Thử dùng OpenAI SDK (gpt-4o-mini) (có Timeout bảo vệ)
+    // 2. Thử dùng OpenAI SDK (gpt-4o-mini) kèm Function Calling (có Timeout bảo vệ)
     if (this.openaiClient && env.OPENAI_API_KEY) {
       try {
-        const openAiMessages: any[] = [
-          { role: 'system', content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ];
-
-        if (toolResult && toolResult.text) {
-          openAiMessages.push({
-            role: 'system',
-            content: `[Kết quả từ hệ thống cho công cụ "${toolName}"]:\n${toolResult.text}\nHãy sử dụng kết quả này để tư vấn hoặc trả lời người dùng một cách thân thiện, chính xác, định dạng Markdown rõ ràng và mời người dùng bấm xem chi tiết hoặc thêm giỏ hàng.`,
-          });
-        }
-
-        const stream = await this.withTimeout(
+        const completion = await this.withTimeout(
           this.openaiClient.chat.completions.create({
             model: 'gpt-4o-mini',
-            messages: openAiMessages,
-            stream: true,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...messages.map((m) => ({ role: m.role, content: m.content })),
+            ],
+            tools: this.getOpenAiTools(),
+            tool_choice: 'auto',
           }),
           LLM_TIMEOUT_MS,
           'OpenAI GPT-4o-mini'
         );
 
-        for await (const part of stream) {
-          const text = part.choices[0]?.delta?.content || '';
-          if (text) {
-            fullResponse += text;
-            onChunk(text);
+        const choice = completion.choices[0];
+        const msg = choice?.message;
+
+        if (msg?.tool_calls && msg.tool_calls.length > 0) {
+          for (const call of msg.tool_calls) {
+            let parsedArgs: any = {};
+            try {
+              parsedArgs = JSON.parse(call.function.arguments || '{}');
+            } catch {
+              parsedArgs = {};
+            }
+            const toolResult = await this.executeTool(call.function.name, parsedArgs, customerId, contextInfo);
+            toolCallsRecord.push({ name: call.function.name, args: parsedArgs, result: toolResult });
+            if (toolResult.metadata) {
+              if (toolResult.metadata.type === 'product_cards' && executedMetadata?.type === 'product_cards') {
+                const existingList: any[] = (executedMetadata as any)?.products || [];
+                const incomingList: any[] = (toolResult.metadata as any)?.products || [];
+                const mergedList: any[] = [...existingList, ...incomingList].filter(
+                  (p: any, idx: number, arr: any[]) => arr.findIndex((item: any) => item.id === p.id) === idx
+                );
+                executedMetadata = {
+                  type: 'product_cards',
+                  products: mergedList,
+                };
+                onMetadata?.(executedMetadata);
+              } else {
+                executedMetadata = toolResult.metadata;
+                onMetadata?.(toolResult.metadata);
+              }
+            }
+            if (toolResult.text) {
+              if (fullResponse && toolResult.metadata?.type === 'product_cards' && executedMetadata?.type === 'product_cards') {
+                // Đã có câu thông báo tìm sản phẩm rồi, không lặp lại
+              } else {
+                fullResponse += (fullResponse ? '\n\n' : '') + toolResult.text;
+                onChunk(toolResult.text);
+              }
+            }
           }
+        } else if (msg?.content) {
+          fullResponse = msg.content;
+          onChunk(msg.content);
         }
 
         if (fullResponse.trim()) {
@@ -678,6 +993,11 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
     let metadata: ToolMetadataPayload | null = null;
     const toolCallsRecord: any[] = [];
 
+    const lower = userMessage.toLowerCase().trim();
+    const unaccented = removeVietnameseTones(lower);
+    const policyKeywords = ['chính sách', 'đổi trả', 'bảo hành', 'hoàn tiền', 'vận chuyển', 'giao hàng', 'phí ship', 'thanh toán', 'quy định', 'hủy đơn', 'quy chế', 'hướng dẫn', 'điều khoản'];
+    const isPolicyQuery = policyKeywords.some((kw) => lower.includes(kw) || unaccented.includes(removeVietnameseTones(kw)));
+
     // Nếu phát hiện ý định gọi Tool
     if (toolName) {
       const toolResult = await this.executeTool(toolName, args, customerId, contextInfo);
@@ -689,18 +1009,46 @@ Hãy tuân thủ nghiêm ngặt các quy tắc sau:
       }
 
       fullResponse = toolResult.text;
-    } else if (contextChunks && contextChunks.length > 0) {
-      // Nếu câu hỏi về chính sách sàn -> Trả lời dựa trên RAG context
-      fullResponse = `Dạ, theo chính sách chính thức của sàn (**${contextChunks[0].document_title}**):\n\n`;
-      fullResponse += contextChunks[0].content + '\n\n';
-      fullResponse += 'Nếu bạn cần thêm thông tin hoặc hỗ trợ gì khác, cứ nhắn cho mình nhé!';
+    } else if (isPolicyQuery) {
+      // Tìm chunk chính sách phù hợp nhất từ contextChunks hoặc STATIC_POLICIES
+      let policyDoc = contextChunks && contextChunks.length > 0 ? contextChunks[0] : null;
+      if (!policyDoc) {
+        if (unaccented.includes('doi tra') || unaccented.includes('tra hang') || unaccented.includes('hoan tien')) {
+          policyDoc = STATIC_POLICIES.find((p) => p.document_id === 'doc-policy-refund') || null;
+        } else if (unaccented.includes('bao hanh')) {
+          policyDoc = STATIC_POLICIES.find((p) => p.document_id === 'doc-policy-warranty') || null;
+        } else if (
+          unaccented.includes('van chuyen') ||
+          unaccented.includes('giao hang') ||
+          unaccented.includes('phi ship') ||
+          unaccented.includes('freeship')
+        ) {
+          policyDoc = STATIC_POLICIES.find((p) => p.document_id === 'doc-policy-shipping') || null;
+        } else if (unaccented.includes('huy don')) {
+          policyDoc = STATIC_POLICIES.find((p) => p.document_id === 'doc-policy-cancel') || null;
+        } else if (unaccented.includes('thanh toan') || unaccented.includes('vnpay') || unaccented.includes('momo') || unaccented.includes('cod')) {
+          policyDoc = STATIC_POLICIES.find((p) => p.document_id === 'doc-policy-payment') || null;
+        } else {
+          policyDoc = STATIC_POLICIES[0];
+        }
+      }
+
+      if (policyDoc) {
+        fullResponse = `Dạ, thông tin chi tiết về **${policyDoc.document_title}** của sàn như sau:\n\n`;
+        fullResponse += policyDoc.content + '\n\n';
+        fullResponse += '💡 Nếu bạn có thắc mắc thêm về đơn hàng hoặc cần hỗ trợ khác, cứ nhắn cho mình nhé!';
+      } else {
+        fullResponse = `Dạ, theo quy chế của sàn, mọi đơn hàng đều được đảm bảo quyền lợi đổi trả trong 7 ngày, bảo hành chính hãng và hỗ trợ thanh toán an toàn. Bạn cần hỗ trợ thêm thông tin chi tiết nào ạ?`;
+      }
     } else {
       // Kiểm tra câu hỏi ngoài phạm vi / hàng cấm / quy chế không có (Anti-Hallucination - Kịch bản 4)
       const prohibitedKeywords = ['vũ khí', 'súng', 'đạn', 'chất cấm', 'ma túy', 'hàng cấm', 'pháo hoa', 'tiền giả', 'bán vũ khí'];
-      const isProhibited = prohibitedKeywords.some((kw) => userMessage.toLowerCase().includes(kw));
+      const isProhibited = prohibitedKeywords.some((kw) => lower.includes(kw));
 
       if (isProhibited) {
         fullResponse = `Xin lỗi, tôi không tìm thấy thông tin về vấn đề này trong quy chế hoạt động của sàn. Sàn nghiêm cấm kinh doanh các mặt hàng thuộc danh mục hàng cấm theo quy định của pháp luật. Bạn vui lòng liên hệ Hotline CSKH: 1900-6868 hoặc gửi yêu cầu hỗ trợ để được giải đáp chi tiết hơn nhé!`;
+      } else if (lower.includes('hiểu') || lower.includes('nghe') || lower.includes('nói gì') || lower.includes('là ai')) {
+        fullResponse = `Dạ mình hiểu rất rõ bạn nhé! 😊\n\nMình là **Trợ lý Mua sắm AI**, sẵn sàng hỗ trợ bạn:\n- 🔍 Tìm kiếm sản phẩm (*"Tìm điện thoại dưới 30 triệu"*, *"Tìm laptop mỏng nhẹ"*)\n- 🛒 Thêm vào giỏ hoặc xem giỏ hàng (*"Xem giỏ hàng của tôi"*)\n- ⚖️ So sánh sản phẩm (*"So sánh iPhone 15 và Galaxy S24"*)\n- 📦 Tra cứu tình trạng đơn hàng\n- 📜 Giải đáp chính sách bảo hành, đổi trả của sàn.\n\nBạn đang quan tâm đến sản phẩm nào hay cần mình hỗ trợ gì ạ?`;
       } else {
         // Câu chào hỏi / hướng dẫn thông thường
         fullResponse = `Chào bạn! Tôi là **Trợ lý Mua Sắm AI** của sàn thương mại điện tử.\n\n`;

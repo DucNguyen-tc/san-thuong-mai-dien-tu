@@ -89,19 +89,32 @@ async function main() {
       where: { title: policy.title },
     });
 
+    let docId = existing?.id;
     if (existing) {
-      console.log(`- Tài liệu đã tồn tại (ID: ${existing.id}), bỏ qua hoặc cập nhật.`);
-      continue;
+      console.log(`- Tài liệu đã tồn tại (ID: ${existing.id}), đang cập nhật nội dung mới...`);
+      await prisma.knowledgeDocument.update({
+        where: { id: existing.id },
+        data: {
+          originalContent: policy.originalContent,
+          sourceType: policy.sourceType,
+          isActive: true,
+        },
+      });
+      // Xóa các chunk cũ
+      await prisma.documentChunk.deleteMany({
+        where: { documentId: existing.id },
+      });
+    } else {
+      const created = await prisma.knowledgeDocument.create({
+        data: {
+          title: policy.title,
+          sourceType: policy.sourceType,
+          originalContent: policy.originalContent,
+          isActive: true,
+        },
+      });
+      docId = created.id;
     }
-
-    const doc = await prisma.knowledgeDocument.create({
-      data: {
-        title: policy.title,
-        sourceType: policy.sourceType,
-        originalContent: policy.originalContent,
-        isActive: true,
-      },
-    });
 
     const chunks = splitIntoChunks(policy.originalContent);
     console.log(`- Chia thành ${chunks.length} chunks. Đang tạo embeddings và lưu...`);
@@ -115,7 +128,7 @@ async function main() {
         await prisma.$executeRawUnsafe(
           `INSERT INTO document_chunks (document_id, chunk_index, content, embedding, created_at)
            VALUES ($1::uuid, $2, $3, $4::vector, NOW())`,
-          doc.id,
+          docId,
           i + 1,
           chunkText,
           vectorString
@@ -124,7 +137,7 @@ async function main() {
         console.warn(`! Không thể chèn vector raw (${err.message}). Thử fallback Prisma thông thường...`);
         await prisma.documentChunk.create({
           data: {
-            documentId: doc.id,
+            documentId: docId,
             chunkIndex: i + 1,
             content: chunkText,
           },

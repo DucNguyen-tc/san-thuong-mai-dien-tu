@@ -1,32 +1,73 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { supportService } from "../../../services/support.service";
 import type { Ticket } from "../../../types/support";
-import { PlusCircle, MessageSquare, Clock, CheckCircle2, ChevronRight, X, Send } from "lucide-react";
+import { PlusCircle, MessageSquare, Clock, CheckCircle2, ChevronRight, X, Send, ArrowLeft } from "lucide-react";
 
 export const MyTickets: React.FC = () => {
   const navigate = useNavigate();
+  const { id: routeTicketId } = useParams<{ id?: string }>();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const fetchTickets = async () => {
+  const fetchTickets = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await supportService.getMyTickets({ limit: 50 });
       setTickets(data?.items || []);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchTickets();
   }, []);
+
+  // Real-time polling tin nhắn mới từ Admin mỗi 2.5 giây khi đang mở khung chat
+  useEffect(() => {
+    if (!selectedTicket?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const updated = await supportService.getTicketDetail(selectedTicket.id);
+        setSelectedTicket((prev) => {
+          if (!prev || prev.id !== updated.id) return prev;
+          if (
+            prev.messages?.length !== updated.messages?.length ||
+            prev.status !== updated.status
+          ) {
+            return updated;
+          }
+          return prev;
+        });
+      } catch {
+        // silent
+      }
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [selectedTicket?.id]);
+
+  // Tự động cuộn xuống tin nhắn mới nhất
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedTicket?.messages?.length]);
+
+  useEffect(() => {
+    if (routeTicketId) {
+      supportService
+        .getTicketDetail(routeTicketId)
+        .then((full) => {
+          if (full) setSelectedTicket(full);
+        })
+        .catch(() => {});
+    }
+  }, [routeTicketId]);
 
   const openTicketDetail = async (ticket: Ticket) => {
     try {
@@ -41,16 +82,31 @@ export const MyTickets: React.FC = () => {
     e.preventDefault();
     if (!replyMessage.trim() || !selectedTicket) return;
 
+    const text = replyMessage.trim();
+    setReplyMessage("");
+
+    // Optimistic UI Update: Hiện tin nhắn ngay trên giao diện chat
+    const tempMsg: any = {
+      id: Date.now(),
+      ticket_id: selectedTicket.id,
+      sender_type: "CUSTOMER",
+      content: text,
+      created_at: new Date().toISOString()
+    };
+    setSelectedTicket((prev) => prev ? {
+      ...prev,
+      messages: [...(prev.messages || []), tempMsg]
+    } : prev);
+
     try {
       setSendingReply(true);
-      await supportService.addMessage(selectedTicket.id, replyMessage.trim());
-      setReplyMessage("");
-      // Reload chi tiết
+      await supportService.addMessage(selectedTicket.id, text);
+      // Đồng bộ ngầm kết quả thật
       const updated = await supportService.getTicketDetail(selectedTicket.id);
       setSelectedTicket(updated);
-      fetchTickets();
+      fetchTickets(true);
     } catch (e) {
-      console.error(e);
+      console.error("Lỗi gửi tin nhắn:", e);
     } finally {
       setSendingReply(false);
     }
@@ -70,6 +126,13 @@ export const MyTickets: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto my-8 px-4">
+      <button
+        onClick={() => navigate("/profile")}
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" /> Về trang cá nhân
+      </button>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Yêu Cầu Hỗ Trợ Của Tôi</h1>
@@ -156,24 +219,25 @@ export const MyTickets: React.FC = () => {
                     !msg.content.startsWith("[RAG")
                 )
                 .map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${msg.sender_type === "CUSTOMER" ? "items-end" : "items-start"}`}
-                >
-                  <span className="text-[11px] text-gray-400 mb-1">
-                    {msg.sender_type === "CUSTOMER" ? "Bạn" : "Nhân viên CSKH"} • {new Date(msg.created_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.sender_type === "CUSTOMER"
-                        ? "bg-blue-600 text-white rounded-tr-none"
-                        : "bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-sm"
-                    }`}
+                    key={msg.id}
+                    className={`flex flex-col ${msg.sender_type === "CUSTOMER" ? "items-end" : "items-start"}`}
                   >
-                    {msg.content}
+                    <span className="text-[11px] text-gray-400 mb-1">
+                      {msg.sender_type === "CUSTOMER" ? "Bạn" : "Nhân viên CSKH"} • {new Date(msg.created_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.sender_type === "CUSTOMER"
+                          ? "bg-blue-600 text-white rounded-tr-none shadow-sm"
+                          : "bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-sm"
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              <div ref={chatBottomRef} />
             </div>
 
             {/* Input Reply */}

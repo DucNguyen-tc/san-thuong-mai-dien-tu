@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuthStore } from "@/store/useAuthStore";
 import { supportService } from "../../../services/support.service";
 import orderService from "../../../services/orderService";
-import { AlertCircle, CheckCircle, Send, ArrowLeft } from "lucide-react";
+import { AlertCircle, CheckCircle, Send, ArrowLeft, Package, Calendar, DollarSign } from "lucide-react";
 
 export const NewTicket: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
+  const orderIdFromUrl = searchParams.get("orderId");
+
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("OTHER");
   const [content, setContent] = useState("");
-  const [relatedOrderId, setRelatedOrderId] = useState("");
+  const [relatedOrderId, setRelatedOrderId] = useState(orderIdFromUrl || "");
   const [orders, setOrders] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -19,19 +24,41 @@ export const NewTicket: React.FC = () => {
   useEffect(() => {
     // Tải danh sách đơn hàng gần đây của khách
     orderService
-      .getUserOrders(1, 10)
+      .getUserOrders(1, 20)
       .then((res: any) => {
-        if (res?.items) setOrders(res.items);
-        else if (res?.data?.items) setOrders(res.data.items);
-        else if (Array.isArray(res?.data)) setOrders(res.data);
+        const orderList = res?.items || res?.data?.items || (Array.isArray(res?.data) ? res.data : []);
+        setOrders(orderList);
+        if (orderIdFromUrl) {
+          setRelatedOrderId(orderIdFromUrl);
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [orderIdFromUrl]);
+
+  const selectedOrder = orders.find((o) => o.id === relatedOrderId);
+
+  const formatOrderOption = (order: any) => {
+    const shortId = (order.order_number || order.id.slice(0, 8)).toUpperCase();
+    const dateStr = order.created_at
+      ? new Date(order.created_at).toLocaleDateString("vi-VN")
+      : "";
+    const priceStr = order.total_amount
+      ? Number(order.total_amount).toLocaleString("vi-VN") + " đ"
+      : "";
+    const firstItem = order.items?.[0]?.product_name_snapshot || order.items?.[0]?.name || "";
+    const moreCount = (order.items?.length || 0) > 1 ? ` (+${order.items.length - 1} sp)` : "";
+    const itemText = firstItem ? ` - [${firstItem.length > 22 ? firstItem.slice(0, 22) + "..." : firstItem}${moreCount}]` : "";
+    return `Đơn #${shortId} (${dateStr}) - ${priceStr}${itemText}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim() || !content.trim()) {
-      setError("Vui lòng điền đầy đủ tiêu đề và nội dung yêu cầu.");
+    if (subject.trim().length < 2) {
+      setError("Vui lòng nhập tiêu đề vấn đề (ít nhất 2 ký tự).");
+      return;
+    }
+    if (content.trim().length < 2) {
+      setError("Vui lòng nhập nội dung chi tiết (ít nhất 2 ký tự).");
       return;
     }
 
@@ -39,14 +66,21 @@ export const NewTicket: React.FC = () => {
       setLoading(true);
       setError(null);
       const ticket = await supportService.createTicket({
-        subject,
+        subject: subject.trim(),
         category,
-        content,
-        related_order_id: relatedOrderId || undefined
+        content: content.trim(),
+        related_order_id: relatedOrderId || undefined,
+        customer_name: user?.full_name || undefined,
+        customer_email: user?.email || undefined
       });
       setCreatedTicketNumber(ticket.ticket_number);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Không thể tạo yêu cầu hỗ trợ. Vui lòng thử lại.");
+      const backendErrors = err?.response?.data?.errors;
+      if (Array.isArray(backendErrors) && backendErrors.length > 0) {
+        setError(backendErrors.map((e: any) => e.message).join(". "));
+      } else {
+        setError(err?.response?.data?.message || "Không thể tạo yêu cầu hỗ trợ. Vui lòng thử lại.");
+      }
     } finally {
       setLoading(false);
     }
@@ -148,10 +182,47 @@ export const NewTicket: React.FC = () => {
             </div>
           </div>
 
+          {/* Selected Order Preview */}
+          {selectedOrder && (
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-blue-900 flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  Đơn hàng #{selectedOrder.id.slice(0, 8).toUpperCase()}
+                </span>
+                <span className="text-gray-500 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {new Date(selectedOrder.created_at).toLocaleDateString("vi-VN")}
+                </span>
+              </div>
+              <div className="text-gray-700">
+                <p className="font-medium text-gray-800 mb-1">Sản phẩm trong đơn:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-gray-600">
+                  {selectedOrder.items?.map((item: any, idx: number) => (
+                    <li key={idx} className="truncate">
+                      <span className="font-medium text-gray-800">{item.product_name_snapshot}</span> (x{item.quantity}) - {Number(item.line_total || item.unit_price_snapshot).toLocaleString("vi-VN")} đ
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex items-center justify-between pt-1.5 border-t border-blue-200/60">
+                <span className="text-gray-600">Tổng thanh toán:</span>
+                <span className="font-bold text-blue-700 text-sm">
+                  {Number(selectedOrder.total_amount).toLocaleString("vi-VN")} đ
+                </span>
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nội dung chi tiết <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Nội dung chi tiết <span className="text-red-500">*</span>
+              </label>
+              <span className="text-xs text-gray-400">
+                {content.length > 0 ? `${content.length} ký tự` : "Tối thiểu 2 ký tự"}
+              </span>
+            </div>
             <textarea
               rows={5}
               value={content}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Heart,
   ShoppingCart,
@@ -32,6 +32,7 @@ import SimilarProducts from "@/components/SimilarProducts";
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addItem } = useCartStore();
   const { isAuthenticated } = useAuthStore();
   const [product, setProduct] = useState<CatalogProduct | null>(null);
@@ -165,7 +166,7 @@ export default function ProductDetail() {
   const handleAddToCart = async (showToastMessage = true) => {
     if (!isAuthenticated) {
       toast.error("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng");
-      navigate("/login");
+      navigate("/login", { state: { from: location } });
       return false;
     }
     if (!product) return false;
@@ -195,7 +196,7 @@ export default function ProductDetail() {
   const handleBuyNow = async () => {
     if (!isAuthenticated) {
       toast.error("Vui lòng đăng nhập để mua ngay");
-      navigate("/login");
+      navigate("/login", { state: { from: location } });
       return;
     }
     if (!product) return;
